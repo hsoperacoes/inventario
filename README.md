@@ -139,6 +139,7 @@
   </div>
 
   <script>
+    // COLE O SEU LINK DO GOOGLE APPS SCRIPT AQUI (O QUE TERMINA EM /exec)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
     
     let currentUser = "";
@@ -163,69 +164,73 @@
       }
     }
 
-    async function callAPI(payload) {
-      const response = await fetch(WEB_APP_URL, {
-        method: "POST",
-        mode: "no-cors", // Necessário para redirecionamentos do Google
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(payload)
-      });
-      // Como o Google usa redirecionamentos e o no-cors não permite ler a resposta,
-      // em um ambiente real de Web App, o ideal é usar google.script.run se estiver no mesmo projeto.
-      // Mas para link externo, vamos usar uma abordagem de fallback ou google.script.run se disponível.
-      
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[payload.api](...Object.values(payload).slice(1));
-        });
-      } else {
-        // Fallback para fetch se não estiver no ambiente do Apps Script
-        const resp = await fetch(WEB_APP_URL, {
+    // Função para chamar o Google Apps Script via Fetch (CORS-friendly)
+    async function callGAS(payload) {
+      try {
+        const response = await fetch(WEB_APP_URL, {
           method: "POST",
           body: JSON.stringify(payload)
         });
-        return await resp.json();
+        return await response.json();
+      } catch (err) {
+        console.error("Erro na chamada GAS:", err);
+        throw err;
       }
     }
 
     // MASTER LOGIC
-    function doMasterLogin() {
+    async function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
       if(!pass) return alert("Digite a senha");
       setBtnLoading('btn-master-login', true);
       
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await callGAS({ api: 'masterLogin', senha: pass });
         setBtnLoading('btn-master-login', false, 'Entrar');
         if(res.success) showScreen('master-panel');
         else alert(res.message);
-      }).masterLogin(pass);
+      } catch (e) {
+        setBtnLoading('btn-master-login', false, 'Entrar');
+        alert("Erro ao conectar com o Google Script. Verifique se o link está correto e se você fez o Deploy como 'Qualquer pessoa'.");
+      }
     }
 
-    function doCreateInventory() {
+    async function doCreateInventory() {
       const name = document.getElementById('inv-name').value;
       const pass = document.getElementById('inv-pass').value;
       if(!name || !pass) return alert("Preencha todos os campos");
       setBtnLoading('btn-create-inv', true);
       
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
         setBtnLoading('btn-create-inv', false, 'Criar Inventário');
         if(res.success) { alert("Inventário criado!"); showScreen('main-menu'); }
         else alert(res.message);
-      }).criarNovoInventario(name, pass);
+      } catch (e) {
+        setBtnLoading('btn-create-inv', false, 'Criar Inventário');
+        alert("Erro ao criar inventário.");
+      }
     }
 
-    function showConferentePanel() {
+    async function showConferentePanel() {
       setBtnLoading('btn-open-conf', true);
-      google.script.run.withSuccessHandler(list => {
+      try {
+        // Para listar usamos GET para ser mais simples
+        const resp = await fetch(WEB_APP_URL + "?api=listarInventariosAbertos");
+        const list = await resp.json();
+        
         setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
         const select = document.getElementById('inv-select');
         if(!list || list.length === 0) return alert("Não há inventários abertos.");
         select.innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
         showScreen('conferente-login');
-      }).listarInventariosAbertos();
+      } catch (e) {
+        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
+        alert("Erro ao buscar inventários.");
+      }
     }
 
-    function doConferenteLogin() {
+    async function doConferenteLogin() {
       const name = document.getElementById('conf-name').value;
       const invId = document.getElementById('inv-select').value;
       const invPass = document.getElementById('conf-inv-pass').value;
@@ -233,7 +238,8 @@
       if(!name || !invPass || !section) return alert("Preencha todos os campos");
       setBtnLoading('btn-conf-login', true);
       
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
         setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
         if(res.success) {
           currentUser = name; currentSection = section; currentInvId = invId; currentInvName = res.nomeInventario;
@@ -242,7 +248,10 @@
           document.getElementById('active-inv-title').textContent = res.nomeInventario;
           showScreen('counting-panel');
         } else alert(res.message);
-      }).validarAcessoInventario(invId, invPass);
+      } catch (e) {
+        setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
+        alert("Erro ao validar acesso.");
+      }
     }
 
     function startScanner() {
@@ -256,31 +265,39 @@
       else document.getElementById('scanner-overlay').style.display = 'none';
     }
 
-    function processBipe(ean) {
+    async function processBipe(ean) {
       if(window.isProcessing) return;
       window.isProcessing = true;
       const msg = document.getElementById('scanner-msg');
       msg.textContent = "Registrando: " + ean;
       msg.style.color = "#673ab7";
 
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
         window.isProcessing = false;
         if(res.success) {
           msg.textContent = "✅ OK: " + ean; msg.style.color = "#4caf50";
           if(navigator.vibrate) navigator.vibrate(50);
           setTimeout(() => { msg.textContent = ""; }, 1000);
         } else alert("Erro: " + res.message);
-      }).registrarBipeInventario({ ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
+      } catch (e) {
+        window.isProcessing = false;
+        alert("Erro de conexão ao registrar bipe.");
+      }
     }
 
-    function doConcluirSecao() {
+    async function doConcluirSecao() {
       if(!confirm("Deseja concluir esta seção?")) return;
       setBtnLoading('btn-concluir', true);
-      google.script.run.withSuccessHandler(res => {
+      try {
+        const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, nomeInventario: currentInvName });
         setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
         if(res.success) { alert("Seção concluída! " + res.count + " itens."); showScreen('main-menu'); }
         else alert("Erro: " + res.message);
-      }).concluirSecao(currentUser, currentInvName);
+      } catch (e) {
+        setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
+        alert("Erro ao concluir seção.");
+      }
     }
   </script>
 </body>
