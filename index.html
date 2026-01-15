@@ -98,8 +98,10 @@
       border-radius: 8px !important;
       line-height: 1 !important;
       gap: 6px !important;
+      margin-top:0 !important;
+      white-space: nowrap;
     }
-    .mini-btn.btn-secundario{ background:#2d2d2d; margin-top:0 !important; }
+    .mini-btn.btn-secundario{ background:#2d2d2d; }
     .mini-btn.btn-danger{ background: var(--danger); }
 
     .hint {
@@ -108,6 +110,27 @@
       text-align: center;
       margin-top: -10px;
       margin-bottom: 15px;
+    }
+
+    /* contador do conferente */
+    .count-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:#111;
+      border:1px solid #2a2a2a;
+      padding:10px 12px;
+      border-radius: 14px;
+      margin: 12px 0 4px;
+      width: 100%;
+      justify-content: center;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+    .count-pill small{
+      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: 0;
     }
   </style>
 </head>
@@ -183,7 +206,7 @@
 
     <div class="card" style="background: #1a1a1a; padding: 15px; border-radius: 15px; margin-bottom: 20px;">
       <h3 style="font-size:16px; margin-top:0; color: var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário</h3>
-      <div class="hint">Ao finalizar um usuário aqui, a seção dele é BLOQUEADA e ele precisa iniciar nova seção.</div>
+      <div class="hint">Finalizar bloqueia a seção do usuário. “Manual” adiciona item direto na aba dele.</div>
       <div id="list-usuarios"></div>
     </div>
 
@@ -225,9 +248,16 @@
   <!-- SCANNER ATIVO -->
   <div class="container hidden" id="counting-panel">
     <h2 id="active-inv-title">...</h2>
+
+    <div class="count-pill">
+      <small>Peças bipadas (banco):</small>
+      <span id="user-count">0</span>
+    </div>
+
     <div class="card" style="font-size:14px;">
       <p><strong>Conferente:</strong> <span id="display-name"></span> | <strong>Seção:</strong> <span id="display-section"></span></p>
     </div>
+
     <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
     <button class="btn-secundario btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR SEÇÃO</button>
     <button class="btn-secundario" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
@@ -248,13 +278,36 @@
     let currentUser = "", currentSection = "", currentInvName = "", currentInvId = "", html5QrCode = null;
     let refreshInterval = null;
 
+    let userCountTimer = null;
+
     const LS_KEY = "HS_INV_SESSAO_01";
+
+    // beep simples (sem arquivo)
+    let audioCtx = null;
+    function bip() {
+      try {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = "square";
+        o.frequency.value = 880;
+        g.gain.value = 0.05;
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        setTimeout(()=>{ try{o.stop();}catch(_){} }, 80);
+      } catch(_){}
+    }
 
     function showScreen(id) {
       document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
+
       if(id === 'master-panel') startRealTime();
       else stopRealTime();
+
+      if(id === 'counting-panel') startUserCountAuto();
+      else stopUserCountAuto();
     }
 
     function startRealTime() {
@@ -367,6 +420,29 @@
     }
 
     // =========================
+    // CONTADOR (SEMPRE DO BANCO)
+    // =========================
+    async function atualizarContadorBanco() {
+      if(!currentInvId || !currentUser) return;
+      try {
+        const res = await callGAS({ api: 'getUserOpenCount', idInventario: currentInvId, usuario: currentUser });
+        if(res && res.success) {
+          document.getElementById('user-count').textContent = String(res.count || 0);
+        }
+      } catch(_) {}
+    }
+
+    function startUserCountAuto() {
+      atualizarContadorBanco();
+      if(userCountTimer) clearInterval(userCountTimer);
+      userCountTimer = setInterval(atualizarContadorBanco, 3000); // a cada 3s pra bater com banco
+    }
+
+    function stopUserCountAuto() {
+      if(userCountTimer) { clearInterval(userCountTimer); userCountTimer = null; }
+    }
+
+    // =========================
     // MASTER
     // =========================
     async function doMasterLogin() {
@@ -379,6 +455,8 @@
       setBtnLoading('btn-master-login', false, 'ENTRAR NO PAINEL');
     }
 
+    let invNameById = {};
+
     async function loadDashboard() {
       try {
         const res = await callGAS({ api: 'getDashboardData' });
@@ -386,19 +464,30 @@
           document.getElementById('stat-total').textContent = res.totalConsolidado;
           document.getElementById('stat-aberto').textContent = res.totalEmAberto;
 
-          document.getElementById('list-usuarios').innerHTML = (res.usuariosAtivos || []).map(u => `
-            <div class="list-item">
-              <span style="display:flex; align-items:center; gap:8px; flex:1;">
-                <i class="fas fa-user"></i> ${u.nome}
-                <small style="color:var(--text-dim); font-size:11px;">(INV: ${u.idInventario})</small>
-                ${u.bloqueado ? `<small style="color:#ff9800; font-size:11px;">(BLOQUEADO)</small>` : ``}
-              </span>
-              <div style="display:flex; gap:6px; align-items:center;">
-                <span class="badge">${u.bipes} bipes</span>
-                <button class="mini-btn" onclick="masterConcluirUsuario('${String(u.nome).replace(/'/g,"\\'")}', '${String(u.idInventario).replace(/'/g,"\\'")}')">Finalizar</button>
+          invNameById = {};
+          (res.inventarios || []).forEach(i => { invNameById[String(i.id)] = i.nome; });
+
+          document.getElementById('list-usuarios').innerHTML = (res.usuariosAtivos || []).map(u => {
+            const uNome = String(u.nome || '');
+            const invId = String(u.idInventario || '');
+            const invNome = invNameById[invId] || ('INV ' + invId);
+            const safeNome = uNome.replace(/'/g,"\\'");
+            const safeInv = invId.replace(/'/g,"\\'");
+            return `
+              <div class="list-item">
+                <span style="display:flex; align-items:center; gap:8px; flex:1;">
+                  <i class="fas fa-user"></i> ${uNome}
+                  <small style="color:var(--text-dim); font-size:11px;">(${invNome})</small>
+                  ${u.bloqueado ? `<small style="color:#ff9800; font-size:11px;">(BLOQUEADO)</small>` : ``}
+                </span>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap: wrap; justify-content:flex-end;">
+                  <span class="badge">${u.bipes} bipes</span>
+                  <button class="mini-btn" onclick="masterConcluirUsuario('${safeNome}', '${safeInv}')">Finalizar</button>
+                  <button class="mini-btn btn-secundario" onclick="masterAddManual('${safeNome}', '${safeInv}')">Manual</button>
+                </div>
               </div>
-            </div>
-          `).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipes em aberto no momento.</p>';
+            `;
+          }).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipes em aberto no momento.</p>';
 
           document.getElementById('list-inventarios').innerHTML = (res.inventarios || []).map(i => `
             <div class="list-item" style="border-left-color: ${i.status === 'ABERTO' ? 'var(--success)' : '#555'}">
@@ -416,7 +505,7 @@
     }
 
     async function finalizarInv(id) {
-      if(confirm("Fechar este inventário?\nIsso vai:\n- Bloquear geral\n- Arquivar o consolidado numa aba com o nome do inventário\n- APAGAR as abas USER desse inventário")) {
+      if(confirm("Fechar este inventário?\nIsso vai:\n- Arquivar o consolidado numa aba com o nome do inventário\n- APAGAR as abas USER desse inventário")) {
         const res = await callGAS({ api: 'finalizarInventario', id });
         if(res && res.success) {
           alert((res.message || "Inventário finalizado.") + "\n\nAba: " + (res.abaCriada || "-") + "\nItens movidos: " + (res.itensMovidos || 0) + "\nUsers apagados: " + (res.abasUsersApagadas || 0));
@@ -446,14 +535,34 @@
     }
 
     async function masterConcluirUsuario(usuario, invId) {
-      if(!confirm(`Finalizar seção do usuário "${usuario}" no inventário ID "${invId}"?\nEle será bloqueado até iniciar nova seção.`)) return;
+      if(!confirm(`Finalizar seção do usuário "${usuario}"?\nEle será bloqueado até iniciar nova seção.`)) return;
       try {
         const res = await callGAS({ api: 'masterConcluirSecao', usuario, idInventario: invId });
         if(res && res.success) {
-          alert("Finalizado! " + (res.count || 0) + " itens movidos.\nUsuário bloqueado para iniciar nova seção.");
+          alert("Finalizado! " + (res.count || 0) + " itens movidos.\nUsuário bloqueado.");
           loadDashboard();
         } else {
           alert((res && res.message) ? res.message : "Erro ao concluir.");
+        }
+      } catch(e) {
+        alert("Erro: " + e);
+      }
+    }
+
+    async function masterAddManual(usuario, invId) {
+      const ean = prompt(`Incluir código manual para "${usuario}" (EAN):`);
+      if(!ean) return;
+
+      const secao = "MANUAL_LEO";
+
+      try {
+        const res = await callGAS({ api: 'masterAddManualCode', usuario, idInventario: invId, ean, secao });
+        if(res && res.success) {
+          alert("Incluído com sucesso.");
+          loadDashboard();
+        } else {
+          if(res && res.code === 'INVENTARIO_ENCERRADO') alert(res.message || "Inventário encerrado.");
+          else alert((res && res.message) ? res.message : "Erro ao incluir.");
         }
       } catch(e) {
         alert("Erro: " + e);
@@ -494,6 +603,7 @@
       if(!name || !invPass || !section) return alert("Preencha tudo");
 
       setBtnLoading('btn-conf-login', true);
+
       const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
 
       if(res && res.code === 'INVENTARIO_ENCERRADO') {
@@ -504,7 +614,6 @@
       }
 
       if(res && res.success) {
-        // ✅ ao iniciar seção, DESBLOQUEIA no GAS
         const r2 = await callGAS({ api: 'iniciarSecao', usuario: name, idInventario: invId, secao: section });
         if(r2 && !r2.success) {
           alert(r2.message || "Erro ao iniciar seção.");
@@ -523,6 +632,9 @@
 
         salvarSessaoLocal();
         showScreen('counting-panel');
+
+        // ✅ pega o contador do banco logo que entrar
+        atualizarContadorBanco();
       } else {
         alert(res && res.message ? res.message : "Erro no login.");
       }
@@ -547,9 +659,8 @@
     }
 
     function forcarNovaSecao(msg) {
-      try { stopScanner(); } catch(_) {}
+      try { stopScanner(); } catch(_){}
       alert(msg || "Sua seção foi finalizada pelo administrador. Favor iniciar uma nova seção para continuidade do inventário.");
-      // volta para tela do conferente para ele criar nova seção
       showConferentePanel();
     }
 
@@ -582,8 +693,15 @@
       if(res && res.success) {
         msg.textContent = "✅ REGISTRADO: " + ean;
         msg.style.color = "var(--success)";
-        if(navigator.vibrate) navigator.vibrate(50);
-        setTimeout(() => msg.textContent = "", 1000);
+
+        // ✅ som + vibra
+        bip();
+        if(navigator.vibrate) navigator.vibrate(60);
+
+        // ✅ atualiza contador DO BANCO (não local)
+        atualizarContadorBanco();
+
+        setTimeout(() => msg.textContent = "", 800);
       } else {
         if(res && res.code === 'INVENTARIO_ENCERRADO') {
           alert(res.message || "O administrador encerrou o inventário.");
@@ -595,7 +713,6 @@
         }
 
         if(res && res.code === 'SECAO_FECHADA') {
-          // ✅ trava e força criar nova seção
           forcarNovaSecao(res.message);
           return;
         }
