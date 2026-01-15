@@ -15,7 +15,7 @@
     }
     .container{
       width:100%;max-width:600px;background:#2c2c2c;
-      padding:30px 20px;border-radius:12px;box-shadow:0 0 10px rgba(0,0,0,.5);
+      padding:30px 20px;border-radius:12px;box-shadow:0 0 10px rgba(0,0,0,.5 );
       margin:20px 10px;
     }
     .form-group{margin-bottom:15px}
@@ -139,7 +139,7 @@
   </div>
 
   <script>
-    // COLE O SEU LINK DO GOOGLE APPS SCRIPT AQUI (O QUE TERMINA EM /exec)
+    // VERIFIQUE SE ESTE LINK É O SEU LINK DO GOOGLE SCRIPT (/exec)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
     
     let currentUser = "";
@@ -148,7 +148,7 @@
     let currentInvName = "";
     let html5QrCode = null;
 
-    function showScreen(id) {
+    function showScreen(id ) {
       document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -164,26 +164,41 @@
       }
     }
 
-    // Função para chamar o Google Apps Script via Fetch (CORS-friendly)
-    async function callGAS(payload) {
-      try {
-        const response = await fetch(WEB_APP_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        return await response.json();
-      } catch (err) {
-        console.error("Erro na chamada GAS:", err);
-        throw err;
-      }
+    // FUNÇÃO JSONP PARA FUNCIONAR NO GITHUB SEM ERRO DE CONEXÃO
+    function callGAS(params) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+          delete window[callbackName];
+          document.body.removeChild(script);
+          resolve(data);
+        };
+
+        const script = document.createElement('script');
+        let url = WEB_APP_URL + '?callback=' + callbackName;
+        for (let key in params) {
+          url += '&' + key + '=' + encodeURIComponent(params[key]);
+        }
+        script.src = url;
+        script.onerror = () => {
+          delete window[callbackName];
+          reject("Erro de conexão. Verifique o link do Script.");
+        };
+        document.body.appendChild(script);
+        
+        setTimeout(() => {
+          if (window[callbackName]) {
+            delete window[callbackName];
+            reject("Tempo esgotado. O Script não respondeu.");
+          }
+        }, 20000);
+      });
     }
 
-    // MASTER LOGIC
     async function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
       if(!pass) return alert("Digite a senha");
       setBtnLoading('btn-master-login', true);
-      
       try {
         const res = await callGAS({ api: 'masterLogin', senha: pass });
         setBtnLoading('btn-master-login', false, 'Entrar');
@@ -191,7 +206,7 @@
         else alert(res.message);
       } catch (e) {
         setBtnLoading('btn-master-login', false, 'Entrar');
-        alert("Erro ao conectar com o Google Script. Verifique se o link está correto e se você fez o Deploy como 'Qualquer pessoa'.");
+        alert(e);
       }
     }
 
@@ -200,7 +215,6 @@
       const pass = document.getElementById('inv-pass').value;
       if(!name || !pass) return alert("Preencha todos os campos");
       setBtnLoading('btn-create-inv', true);
-      
       try {
         const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
         setBtnLoading('btn-create-inv', false, 'Criar Inventário');
@@ -208,17 +222,14 @@
         else alert(res.message);
       } catch (e) {
         setBtnLoading('btn-create-inv', false, 'Criar Inventário');
-        alert("Erro ao criar inventário.");
+        alert(e);
       }
     }
 
     async function showConferentePanel() {
       setBtnLoading('btn-open-conf', true);
       try {
-        // Para listar usamos GET para ser mais simples
-        const resp = await fetch(WEB_APP_URL + "?api=listarInventariosAbertos");
-        const list = await resp.json();
-        
+        const list = await callGAS({ api: 'listarInventariosAbertos' });
         setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
         const select = document.getElementById('inv-select');
         if(!list || list.length === 0) return alert("Não há inventários abertos.");
@@ -226,7 +237,7 @@
         showScreen('conferente-login');
       } catch (e) {
         setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
-        alert("Erro ao buscar inventários.");
+        alert(e);
       }
     }
 
@@ -237,7 +248,6 @@
       const section = document.getElementById('conf-section').value;
       if(!name || !invPass || !section) return alert("Preencha todos os campos");
       setBtnLoading('btn-conf-login', true);
-      
       try {
         const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
         setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
@@ -250,7 +260,7 @@
         } else alert(res.message);
       } catch (e) {
         setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
-        alert("Erro ao validar acesso.");
+        alert(e);
       }
     }
 
@@ -271,7 +281,6 @@
       const msg = document.getElementById('scanner-msg');
       msg.textContent = "Registrando: " + ean;
       msg.style.color = "#673ab7";
-
       try {
         const res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
         window.isProcessing = false;
@@ -282,7 +291,7 @@
         } else alert("Erro: " + res.message);
       } catch (e) {
         window.isProcessing = false;
-        alert("Erro de conexão ao registrar bipe.");
+        alert(e);
       }
     }
 
@@ -296,7 +305,7 @@
         else alert("Erro: " + res.message);
       } catch (e) {
         setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
-        alert("Erro ao concluir seção.");
+        alert(e);
       }
     }
   </script>
