@@ -16,8 +16,9 @@
       --text-dim: #b0b0b0;
       --success: #4caf50;
       --danger: #f44336;
+      --warning: #ff9800;
     }
-    *{box-sizing:border-box; transition: all 0.3s ease;}
+    *{box-sizing:border-box; transition: all 0.2s ease;}
     body{
       font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       background: var(--bg); color: var(--text); margin:0; padding:0;
@@ -63,15 +64,24 @@
     
     /* Dashboard Master */
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-    .stat-box { background: #121212; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+    .stat-box { background: #121212; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; position: relative; }
     .stat-box span { display: block; font-size: 24px; font-weight: 800; color: var(--primary); }
     .stat-box label { font-size: 11px; text-transform: uppercase; margin: 0; }
     
     .list-item {
       background: #121212; padding: 12px; border-radius: 8px; margin-bottom: 8px;
       display: flex; justify-content: space-between; align-items: center; font-size: 14px;
+      border-left: 4px solid var(--primary);
     }
-    .badge { background: var(--primary); padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+    .badge { background: var(--warning); color: #000; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+
+    /* Real-time indicator */
+    .live-indicator {
+      display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--success);
+      justify-content: center; margin-bottom: 10px; text-transform: uppercase; font-weight: bold;
+    }
+    .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
     /* Scanner */
     #scanner-overlay{
@@ -89,7 +99,7 @@
 </head>
 <body>
 
-  <!-- HOME MELHORADA -->
+  <!-- HOME -->
   <div class="container" id="main-menu">
     <h2>HS INVENTÁRIO PRO</h2>
     <p style="text-align:center; color:var(--text-dim); font-size:14px; margin-bottom:25px;">Selecione o modo de operação</p>
@@ -126,6 +136,7 @@
 
   <!-- DASHBOARD MASTER -->
   <div class="container hidden" id="master-panel" style="max-width: 800px;">
+    <div class="live-indicator"><div class="dot"></div> Monitoramento em Tempo Real Ativo</div>
     <h2>PAINEL DO LEONARDO</h2>
     
     <div class="stats-grid">
@@ -135,20 +146,20 @@
 
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
-      <button style="flex:1" class="btn-secundario" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
+      <button style="flex:1" class="btn-secundario" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar Agora</button>
     </div>
 
-    <div class="card">
-      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-users"></i> Usuários Ativos</h3>
+    <div class="card" style="background: #1a1a1a; padding: 15px; border-radius: 15px; margin-bottom: 20px;">
+      <h3 style="font-size:16px; margin-top:0; color: var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário</h3>
       <div id="list-usuarios"></div>
     </div>
 
-    <div class="card">
-      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-history"></i> Inventários</h3>
+    <div class="card" style="background: #1a1a1a; padding: 15px; border-radius: 15px;">
+      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-list-check"></i> Gestão de Inventários</h3>
       <div id="list-inventarios"></div>
     </div>
 
-    <button class="btn-secundario" onclick="showScreen('main-menu')">SAIR DO PAINEL</button>
+    <button class="btn-secundario" style="margin-top: 20px;" onclick="stopRealTime(); showScreen('main-menu');">SAIR DO PAINEL</button>
   </div>
 
   <!-- CRIAR INVENTÁRIO -->
@@ -199,11 +210,27 @@
   <script>
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
     let currentUser = "", currentSection = "", currentInvName = "", html5QrCode = null;
+    let refreshInterval = null;
 
     function showScreen(id) {
       document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
-      if(id === 'master-panel') loadDashboard();
+      if(id === 'master-panel') startRealTime();
+      else stopRealTime();
+    }
+
+    function startRealTime() {
+      loadDashboard(); // Primeira carga
+      if(!refreshInterval) {
+        refreshInterval = setInterval(loadDashboard, 10000); // Atualiza a cada 10 segundos
+      }
+    }
+
+    function stopRealTime() {
+      if(refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
     }
 
     function setBtnLoading(id, isLoading, text) {
@@ -246,11 +273,14 @@
           document.getElementById('stat-aberto').textContent = res.totalEmAberto;
           
           document.getElementById('list-usuarios').innerHTML = res.usuariosAtivos.map(u => `
-            <div class="list-item"><span>${u.nome}</span><span class="badge">${u.bipes} bipes</span></div>
-          `).join('') || '<p style="font-size:12px; color:gray">Nenhum usuário ativo.</p>';
+            <div class="list-item">
+              <span><i class="fas fa-user"></i> ${u.nome}</span>
+              <span class="badge">${u.bipes} bipes</span>
+            </div>
+          `).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipes em aberto no momento.</p>';
 
           document.getElementById('list-inventarios').innerHTML = res.inventarios.map(i => `
-            <div class="list-item">
+            <div class="list-item" style="border-left-color: ${i.status === 'ABERTO' ? 'var(--success)' : '#555'}">
               <div><strong>${i.nome}</strong><br><small>${i.status}</small></div>
               <div style="display:flex; gap:5px;">
                 ${i.status === 'ABERTO' ? `<button onclick="finalizarInv('${i.id}')" style="padding:5px 10px; font-size:10px;">Fechar</button>` : ''}
@@ -259,7 +289,7 @@
             </div>
           `).join('');
         }
-      } catch(e) { console.error(e); }
+      } catch(e) { console.error("Erro no refresh:", e); }
     }
 
     async function finalizarInv(id) { if(confirm("Fechar este inventário?")) { await callGAS({ api: 'finalizarInventario', id }); loadDashboard(); } }
@@ -276,10 +306,17 @@
 
     // CONFERENTE
     async function showConferentePanel() {
-      const list = await callGAS({ api: 'listarInventariosAbertos' });
-      if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
-      document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
-      showScreen('conferente-login');
+      setBtnLoading('btn-open-conf', true);
+      try {
+        const list = await callGAS({ api: 'listarInventariosAbertos' });
+        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
+        if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
+        document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+        showScreen('conferente-login');
+      } catch(e) { 
+        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
+        alert("Erro ao carregar inventários."); 
+      }
     }
 
     async function doConferenteLogin() {
