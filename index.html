@@ -106,6 +106,14 @@
     }
     .mini-btn.btn-secundario{ background:#2d2d2d; margin-top:0 !important; }
     .mini-btn.btn-danger{ background: var(--danger); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: -10px;
+      margin-bottom: 15px;
+    }
   </style>
 </head>
 <body>
@@ -132,6 +140,24 @@
         <div>
           <h3>Iniciar Contagem</h3>
           <p>Acesse um inventário aberto para bipar produtos.</p>
+        </div>
+      </div>
+
+      <!-- ✅ CONTINUAR (LOCALSTORAGE) -->
+      <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;">
+        <i class="fas fa-rotate-left"></i>
+        <div>
+          <h3>Continuar Última Contagem</h3>
+          <p id="continuar-desc">Retomar inventário e usuário já preenchidos.</p>
+        </div>
+      </div>
+
+      <!-- ✅ LIMPAR SESSÃO -->
+      <div class="home-card" id="card-limpar" onclick="limparSessao()" style="display:none;">
+        <i class="fas fa-trash"></i>
+        <div>
+          <h3>Limpar Sessão</h3>
+          <p>Apaga a última contagem salva deste dispositivo.</p>
         </div>
       </div>
     </div>
@@ -167,6 +193,7 @@
       <h3 style="font-size:16px; margin-top:0; color: var(--warning);">
         <i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário
       </h3>
+      <div class="hint">Agora os usuários ficam vinculados ao inventário. Você consegue finalizar a seção de cada um.</div>
       <div id="list-usuarios"></div>
     </div>
 
@@ -200,6 +227,7 @@
     <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
     <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass" /></div>
     <div class="form-group"><label>Seção</label><input type="text" id="conf-section" placeholder="Ex: Corredor 01" /></div>
+
     <button id="btn-conf-login" onclick="doConferenteLogin()">INICIAR SCANNER</button>
     <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
   </div>
@@ -212,6 +240,7 @@
     </div>
     <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
     <button class="btn-secundario btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR SEÇÃO</button>
+    <button class="btn-secundario" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
   </div>
 
   <!-- SCANNER OVERLAY -->
@@ -226,8 +255,11 @@
   <script>
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
 
-    let currentUser = "", currentSection = "", currentInvName = "", html5QrCode = null;
+    // ✅ Agora guardamos também o ID do inventário
+    let currentUser = "", currentSection = "", currentInvName = "", currentInvId = "", html5QrCode = null;
     let refreshInterval = null;
+
+    const LS_KEY = "HS_INV_SESSAO_01";
 
     function showScreen(id) {
       document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
@@ -238,16 +270,11 @@
 
     function startRealTime() {
       loadDashboard();
-      if(!refreshInterval) {
-        refreshInterval = setInterval(loadDashboard, 10000);
-      }
+      if(!refreshInterval) refreshInterval = setInterval(loadDashboard, 10000);
     }
 
     function stopRealTime() {
-      if(refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-      }
+      if(refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
     }
 
     function setBtnLoading(id, isLoading, text) {
@@ -283,7 +310,90 @@
       });
     }
 
+    // =========================
+    // ✅ SESSÃO LOCAL (retomar)
+    // =========================
+    function salvarSessaoLocal() {
+      try{
+        const obj = {
+          user: currentUser || "",
+          section: currentSection || "",
+          invId: currentInvId || "",
+          invName: currentInvName || "",
+          ts: Date.now()
+        };
+        localStorage.setItem(LS_KEY, JSON.stringify(obj));
+        atualizarCardsSessao();
+      }catch(_){}
+    }
+
+    function lerSessaoLocal() {
+      try{
+        const raw = localStorage.getItem(LS_KEY);
+        if(!raw) return null;
+        const obj = JSON.parse(raw);
+        if(!obj || !obj.invId || !obj.user) return null;
+        return obj;
+      }catch(_){ return null; }
+    }
+
+    function limparSessao() {
+      if(!confirm("Apagar a última contagem salva deste dispositivo?")) return;
+      try{ localStorage.removeItem(LS_KEY); }catch(_){}
+      atualizarCardsSessao();
+      alert("Sessão apagada.");
+    }
+
+    function atualizarCardsSessao() {
+      const s = lerSessaoLocal();
+      const card = document.getElementById("card-continuar");
+      const card2 = document.getElementById("card-limpar");
+      if(!s) {
+        card.style.display = "none";
+        card2.style.display = "none";
+        return;
+      }
+      card.style.display = "flex";
+      card2.style.display = "flex";
+      document.getElementById("continuar-desc").textContent =
+        `Inventário: ${s.invName} | Usuário: ${s.user} | Seção: ${s.section}`;
+    }
+
+    async function continuarUltimaContagem() {
+      const s = lerSessaoLocal();
+      if(!s) return alert("Não existe sessão salva.");
+
+      // carrega inventários abertos, seleciona o invId e preenche tudo
+      try {
+        const list = await callGAS({ api: 'listarInventariosAbertos' });
+        if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
+        document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+
+        // tenta selecionar o inventário salvo (se ainda estiver aberto)
+        const sel = document.getElementById('inv-select');
+        const has = list.some(i => String(i.id) === String(s.invId));
+        if(has) sel.value = s.invId;
+
+        document.getElementById('conf-name').value = s.user || "";
+        document.getElementById('conf-section').value = s.section || "";
+        document.getElementById('conf-inv-pass').value = ""; // senha não guarda
+
+        showScreen('conferente-login');
+      } catch(e) {
+        alert("Erro ao carregar inventários.");
+      }
+    }
+
+    function voltarSemPerderSessao() {
+      // não limpa a sessão, só volta pro menu
+      stopScanner();
+      showScreen('main-menu');
+      atualizarCardsSessao();
+    }
+
+    // =========================
     // MASTER
+    // =========================
     async function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
       setBtnLoading('btn-master-login', true);
@@ -301,24 +411,24 @@
           document.getElementById('stat-total').textContent = res.totalConsolidado;
           document.getElementById('stat-aberto').textContent = res.totalEmAberto;
 
-          // ✅ usuários com botão "Finalizar (Master)"
+          // ✅ Master finaliza seção do usuário (por idInventario + nome)
           document.getElementById('list-usuarios').innerHTML = (res.usuariosAtivos || []).map(u => `
             <div class="list-item">
-              <span style="display:flex; align-items:center; gap:8px;">
+              <span style="display:flex; align-items:center; gap:8px; flex:1;">
                 <i class="fas fa-user"></i> ${u.nome}
+                <small style="color:var(--text-dim); font-size:11px;">(INV: ${u.idInventario})</small>
               </span>
               <div style="display:flex; gap:6px; align-items:center;">
                 <span class="badge">${u.bipes} bipes</span>
-                <button class="mini-btn" onclick="masterConcluirUsuario('${String(u.nome).replace(/'/g,"\\'")}')">Finalizar</button>
+                <button class="mini-btn" onclick="masterConcluirUsuario('${String(u.nome).replace(/'/g,"\\'")}', '${String(u.idInventario).replace(/'/g,"\\'")}')">Finalizar</button>
               </div>
             </div>
           `).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipes em aberto no momento.</p>';
 
-          // inventários
           document.getElementById('list-inventarios').innerHTML = (res.inventarios || []).map(i => `
             <div class="list-item" style="border-left-color: ${i.status === 'ABERTO' ? 'var(--success)' : '#555'}">
               <div style="min-width: 160px;">
-                <strong>${i.nome}</strong><br><small>${i.status}</small>
+                <strong>${i.nome}</strong><br><small>${i.status} • ID: ${i.id}</small>
               </div>
               <div style="display:flex; gap:5px;">
                 ${
@@ -335,13 +445,17 @@
     }
 
     async function finalizarInv(id) {
-      if(confirm("Fechar este inventário?\nIsso vai BLOQUEAR todos os usuários e mostrar a mensagem de encerramento.")) {
+      if(confirm("Fechar este inventário?\nIsso vai:\n- Bloquear geral\n- Arquivar o consolidado numa aba com o nome do inventário\n- APAGAR as abas USER desse inventário")) {
         const res = await callGAS({ api: 'finalizarInventario', id });
-        if(res && res.success) alert(res.message || "Inventário finalizado.");
-        else alert((res && res.message) ? res.message : "Erro ao finalizar.");
+        if(res && res.success) {
+          alert((res.message || "Inventário finalizado.") + "\n\nAba: " + (res.abaCriada || "-") + "\nItens movidos: " + (res.itensMovidos || 0) + "\nUsers apagados: " + (res.abasUsersApagadas || 0));
+        } else {
+          alert((res && res.message) ? res.message : "Erro ao finalizar.");
+        }
         loadDashboard();
       }
     }
+
     async function excluirInv(id) {
       if(confirm("EXCLUIR permanentemente?")) {
         const res = await callGAS({ api: 'excluirInventario', id });
@@ -360,15 +474,10 @@
       setBtnLoading('btn-create-inv', false, 'CRIAR AGORA');
     }
 
-    // ✅ Master conclui seção de qualquer usuário
-    async function masterConcluirUsuario(usuario) {
-      const invName = prompt("Qual nome do inventário para concluir a seção desse usuário?\n(Tem que ser igual ao nome do inventário)");
-      if(!invName) return;
-
-      if(!confirm(`Mover bipes do usuário "${usuario}" para o consolidado do inventário "${invName}"?`)) return;
-
+    async function masterConcluirUsuario(usuario, invId) {
+      if(!confirm(`Finalizar seção do usuário "${usuario}" no inventário ID "${invId}"?`)) return;
       try {
-        const res = await callGAS({ api: 'masterConcluirSecao', usuario, nomeInventario: invName });
+        const res = await callGAS({ api: 'masterConcluirSecao', usuario, idInventario: invId });
         if(res && res.success) {
           alert("Concluído! " + (res.count || 0) + " itens movidos.");
           loadDashboard();
@@ -380,7 +489,9 @@
       }
     }
 
+    // =========================
     // CONFERENTE
+    // =========================
     async function showConferentePanel() {
       setBtnLoading('btn-open-conf', true);
       try {
@@ -388,6 +499,15 @@
         setBtnLoading('btn-open-conf', false, '');
         if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
         document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+
+        // tenta prefill pela sessão
+        const s = lerSessaoLocal();
+        if(s && list.some(i => String(i.id) === String(s.invId))) {
+          document.getElementById('inv-select').value = s.invId;
+          document.getElementById('conf-name').value = s.user || "";
+          document.getElementById('conf-section').value = s.section || "";
+        }
+
         showScreen('conferente-login');
       } catch(e) {
         setBtnLoading('btn-open-conf', false, '');
@@ -406,7 +526,6 @@
       setBtnLoading('btn-conf-login', true);
       const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
 
-      // ✅ Se inventário já estiver encerrado, manda msg e volta
       if(res && res.code === 'INVENTARIO_ENCERRADO') {
         alert(res.message || "O administrador encerrou o inventário.");
         showScreen('main-menu');
@@ -414,15 +533,24 @@
         return;
       }
 
-      if(res.success) {
-        currentUser = name; currentSection = section; currentInvName = res.nomeInventario;
+      if(res && res.success) {
+        currentUser = name;
+        currentSection = section;
+        currentInvName = res.nomeInventario;
+        currentInvId = invId;
+
         document.getElementById('display-name').textContent = name;
         document.getElementById('display-section').textContent = section;
         document.getElementById('active-inv-title').textContent = res.nomeInventario;
+
+        // ✅ salva a sessão pra retomar depois
+        salvarSessaoLocal();
+
         showScreen('counting-panel');
       } else {
-        alert(res.message);
+        alert(res && res.message ? res.message : "Erro no login.");
       }
+
       setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
     }
 
@@ -452,7 +580,15 @@
 
       let res;
       try {
-        res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
+        // ✅ envia idInventario pro GAS
+        res = await callGAS({
+          api: 'registrarBipeInventario',
+          ean,
+          usuario: currentUser,
+          secao: currentSection,
+          nomeInventario: currentInvName,
+          idInventario: currentInvId
+        });
       } catch(e) {
         window.isProcessing = false;
         alert("Erro: " + e);
@@ -467,11 +603,13 @@
         if(navigator.vibrate) navigator.vibrate(50);
         setTimeout(() => msg.textContent = "", 1000);
       } else {
-        // ✅ se o master encerrou, mostra msg e bloqueia geral
         if(res && res.code === 'INVENTARIO_ENCERRADO') {
           alert(res.message || "O administrador encerrou o inventário.");
           stopScanner();
+          // limpa sessão porque esse inventário morreu
+          try{ localStorage.removeItem(LS_KEY); }catch(_){}
           showScreen('main-menu');
+          atualizarCardsSessao();
           return;
         }
         alert((res && res.message) ? res.message : "Erro ao registrar.");
@@ -482,23 +620,35 @@
       if(!confirm("Concluir seção?")) return;
       setBtnLoading('btn-concluir', true);
 
-      const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, nomeInventario: currentInvName });
+      // ✅ conclui por idInventario
+      const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, idInventario: currentInvId });
 
-      if(res.success) {
+      if(res && res.success) {
         alert("Concluído! " + res.count + " itens.");
+
+        // mantém a sessão salva pra ele poder retomar depois com o mesmo usuário/seção
+        salvarSessaoLocal();
+
         showScreen('main-menu');
+        atualizarCardsSessao();
       } else {
-        // se tentarem concluir e já fechou (caso você use isso no GAS futuramente)
         if(res && res.code === 'INVENTARIO_ENCERRADO') {
           alert(res.message || "O administrador encerrou o inventário.");
+          try{ localStorage.removeItem(LS_KEY); }catch(_){}
           showScreen('main-menu');
+          atualizarCardsSessao();
         } else {
-          alert(res.message);
+          alert(res && res.message ? res.message : "Erro ao concluir.");
         }
       }
 
       setBtnLoading('btn-concluir', false, 'CONCLUIR SEÇÃO');
     }
+
+    // init
+    (function boot(){
+      atualizarCardsSessao();
+    })();
   </script>
 </body>
 </html>
