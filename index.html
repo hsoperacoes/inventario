@@ -1,399 +1,504 @@
-<!DOCTYPE html><html lang="pt-BR"><head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title> SISTEMA HS DE Inventário </title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-<script src="https://unpkg.com/html5-qrcode"></script>
-<style>
-:root{
---primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card-bg:#1e1e1e;--text:#ffffff;--text-dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;
-}
-*{box-sizing:border-box;transition:all .2s ease}
-body{
-font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;
-min-height:100vh;display:flex;flex-direction:column;align-items:center
-}
-.container{
-width:95%;max-width:600px;background:var(--card-bg);
-padding:30px 20px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);
-margin:20px 10px;border:1px solid #333
-}
-h2{ text-align:center;margin-top:0;color:var(--primary);font-weight:800;letter-spacing:1px }
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SISTEMA HS DE Inventário</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --primary: #673ab7;
+      --primary-dark: #5e35b1;
+      --bg: #0f0f0f;
+      --card-bg: #1e1e1e;
+      --text: #ffffff;
+      --text-dim: #b0b0b0;
+      --success: #4caf50;
+      --danger: #f44336;
+      --warning: #ff9800;
+    }
+    *{box-sizing:border-box; transition: all 0.2s ease;}
+    body{
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); margin:0; padding:0;
+      min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    }
+    .container{
+      width:95%; max-width:600px; background: var(--card-bg);
+      padding:30px 20px; border-radius:20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin:20px 10px; border: 1px solid #333;
+    }
+    h2{ text-align:center; margin-top:0; color: var(--primary); font-weight: 800; letter-spacing: 1px; }
 
-.home-grid{display:grid;grid-template-columns:1fr;gap:20px;margin-top:20px}
-.home-card{
-background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px
-}
-.home-card:hover{transform:translateY(-5px);border-color:var(--primary);background:#2a2a2a}
-.home-card i{font-size:30px;color:var(--primary)}
-.home-card div h3{margin:0;font-size:18px}
-.home-card div p{margin:5px 0 0;font-size:13px;color:var(--text-dim)}
+    /* Home Cards */
+    .home-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px; }
+    .home-card {
+      background: #252525; padding: 25px; border-radius: 15px; border: 1px solid #333;
+      cursor: pointer; display: flex; align-items: center; gap: 20px;
+    }
+    .home-card:hover { transform: translateY(-5px); border-color: var(--primary); background: #2a2a2a; }
+    .home-card i { font-size: 30px; color: var(--primary); }
+    .home-card div h3 { margin: 0; font-size: 18px; }
+    .home-card div p { margin: 5px 0 0; font-size: 13px; color: var(--text-dim); }
 
-.form-group{margin-bottom:15px}
-label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--text-dim)}
-input,select{
-width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none
-}
-input:focus{border-color:var(--primary)}
-button{
-background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px
-}
-button:hover{background:var(--primary-dark);transform:scale(1.02)}
-button:disabled{background:#444;cursor:not-allowed;opacity:.7}
-.btn-secundario{background:#333;margin-top:10px}
-.btn-danger{background:var(--danger)}
-.hidden{display:none}
+    /* Forms */
+    .form-group{margin-bottom:15px}
+    label{font-size:13px; font-weight:600; display:block; margin-bottom:6px; color: var(--text-dim)}
+    input, select{
+      width:100%; padding:14px; font-size:15px; border:1px solid #333; border-radius:10px;
+      background:#121212; color:#fff; outline: none;
+    }
+    input:focus { border-color: var(--primary); }
 
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px}
-.stat-box{background:#121212;padding:15px;border-radius:12px;text-align:center;border:1px solid #333;position:relative}
-.stat-box span{display:block;font-size:24px;font-weight:800;color:var(--primary)}
-.stat-box label{font-size:11px;text-transform:uppercase;margin:0}
+    button{
+      background: var(--primary); color:#fff; border:none; padding:15px; border-radius:10px;
+      font-size:15px; cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:10px;
+    }
+    button:hover{ background: var(--primary-dark); transform: scale(1.02); }
+    button:disabled{ background:#444; cursor:not-allowed; opacity:0.7 }
+    .btn-secundario{ background:#333; margin-top:10px }
+    .btn-danger { background: var(--danger); }
 
-.list-item{
-background:#121212;padding:12px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:14px;border-left:4px solid var(--primary)
-}
-.badge{background:var(--warning);color:#000;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:bold}
+    .hidden{display:none}
 
-.live-indicator{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--success);justify-content:center;margin-bottom:10px;text-transform:uppercase;font-weight:bold}
-.dot{width:8px;height:8px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite}
-@keyframes pulse{0%{opacity:1}50%{opacity:.3}100%{opacity:1}}
+    /* Dashboard Master */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .stat-box { background: #121212; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; position: relative; }
+    .stat-box span { display: block; font-size: 24px; font-weight: 800; color: var(--primary); }
+    .stat-box label { font-size: 11px; text-transform: uppercase; margin: 0; }
 
-#scanner-overlay{
-position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:1000;
-display:none;flex-direction:column;align-items:center;justify-content:center
-}
-#reader{width:90%;max-width:400px;border:2px solid var(--primary);border-radius:20px;overflow:hidden}
+    .list-item {
+      background: #121212; padding: 12px; border-radius: 8px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 14px;
+      border-left: 4px solid var(--primary);
+      gap: 10px;
+    }
+    .badge { background: var(--warning); color: #000; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; white-space: nowrap; }
 
-.loading-spinner{
-width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:spin 1s linear infinite
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-</style>
+    /* Real-time indicator */
+    .live-indicator {
+      display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--success);
+      justify-content: center; margin-bottom: 10px; text-transform: uppercase; font-weight: bold;
+    }
+    .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+    /* Scanner */
+    #scanner-overlay{
+      position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:1000;
+      display:none; flex-direction:column; align-items:center; justify-content:center;
+    }
+    #reader{ width:90%; max-width:400px; border:2px solid var(--primary); border-radius:20px; overflow:hidden; }
+
+    .loading-spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .mini-btn{
+      padding:6px 10px !important;
+      font-size:10px !important;
+      border-radius: 8px !important;
+      line-height: 1 !important;
+      gap: 6px !important;
+    }
+    .mini-btn.btn-secundario{ background:#2d2d2d; margin-top:0 !important; }
+    .mini-btn.btn-danger{ background: var(--danger); }
+  </style>
 </head>
 <body>
 
-<div class="container" id="main-menu">
-  <h2>HS INVENTÁRIO PRO</h2>
-  <p style="text-align:center;color:var(--text-dim);font-size:14px;margin-bottom:25px">Selecione o modo de operação</p>
+  <!-- HOME -->
+  <div class="container" id="main-menu">
+    <h2>HS INVENTÁRIO PRO</h2>
+    <p style="text-align:center; color:var(--text-dim); font-size:14px; margin-bottom:25px;">Selecione o modo de operação</p>
 
-  <div class="home-grid">
-    <div class="home-card" onclick="showScreen('master-login')">
-      <i class="fas fa-user-shield"></i>
-      <div>
-        <h3>Painel Master</h3>
-        <p>Gestão de inventários e monitoramento em tempo real.</p>
+    <div class="home-grid">
+      <div class="home-card" onclick="showScreen('master-login')">
+        <i class="fas fa-user-shield"></i>
+        <div>
+          <h3>Painel Master</h3>
+          <p>Gestão de inventários e monitoramento em tempo real.</p>
+        </div>
+      </div>
+
+      <!-- botão invisível só pra o setBtnLoading não reclamar -->
+      <button id="btn-open-conf" class="hidden"></button>
+
+      <div class="home-card" onclick="showConferentePanel()">
+        <i class="fas fa-barcode"></i>
+        <div>
+          <h3>Iniciar Contagem</h3>
+          <p>Acesse um inventário aberto para bipar produtos.</p>
+        </div>
       </div>
     </div>
+  </div>
 
-    <div class="home-card" onclick="showConferentePanel()">
-      <i class="fas fa-barcode"></i>
-      <div>
-        <h3>Iniciar Contagem</h3>
-        <p>Acesse um inventário aberto para bipar produtos.</p>
-      </div>
+  <!-- MASTER LOGIN -->
+  <div class="container hidden" id="master-login">
+    <h2>ACESSO MASTER</h2>
+    <div class="form-group">
+      <label>Senha do Leonardo</label>
+      <input type="password" id="master-pass" placeholder="Digite a senha master" />
     </div>
-  </div>
-</div>
-
-<div class="container hidden" id="master-login">
-  <h2>ACESSO MASTER</h2>
-  <div class="form-group">
-    <label>Senha do Leonardo</label>
-    <input type="password" id="master-pass" placeholder="Digite a senha master" />
-  </div>
-  <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
-  <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
-</div>
-
-<div class="container hidden" id="master-panel" style="max-width:800px">
-  <div class="live-indicator"><div class="dot"></div> Monitoramento em Tempo Real Ativo</div>
-  <h2>PAINEL DO LEONARDO</h2>
-
-  <div class="stats-grid">
-    <div class="stat-box"><span id="stat-total">0</span><label>Total Consolidado</label></div>
-    <div class="stat-box"><span id="stat-aberto">0</span><label>Bipes em Aberto</label></div>
+    <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
+    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
   </div>
 
-  <div style="display:flex;gap:10px;margin-bottom:20px">
-    <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
-    <button style="flex:1" class="btn-secundario" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar Agora</button>
+  <!-- DASHBOARD MASTER -->
+  <div class="container hidden" id="master-panel" style="max-width: 800px;">
+    <div class="live-indicator"><div class="dot"></div> Monitoramento em Tempo Real Ativo</div>
+    <h2>PAINEL DO LEONARDO</h2>
+
+    <div class="stats-grid">
+      <div class="stat-box"><span id="stat-total">0</span><label>Total Consolidado</label></div>
+      <div class="stat-box"><span id="stat-aberto">0</span><label>Bipes em Aberto</label></div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
+      <button style="flex:1" class="btn-secundario" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar Agora</button>
+    </div>
+
+    <div class="card" style="background: #1a1a1a; padding: 15px; border-radius: 15px; margin-bottom: 20px;">
+      <h3 style="font-size:16px; margin-top:0; color: var(--warning);">
+        <i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário
+      </h3>
+      <div id="list-usuarios"></div>
+    </div>
+
+    <div class="card" style="background: #1a1a1a; padding: 15px; border-radius: 15px;">
+      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-list-check"></i> Gestão de Inventários</h3>
+      <div id="list-inventarios"></div>
+    </div>
+
+    <button class="btn-secundario" style="margin-top: 20px;" onclick="stopRealTime(); showScreen('main-menu');">SAIR DO PAINEL</button>
   </div>
 
-  <div class="card" style="background:#1a1a1a;padding:15px;border-radius:15px;margin-bottom:20px">
-    <h3 style="font-size:16px;margin-top:0;color:var(--warning)"><i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário</h3>
-    <div id="list-usuarios"></div>
+  <!-- CRIAR INVENTÁRIO -->
+  <div class="container hidden" id="create-inv-screen">
+    <h2>NOVO INVENTÁRIO</h2>
+    <div class="form-group">
+      <label>Nome do Inventário</label>
+      <input type="text" id="inv-name" placeholder="Digite aqui o nome do seu inventário" />
+    </div>
+    <div class="form-group">
+      <label>Senha para Conferentes</label>
+      <input type="text" id="inv-pass" placeholder="Crie uma senha" />
+    </div>
+    <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
+    <button class="btn-secundario" onclick="showScreen('master-panel')">CANCELAR</button>
   </div>
 
-  <div class="card" style="background:#1a1a1a;padding:15px;border-radius:15px">
-    <h3 style="font-size:16px;margin-top:0"><i class="fas fa-list-check"></i> Gestão de Inventários</h3>
-    <div id="list-inventarios"></div>
+  <!-- CONFERENTE LOGIN -->
+  <div class="container hidden" id="conferente-login">
+    <h2>CONFERENTE</h2>
+    <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name" /></div>
+    <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
+    <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass" /></div>
+    <div class="form-group"><label>Seção</label><input type="text" id="conf-section" placeholder="Ex: Corredor 01" /></div>
+    <button id="btn-conf-login" onclick="doConferenteLogin()">INICIAR SCANNER</button>
+    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
   </div>
 
-  <button class="btn-secundario" style="margin-top:20px" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
-</div>
-
-<div class="container hidden" id="create-inv-screen">
-  <h2>NOVO INVENTÁRIO</h2>
-  <div class="form-group">
-    <label>Nome do Inventário</label>
-    <input type="text" id="inv-name" placeholder="Digite aqui o nome do seu inventário" />
+  <!-- SCANNER ATIVO -->
+  <div class="container hidden" id="counting-panel">
+    <h2 id="active-inv-title">...</h2>
+    <div class="card" style="font-size:14px;">
+      <p><strong>Conferente:</strong> <span id="display-name"></span> | <strong>Seção:</strong> <span id="display-section"></span></p>
+    </div>
+    <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
+    <button class="btn-secundario btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR SEÇÃO</button>
   </div>
-  <div class="form-group">
-    <label>Senha para Conferentes</label>
-    <input type="text" id="inv-pass" placeholder="Crie uma senha" />
+
+  <!-- SCANNER OVERLAY -->
+  <div id="scanner-overlay">
+    <div id="reader"></div>
+    <div class="scanner-controls" style="width:90%; max-width:400px;">
+      <button class="btn-secundario" style="width:100%" onclick="stopScanner()"><i class="fas fa-times"></i> FECHAR</button>
+    </div>
+    <div id="scanner-msg" style="margin-top:20px; font-weight:bold; text-align:center; font-size:18px;"></div>
   </div>
-  <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
-  <button class="btn-secundario" onclick="showScreen('master-panel')">CANCELAR</button>
-</div>
 
-<div class="container hidden" id="conferente-login">
-  <h2>CONFERENTE</h2>
-  <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name" /></div>
-  <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
-  <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass" /></div>
-  <div class="form-group"><label>Seção</label><input type="text" id="conf-section" placeholder="Ex: Corredor 01" /></div>
-  <button id="btn-conf-login" onclick="doConferenteLogin()">INICIAR SCANNER</button>
-  <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
-</div>
+  <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
 
-<div class="container hidden" id="counting-panel">
-  <h2 id="active-inv-title">...</h2>
-  <div class="card" style="font-size:14px">
-    <p><strong>Conferente:</strong> <span id="display-name"></span> | <strong>Seção:</strong> <span id="display-section"></span></p>
-  </div>
-  <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
-  <button class="btn-secundario btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR SEÇÃO</button>
-</div>
+    let currentUser = "", currentSection = "", currentInvName = "", html5QrCode = null;
+    let refreshInterval = null;
 
-<div id="scanner-overlay">
-  <div id="reader"></div>
-  <div class="scanner-controls" style="width:90%;max-width:400px">
-    <button class="btn-secundario" style="width:100%" onclick="stopScanner()"><i class="fas fa-times"></i> FECHAR</button>
-  </div>
-  <div id="scanner-msg" style="margin-top:20px;font-weight:bold;text-align:center;font-size:18px"></div>
-</div>
-
-<script>
-var WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-var currentUser="",currentSection="",currentInvName="",html5QrCode=null;var refreshInterval=null;
-window.isProcessing = false; // (só pra garantir q exista)
-
-function showScreen(id){
-  var all=document.querySelectorAll('.container'); for(var i=0;i<all.length;i++){ all[i].classList.add('hidden'); }
-  var el=document.getElementById(id); if(el){ el.classList.remove('hidden'); }
-  if(id==='master-panel'){ startRealTime(); } else { stopRealTime(); }
-}
-
-function startRealTime(){
-  loadDashboard();
-  if(!refreshInterval){
-    refreshInterval=setInterval(function(){ loadDashboard(); }, 10000);
-  }
-}
-
-function stopRealTime(){
-  if(refreshInterval){ clearInterval(refreshInterval); refreshInterval=null; }
-}
-
-function setBtnLoading(id,isLoading,text){
-  var btn=document.getElementById(id);
-  if(!btn) return;
-  btn.disabled=!!isLoading;
-  if(isLoading){ btn.innerHTML='<div class="loading-spinner"></div>'; }
-  else { btn.innerHTML=text || btn.innerHTML; }
-}
-
-function callGAS(params){
-  return new Promise(function(resolve,reject){
-    var callbackName='jsonp_'+Math.round(100000*Math.random());
-    window[callbackName]=function(data){
-      try{ delete window[callbackName]; }catch(_){}
-      try{ document.body.removeChild(script); }catch(_){}
-      resolve(data);
-    };
-
-    var script=document.createElement('script');
-    var url=WEB_APP_URL+'?callback='+callbackName;
-
-    for(var key in params){
-      url += '&' + key + '=' + encodeURIComponent(params[key]);
+    function showScreen(id) {
+      document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      if(id === 'master-panel') startRealTime();
+      else stopRealTime();
     }
 
-    script.src=url;
-    script.onerror=function(){ reject("Erro de conexão."); };
-
-    document.body.appendChild(script);
-
-    setTimeout(function(){
-      if(window[callbackName]){
-        try{ delete window[callbackName]; }catch(_){}
-        try{ document.body.removeChild(script); }catch(_){}
-        reject("Timeout");
+    function startRealTime() {
+      loadDashboard();
+      if(!refreshInterval) {
+        refreshInterval = setInterval(loadDashboard, 10000);
       }
-    }, 20000);
-  });
-}
-
-async function doMasterLogin(){
-  var pass=document.getElementById('master-pass').value;
-  setBtnLoading('btn-master-login',true);
-  try{
-    var res=await callGAS({api:'masterLogin',senha:pass});
-    if(res && res.success){ showScreen('master-panel'); }
-    else{ alert((res && res.message) ? res.message : "Erro"); }
-  }catch(e){ alert(e); }
-  setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');
-}
-
-async function loadDashboard(){
-  try{
-    var res=await callGAS({api:'getDashboardData'});
-    if(res && res.success){
-      document.getElementById('stat-total').textContent = res.totalConsolidado;
-      document.getElementById('stat-aberto').textContent = res.totalEmAberto;
-
-      var users = (res.usuariosAtivos || []);
-      document.getElementById('list-usuarios').innerHTML =
-        users.map(function(u){
-          return '<div class="list-item">' +
-                 '<span><i class="fas fa-user"></i> ' + (u.nome||'') + '</span>' +
-                 '<span class="badge">' + (u.bipes||0) + ' bipes</span>' +
-                 '</div>';
-        }).join('') || '<p style="font-size:12px;color:gray;text-align:center">Nenhum bipes em aberto no momento.</p>';
-
-      var invs = (res.inventarios || []);
-      document.getElementById('list-inventarios').innerHTML =
-        invs.map(function(i){
-          var cor = (i.status==='ABERTO') ? 'var(--success)' : '#555';
-          var btnFechar = (i.status==='ABERTO')
-            ? '<button onclick="finalizarInv(\''+i.id+'\')" style="padding:5px 10px;font-size:10px;">Fechar</button>'
-            : '';
-          return '<div class="list-item" style="border-left-color:'+cor+'">' +
-                 '<div><strong>'+i.nome+'</strong><br><small>'+i.status+'</small></div>' +
-                 '<div style="display:flex;gap:5px;">' +
-                 btnFechar +
-                 '<button class="btn-danger" onclick="excluirInv(\''+i.id+'\')" style="padding:5px 10px;font-size:10px;">X</button>' +
-                 '</div></div>';
-        }).join('');
     }
-  }catch(e){
-    console.error("Erro no refresh:", e);
-  }
-}
 
-async function finalizarInv(id){
-  if(confirm("Fechar este inventário?")){
-    await callGAS({api:'finalizarInventario',id:id});
-    loadDashboard();
-  }
-}
+    function stopRealTime() {
+      if(refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
+    }
 
-async function excluirInv(id){
-  if(confirm("EXCLUIR permanentemente?")){
-    await callGAS({api:'excluirInventario',id:id});
-    loadDashboard();
-  }
-}
+    function setBtnLoading(id, isLoading, text) {
+      const btn = document.getElementById(id);
+      if(!btn) return;
+      btn.disabled = isLoading;
+      btn.innerHTML = isLoading ? `<div class="loading-spinner"></div>` : (text || btn.innerHTML);
+    }
 
-async function doCreateInventory(){
-  var name=document.getElementById('inv-name').value;
-  var pass=document.getElementById('inv-pass').value;
-  setBtnLoading('btn-create-inv',true);
-  var res=await callGAS({api:'criarNovoInventario',nome:name,senha:pass});
-  if(res && res.success){ alert("Criado!"); showScreen('master-panel'); }
-  else{ alert((res && res.message) ? res.message : "Erro"); }
-  setBtnLoading('btn-create-inv',false,'CRIAR AGORA');
-}
+    function callGAS(params) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_' + Math.round(100000 * Math.random());
+        window[callbackName] = (data) => {
+          delete window[callbackName];
+          try{ document.body.removeChild(script); }catch(_){}
+          resolve(data);
+        };
 
-async function showConferentePanel(){
-  setBtnLoading('btn-open-conf',true); // esse id nem existe, fica feio msm kkk
-  try{
-    var list=await callGAS({api:'listarInventariosAbertos'});
-    setBtnLoading('btn-open-conf',false,'<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
-    if(!list || list.length===0) return alert("Nenhum inventário aberto.");
-    document.getElementById('inv-select').innerHTML = list.map(function(i){
-      return '<option value="'+i.id+'">'+i.nome+'</option>';
-    }).join('');
-    showScreen('conferente-login');
-  }catch(e){
-    setBtnLoading('btn-open-conf',false,'<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
-    alert("Erro ao carregar inventários.");
-  }
-}
+        const script = document.createElement('script');
+        let url = WEB_APP_URL + '?callback=' + callbackName;
+        for (let key in params) url += '&' + key + '=' + encodeURIComponent(params[key]);
+        script.src = url;
+        script.onerror = () => reject("Erro de conexão.");
+        document.body.appendChild(script);
 
-async function doConferenteLogin(){
-  var name=document.getElementById('conf-name').value;
-  var invId=document.getElementById('inv-select').value;
-  var invPass=document.getElementById('conf-inv-pass').value;
-  var section=document.getElementById('conf-section').value;
+        setTimeout(() => {
+          if(window[callbackName]) {
+            try{ delete window[callbackName]; }catch(_){}
+            try{ document.body.removeChild(script); }catch(_){}
+            reject("Timeout");
+          }
+        }, 20000);
+      });
+    }
 
-  if(!name || !invPass || !section){ alert("Preencha tudo"); return; }
+    // MASTER
+    async function doMasterLogin() {
+      const pass = document.getElementById('master-pass').value;
+      setBtnLoading('btn-master-login', true);
+      try {
+        const res = await callGAS({ api: 'masterLogin', senha: pass });
+        if(res.success) showScreen('master-panel'); else alert(res.message);
+      } catch(e) { alert(e); }
+      setBtnLoading('btn-master-login', false, 'ENTRAR NO PAINEL');
+    }
 
-  setBtnLoading('btn-conf-login',true);
-  var res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
+    async function loadDashboard() {
+      try {
+        const res = await callGAS({ api: 'getDashboardData' });
+        if(res.success) {
+          document.getElementById('stat-total').textContent = res.totalConsolidado;
+          document.getElementById('stat-aberto').textContent = res.totalEmAberto;
 
-  if(res && res.success){
-    currentUser=name; currentSection=section; currentInvName=res.nomeInventario;
-    document.getElementById('display-name').textContent=name;
-    document.getElementById('display-section').textContent=section;
-    document.getElementById('active-inv-title').textContent=res.nomeInventario;
-    showScreen('counting-panel');
-  } else {
-    alert((res && res.message) ? res.message : "Erro");
-  }
+          // ✅ usuários com botão "Finalizar (Master)"
+          document.getElementById('list-usuarios').innerHTML = (res.usuariosAtivos || []).map(u => `
+            <div class="list-item">
+              <span style="display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-user"></i> ${u.nome}
+              </span>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <span class="badge">${u.bipes} bipes</span>
+                <button class="mini-btn" onclick="masterConcluirUsuario('${String(u.nome).replace(/'/g,"\\'")}')">Finalizar</button>
+              </div>
+            </div>
+          `).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipes em aberto no momento.</p>';
 
-  setBtnLoading('btn-conf-login',false,'INICIAR SCANNER');
-}
+          // inventários
+          document.getElementById('list-inventarios').innerHTML = (res.inventarios || []).map(i => `
+            <div class="list-item" style="border-left-color: ${i.status === 'ABERTO' ? 'var(--success)' : '#555'}">
+              <div style="min-width: 160px;">
+                <strong>${i.nome}</strong><br><small>${i.status}</small>
+              </div>
+              <div style="display:flex; gap:5px;">
+                ${
+                  i.status === 'ABERTO'
+                    ? `<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>`
+                    : ''
+                }
+                <button class="mini-btn btn-danger" onclick="excluirInv('${i.id}')">X</button>
+              </div>
+            </div>
+          `).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum inventário cadastrado.</p>';
+        }
+      } catch(e) { console.error("Erro no refresh:", e); }
+    }
 
-function startScanner(){
-  document.getElementById('scanner-overlay').style.display='flex';
-  html5QrCode=new Html5Qrcode("reader");
-  html5QrCode.start({facingMode:"environment"},{fps:15,qrbox:250},processBipe);
-}
+    async function finalizarInv(id) {
+      if(confirm("Fechar este inventário?\nIsso vai BLOQUEAR todos os usuários e mostrar a mensagem de encerramento.")) {
+        const res = await callGAS({ api: 'finalizarInventario', id });
+        if(res && res.success) alert(res.message || "Inventário finalizado.");
+        else alert((res && res.message) ? res.message : "Erro ao finalizar.");
+        loadDashboard();
+      }
+    }
+    async function excluirInv(id) {
+      if(confirm("EXCLUIR permanentemente?")) {
+        const res = await callGAS({ api: 'excluirInventario', id });
+        if(res && res.success) alert("Excluído.");
+        else alert((res && res.message) ? res.message : "Erro ao excluir.");
+        loadDashboard();
+      }
+    }
 
-function stopScanner(){
-  if(html5QrCode){
-    html5QrCode.stop().then(function(){
-      document.getElementById('scanner-overlay').style.display='none';
-    });
-  } else {
-    document.getElementById('scanner-overlay').style.display='none';
-  }
-}
+    async function doCreateInventory() {
+      const name = document.getElementById('inv-name').value;
+      const pass = document.getElementById('inv-pass').value;
+      setBtnLoading('btn-create-inv', true);
+      const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
+      if(res.success) { alert("Criado!"); showScreen('master-panel'); } else alert(res.message);
+      setBtnLoading('btn-create-inv', false, 'CRIAR AGORA');
+    }
 
-async function processBipe(ean){
-  if(window.isProcessing) return;
-  window.isProcessing=true;
+    // ✅ Master conclui seção de qualquer usuário
+    async function masterConcluirUsuario(usuario) {
+      const invName = prompt("Qual nome do inventário para concluir a seção desse usuário?\n(Tem que ser igual ao nome do inventário)");
+      if(!invName) return;
 
-  var msg=document.getElementById('scanner-msg');
-  msg.textContent="Lendo: "+ean;
-  msg.style.color="var(--primary)";
+      if(!confirm(`Mover bipes do usuário "${usuario}" para o consolidado do inventário "${invName}"?`)) return;
 
-  var res=await callGAS({api:'registrarBipeInventario',ean:ean,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName});
+      try {
+        const res = await callGAS({ api: 'masterConcluirSecao', usuario, nomeInventario: invName });
+        if(res && res.success) {
+          alert("Concluído! " + (res.count || 0) + " itens movidos.");
+          loadDashboard();
+        } else {
+          alert((res && res.message) ? res.message : "Erro ao concluir.");
+        }
+      } catch(e) {
+        alert("Erro: " + e);
+      }
+    }
 
-  window.isProcessing=false;
+    // CONFERENTE
+    async function showConferentePanel() {
+      setBtnLoading('btn-open-conf', true);
+      try {
+        const list = await callGAS({ api: 'listarInventariosAbertos' });
+        setBtnLoading('btn-open-conf', false, '');
+        if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
+        document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+        showScreen('conferente-login');
+      } catch(e) {
+        setBtnLoading('btn-open-conf', false, '');
+        alert("Erro ao carregar inventários.");
+      }
+    }
 
-  if(res && res.success){
-    msg.textContent="✅ REGISTRADO: "+ean;
-    msg.style.color="var(--success)";
-    if(navigator.vibrate) navigator.vibrate(50);
-    setTimeout(function(){ msg.textContent=""; },1000);
-  } else {
-    alert((res && res.message) ? res.message : "Erro");
-  }
-}
+    async function doConferenteLogin() {
+      const name = document.getElementById('conf-name').value,
+            invId = document.getElementById('inv-select').value,
+            invPass = document.getElementById('conf-inv-pass').value,
+            section = document.getElementById('conf-section').value;
 
-async function doConcluirSecao(){
-  if(!confirm("Concluir seção?")) return;
-  setBtnLoading('btn-concluir',true);
-  var res=await callGAS({api:'concluirSecao',usuario:currentUser,nomeInventario:currentInvName});
-  if(res && res.success){
-    alert("Concluído! "+res.count+" itens.");
-    showScreen('main-menu');
-  } else {
-    alert((res && res.message) ? res.message : "Erro");
-  }
-  setBtnLoading('btn-concluir',false,'CONCLUIR SEÇÃO');
-}
-</script>
-</body></html>
+      if(!name || !invPass || !section) return alert("Preencha tudo");
+
+      setBtnLoading('btn-conf-login', true);
+      const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
+
+      // ✅ Se inventário já estiver encerrado, manda msg e volta
+      if(res && res.code === 'INVENTARIO_ENCERRADO') {
+        alert(res.message || "O administrador encerrou o inventário.");
+        showScreen('main-menu');
+        setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
+        return;
+      }
+
+      if(res.success) {
+        currentUser = name; currentSection = section; currentInvName = res.nomeInventario;
+        document.getElementById('display-name').textContent = name;
+        document.getElementById('display-section').textContent = section;
+        document.getElementById('active-inv-title').textContent = res.nomeInventario;
+        showScreen('counting-panel');
+      } else {
+        alert(res.message);
+      }
+      setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
+    }
+
+    function startScanner() {
+      document.getElementById('scanner-overlay').style.display = 'flex';
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, processBipe);
+    }
+
+    function stopScanner() {
+      if(html5QrCode) {
+        html5QrCode.stop()
+          .then(() => { document.getElementById('scanner-overlay').style.display = 'none'; })
+          .catch(() => { document.getElementById('scanner-overlay').style.display = 'none'; });
+      } else {
+        document.getElementById('scanner-overlay').style.display = 'none';
+      }
+    }
+
+    async function processBipe(ean) {
+      if(window.isProcessing) return;
+      window.isProcessing = true;
+
+      const msg = document.getElementById('scanner-msg');
+      msg.textContent = "Lendo: " + ean;
+      msg.style.color = "var(--primary)";
+
+      let res;
+      try {
+        res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
+      } catch(e) {
+        window.isProcessing = false;
+        alert("Erro: " + e);
+        return;
+      }
+
+      window.isProcessing = false;
+
+      if(res && res.success) {
+        msg.textContent = "✅ REGISTRADO: " + ean;
+        msg.style.color = "var(--success)";
+        if(navigator.vibrate) navigator.vibrate(50);
+        setTimeout(() => msg.textContent = "", 1000);
+      } else {
+        // ✅ se o master encerrou, mostra msg e bloqueia geral
+        if(res && res.code === 'INVENTARIO_ENCERRADO') {
+          alert(res.message || "O administrador encerrou o inventário.");
+          stopScanner();
+          showScreen('main-menu');
+          return;
+        }
+        alert((res && res.message) ? res.message : "Erro ao registrar.");
+      }
+    }
+
+    async function doConcluirSecao() {
+      if(!confirm("Concluir seção?")) return;
+      setBtnLoading('btn-concluir', true);
+
+      const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, nomeInventario: currentInvName });
+
+      if(res.success) {
+        alert("Concluído! " + res.count + " itens.");
+        showScreen('main-menu');
+      } else {
+        // se tentarem concluir e já fechou (caso você use isso no GAS futuramente)
+        if(res && res.code === 'INVENTARIO_ENCERRADO') {
+          alert(res.message || "O administrador encerrou o inventário.");
+          showScreen('main-menu');
+        } else {
+          alert(res.message);
+        }
+      }
+
+      setBtnLoading('btn-concluir', false, 'CONCLUIR SEÇÃO');
+    }
+  </script>
+</body>
+</html>
