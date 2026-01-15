@@ -3,310 +3,327 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sistema de Inventário HS</title>
+  <title>SISTEMA HS DE Inventário</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    *{box-sizing:border-box}
+    :root {
+      --primary: #673ab7;
+      --primary-dark: #5e35b1;
+      --bg: #0f0f0f;
+      --card-bg: #1e1e1e;
+      --text: #ffffff;
+      --text-dim: #b0b0b0;
+      --success: #4caf50;
+      --danger: #f44336;
+    }
+    *{box-sizing:border-box; transition: all 0.3s ease;}
     body{
-      font-family: Arial, sans-serif;
-      background:#000;color:#fff;margin:0;padding:0;
-      min-height:100vh;display:flex;flex-direction:column;align-items:center;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); margin:0; padding:0;
+      min-height:100vh; display:flex; flex-direction:column; align-items:center;
     }
     .container{
-      width:100%;max-width:600px;background:#2c2c2c;
-      padding:30px 20px;border-radius:12px;box-shadow:0 0 10px rgba(0,0,0,.5 );
-      margin:20px 10px;
+      width:95%; max-width:600px; background: var(--card-bg);
+      padding:30px 20px; border-radius:20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      margin:20px 10px; border: 1px solid #333;
     }
+    h2{ text-align:center; margin-top:0; color: var(--primary); font-weight: 800; letter-spacing: 1px; }
+    
+    /* Home Cards */
+    .home-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px; }
+    .home-card {
+      background: #252525; padding: 25px; border-radius: 15px; border: 1px solid #333;
+      cursor: pointer; display: flex; align-items: center; gap: 20px;
+    }
+    .home-card:hover { transform: translateY(-5px); border-color: var(--primary); background: #2a2a2a; }
+    .home-card i { font-size: 30px; color: var(--primary); }
+    .home-card div h3 { margin: 0; font-size: 18px; }
+    .home-card div p { margin: 5px 0 0; font-size: 13px; color: var(--text-dim); }
+
+    /* Forms */
     .form-group{margin-bottom:15px}
-    label{font-size:14px;font-weight:600;display:block;margin-bottom:6px;color:#ccc}
+    label{font-size:13px; font-weight:600; display:block; margin-bottom:6px; color: var(--text-dim)}
     input, select{
-      width:100%;padding:12px;font-size:14px;border:1px solid #444;border-radius:8px;
-      background:#2a2a2a;color:#fff;
+      width:100%; padding:14px; font-size:15px; border:1px solid #333; border-radius:10px;
+      background:#121212; color:#fff; outline: none;
     }
+    input:focus { border-color: var(--primary); }
+    
     button{
-      background:#673ab7;color:#fff;border:none;padding:12px 18px;border-radius:8px;
-      font-size:14px;cursor:pointer;font-weight:700;transition:.2s;width:100%;
-      display:flex;align-items:center;justify-content:center;gap:10px;
+      background: var(--primary); color:#fff; border:none; padding:15px; border-radius:10px;
+      font-size:15px; cursor:pointer; font-weight:700; display:flex; align-items:center; justify-content:center; gap:10px;
     }
-    button:hover{background:#5e35b1}
-    button:disabled{background:#444;cursor:not-allowed;opacity:0.7}
-    .btn-secundario{background:#5f6368;margin-top:10px}
+    button:hover{ background: var(--primary-dark); transform: scale(1.02); }
+    button:disabled{ background:#444; cursor:not-allowed; opacity:0.7 }
+    .btn-secundario{ background:#333; margin-top:10px }
+    .btn-danger { background: var(--danger); }
+    
     .hidden{display:none}
-    .card{background:#1e1e1e;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #333}
-    h2{text-align:center;margin-top:0;color:#673ab7}
     
-    #scanner-overlay{
-      position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:1000;
-      display:none;flex-direction:column;align-items:center;justify-content:center;
+    /* Dashboard Master */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .stat-box { background: #121212; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+    .stat-box span { display: block; font-size: 24px; font-weight: 800; color: var(--primary); }
+    .stat-box label { font-size: 11px; text-transform: uppercase; margin: 0; }
+    
+    .list-item {
+      background: #121212; padding: 12px; border-radius: 8px; margin-bottom: 8px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 14px;
     }
-    #reader{width:90%;max-width:400px;border:2px solid #673ab7;border-radius:12px;overflow:hidden}
-    .scanner-controls{margin-top:20px;width:90%;max-width:400px}
+    .badge { background: var(--primary); padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+
+    /* Scanner */
+    #scanner-overlay{
+      position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:1000;
+      display:none; flex-direction:column; align-items:center; justify-content:center;
+    }
+    #reader{ width:90%; max-width:400px; border:2px solid var(--primary); border-radius:20px; overflow:hidden; }
     
-    .status-msg{text-align:center;margin-top:10px;font-size:13px}
     .loading-spinner {
-      display: inline-block;
-      width: 12px; height: 12px;
-      border: 2px solid rgba(255,255,255,.3);
-      border-radius: 50%;
-      border-top-color: #fff;
-      animation: spin 1s ease-in-out infinite;
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
+  <!-- HOME MELHORADA -->
   <div class="container" id="main-menu">
-    <h2>Sistema de Inventário</h2>
-    <button onclick="showScreen('master-login')">
-      <i class="fas fa-user-shield"></i> Painel Master (Leonardo)
-    </button>
-    <button class="btn-secundario" id="btn-open-conf" onclick="showConferentePanel()">
-      <i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)
-    </button>
+    <h2>HS INVENTÁRIO PRO</h2>
+    <p style="text-align:center; color:var(--text-dim); font-size:14px; margin-bottom:25px;">Selecione o modo de operação</p>
+    
+    <div class="home-grid">
+      <div class="home-card" onclick="showScreen('master-login')">
+        <i class="fas fa-user-shield"></i>
+        <div>
+          <h3>Painel Master</h3>
+          <p>Gestão de inventários e monitoramento em tempo real.</p>
+        </div>
+      </div>
+      
+      <div class="home-card" onclick="showConferentePanel()">
+        <i class="fas fa-barcode"></i>
+        <div>
+          <h3>Iniciar Contagem</h3>
+          <p>Acesse um inventário aberto para bipar produtos.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <!-- MASTER LOGIN -->
   <div class="container hidden" id="master-login">
-    <h2>Acesso Master</h2>
+    <h2>ACESSO MASTER</h2>
     <div class="form-group">
-      <label>Senha Master</label>
+      <label>Senha do Leonardo</label>
       <input type="password" id="master-pass" placeholder="Digite a senha master" />
     </div>
-    <button id="btn-master-login" onclick="doMasterLogin()">Entrar</button>
-    <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
+    <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
+    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
   </div>
 
-  <div class="container hidden" id="master-panel">
-    <h2>Novo Inventário</h2>
+  <!-- DASHBOARD MASTER -->
+  <div class="container hidden" id="master-panel" style="max-width: 800px;">
+    <h2>PAINEL DO LEONARDO</h2>
+    
+    <div class="stats-grid">
+      <div class="stat-box"><span id="stat-total">0</span><label>Total Consolidado</label></div>
+      <div class="stat-box"><span id="stat-aberto">0</span><label>Bipes em Aberto</label></div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
+      <button style="flex:1" class="btn-secundario" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-users"></i> Usuários Ativos</h3>
+      <div id="list-usuarios"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-history"></i> Inventários</h3>
+      <div id="list-inventarios"></div>
+    </div>
+
+    <button class="btn-secundario" onclick="showScreen('main-menu')">SAIR DO PAINEL</button>
+  </div>
+
+  <!-- CRIAR INVENTÁRIO -->
+  <div class="container hidden" id="create-inv-screen">
+    <h2>NOVO INVENTÁRIO</h2>
     <div class="form-group">
       <label>Nome do Inventário</label>
-      <input type="text" id="inv-name" placeholder="Ex: Inventário Verão 2026" />
+      <input type="text" id="inv-name" placeholder="Ex: Inventário Matriz Jan/26" />
     </div>
     <div class="form-group">
       <label>Senha para Conferentes</label>
       <input type="text" id="inv-pass" placeholder="Crie uma senha" />
     </div>
-    <button id="btn-create-inv" onclick="doCreateInventory()">Criar Inventário</button>
-    <button class="btn-secundario" onclick="showScreen('main-menu')">Sair</button>
+    <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
+    <button class="btn-secundario" onclick="showScreen('master-panel')">CANCELAR</button>
   </div>
 
+  <!-- CONFERENTE LOGIN -->
   <div class="container hidden" id="conferente-login">
-    <h2>Acesso Conferente</h2>
-    <div class="form-group">
-      <label>Seu Nome</label>
-      <input type="text" id="conf-name" placeholder="Seu nome" />
-    </div>
-    <div class="form-group">
-      <label>Selecione o Inventário</label>
-      <select id="inv-select"></select>
-    </div>
-    <div class="form-group">
-      <label>Senha do Inventário</label>
-      <input type="password" id="conf-inv-pass" placeholder="Senha do inventário" />
-    </div>
-    <div class="form-group">
-      <label>Seção / Local</label>
-      <input type="text" id="conf-section" placeholder="Ex: Corredor A, Prateleira 1" />
-    </div>
-    <button id="btn-conf-login" onclick="doConferenteLogin()">Iniciar Scanner</button>
-    <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
+    <h2>CONFERENTE</h2>
+    <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name" /></div>
+    <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
+    <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass" /></div>
+    <div class="form-group"><label>Seção</label><input type="text" id="conf-section" placeholder="Ex: Corredor 01" /></div>
+    <button id="btn-conf-login" onclick="doConferenteLogin()">INICIAR SCANNER</button>
+    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
   </div>
 
+  <!-- SCANNER ATIVO -->
   <div class="container hidden" id="counting-panel">
-    <h2 id="active-inv-title">Inventário</h2>
-    <div class="card">
-      <p><strong>Conferente:</strong> <span id="display-name"></span></p>
-      <p><strong>Seção:</strong> <span id="display-section"></span></p>
+    <h2 id="active-inv-title">...</h2>
+    <div class="card" style="font-size:14px;">
+      <p><strong>Conferente:</strong> <span id="display-name"></span> | <strong>Seção:</strong> <span id="display-section"></span></p>
     </div>
-    <button onclick="startScanner()">
-      <i class="fas fa-camera"></i> ABRIR SCANNER
-    </button>
-    <button class="btn-secundario" id="btn-concluir" style="background:#d32f2f" onclick="doConcluirSecao()">
-      <i class="fas fa-check-double"></i> CONCLUIR SEÇÃO
-    </button>
-    <div id="count-status" class="status-msg"></div>
+    <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
+    <button class="btn-secundario btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR SEÇÃO</button>
   </div>
 
+  <!-- SCANNER OVERLAY -->
   <div id="scanner-overlay">
     <div id="reader"></div>
-    <div class="scanner-controls">
-      <button class="btn-secundario" onclick="stopScanner()">
-        <i class="fas fa-times"></i> FECHAR SCANNER
-      </button>
+    <div class="scanner-controls" style="width:90%; max-width:400px;">
+      <button class="btn-secundario" style="width:100%" onclick="stopScanner()"><i class="fas fa-times"></i> FECHAR</button>
     </div>
-    <div id="scanner-msg" style="margin-top:15px; font-weight:bold; text-align:center"></div>
+    <div id="scanner-msg" style="margin-top:20px; font-weight:bold; text-align:center; font-size:18px;"></div>
   </div>
 
   <script>
-    // VERIFIQUE SE ESTE LINK É O SEU LINK DO GOOGLE SCRIPT (/exec)
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-    
-    let currentUser = "";
-    let currentSection = "";
-    let currentInvId = "";
-    let currentInvName = "";
-    let html5QrCode = null;
+    let currentUser = "", currentSection = "", currentInvName = "", html5QrCode = null;
 
-    function showScreen(id ) {
+    function showScreen(id) {
       document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
+      if(id === 'master-panel') loadDashboard();
     }
 
     function setBtnLoading(id, isLoading, text) {
       const btn = document.getElementById(id);
-      if (isLoading) {
-        btn.disabled = true;
-        btn.innerHTML = `<div class="loading-spinner"></div> Processando...`;
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = text;
-      }
+      if(!btn) return;
+      btn.disabled = isLoading;
+      btn.innerHTML = isLoading ? `<div class="loading-spinner"></div>` : text;
     }
 
-    // FUNÇÃO JSONP PARA FUNCIONAR NO GITHUB SEM ERRO DE CONEXÃO
     function callGAS(params) {
       return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          resolve(data);
-        };
-
+        const callbackName = 'jsonp_' + Math.round(100000 * Math.random());
+        window[callbackName] = (data) => { delete window[callbackName]; document.body.removeChild(script); resolve(data); };
         const script = document.createElement('script');
         let url = WEB_APP_URL + '?callback=' + callbackName;
-        for (let key in params) {
-          url += '&' + key + '=' + encodeURIComponent(params[key]);
-        }
+        for (let key in params) url += '&' + key + '=' + encodeURIComponent(params[key]);
         script.src = url;
-        script.onerror = () => {
-          delete window[callbackName];
-          reject("Erro de conexão. Verifique o link do Script.");
-        };
+        script.onerror = () => reject("Erro de conexão.");
         document.body.appendChild(script);
-        
-        setTimeout(() => {
-          if (window[callbackName]) {
-            delete window[callbackName];
-            reject("Tempo esgotado. O Script não respondeu.");
-          }
-        }, 20000);
+        setTimeout(() => { if(window[callbackName]) reject("Timeout"); }, 20000);
       });
     }
 
+    // MASTER
     async function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
-      if(!pass) return alert("Digite a senha");
       setBtnLoading('btn-master-login', true);
       try {
         const res = await callGAS({ api: 'masterLogin', senha: pass });
-        setBtnLoading('btn-master-login', false, 'Entrar');
-        if(res.success) showScreen('master-panel');
-        else alert(res.message);
-      } catch (e) {
-        setBtnLoading('btn-master-login', false, 'Entrar');
-        alert(e);
-      }
+        if(res.success) showScreen('master-panel'); else alert(res.message);
+      } catch(e) { alert(e); }
+      setBtnLoading('btn-master-login', false, 'ENTRAR NO PAINEL');
     }
+
+    async function loadDashboard() {
+      try {
+        const res = await callGAS({ api: 'getDashboardData' });
+        if(res.success) {
+          document.getElementById('stat-total').textContent = res.totalConsolidado;
+          document.getElementById('stat-aberto').textContent = res.totalEmAberto;
+          
+          document.getElementById('list-usuarios').innerHTML = res.usuariosAtivos.map(u => `
+            <div class="list-item"><span>${u.nome}</span><span class="badge">${u.bipes} bipes</span></div>
+          `).join('') || '<p style="font-size:12px; color:gray">Nenhum usuário ativo.</p>';
+
+          document.getElementById('list-inventarios').innerHTML = res.inventarios.map(i => `
+            <div class="list-item">
+              <div><strong>${i.nome}</strong><br><small>${i.status}</small></div>
+              <div style="display:flex; gap:5px;">
+                ${i.status === 'ABERTO' ? `<button onclick="finalizarInv('${i.id}')" style="padding:5px 10px; font-size:10px;">Fechar</button>` : ''}
+                <button class="btn-danger" onclick="excluirInv('${i.id}')" style="padding:5px 10px; font-size:10px;">X</button>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch(e) { console.error(e); }
+    }
+
+    async function finalizarInv(id) { if(confirm("Fechar este inventário?")) { await callGAS({ api: 'finalizarInventario', id }); loadDashboard(); } }
+    async function excluirInv(id) { if(confirm("EXCLUIR permanentemente?")) { await callGAS({ api: 'excluirInventario', id }); loadDashboard(); } }
 
     async function doCreateInventory() {
       const name = document.getElementById('inv-name').value;
       const pass = document.getElementById('inv-pass').value;
-      if(!name || !pass) return alert("Preencha todos os campos");
       setBtnLoading('btn-create-inv', true);
-      try {
-        const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
-        setBtnLoading('btn-create-inv', false, 'Criar Inventário');
-        if(res.success) { alert("Inventário criado!"); showScreen('main-menu'); }
-        else alert(res.message);
-      } catch (e) {
-        setBtnLoading('btn-create-inv', false, 'Criar Inventário');
-        alert(e);
-      }
+      const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
+      if(res.success) { alert("Criado!"); showScreen('master-panel'); } else alert(res.message);
+      setBtnLoading('btn-create-inv', false, 'CRIAR AGORA');
     }
 
+    // CONFERENTE
     async function showConferentePanel() {
-      setBtnLoading('btn-open-conf', true);
-      try {
-        const list = await callGAS({ api: 'listarInventariosAbertos' });
-        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
-        const select = document.getElementById('inv-select');
-        if(!list || list.length === 0) return alert("Não há inventários abertos.");
-        select.innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
-        showScreen('conferente-login');
-      } catch (e) {
-        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
-        alert(e);
-      }
+      const list = await callGAS({ api: 'listarInventariosAbertos' });
+      if(!list || list.length === 0) return alert("Nenhum inventário aberto.");
+      document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+      showScreen('conferente-login');
     }
 
     async function doConferenteLogin() {
-      const name = document.getElementById('conf-name').value;
-      const invId = document.getElementById('inv-select').value;
-      const invPass = document.getElementById('conf-inv-pass').value;
-      const section = document.getElementById('conf-section').value;
-      if(!name || !invPass || !section) return alert("Preencha todos os campos");
+      const name = document.getElementById('conf-name').value, invId = document.getElementById('inv-select').value, 
+            invPass = document.getElementById('conf-inv-pass').value, section = document.getElementById('conf-section').value;
+      if(!name || !invPass || !section) return alert("Preencha tudo");
       setBtnLoading('btn-conf-login', true);
-      try {
-        const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
-        setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
-        if(res.success) {
-          currentUser = name; currentSection = section; currentInvId = invId; currentInvName = res.nomeInventario;
-          document.getElementById('display-name').textContent = name;
-          document.getElementById('display-section').textContent = section;
-          document.getElementById('active-inv-title').textContent = res.nomeInventario;
-          showScreen('counting-panel');
-        } else alert(res.message);
-      } catch (e) {
-        setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
-        alert(e);
-      }
+      const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
+      if(res.success) {
+        currentUser = name; currentSection = section; currentInvName = res.nomeInventario;
+        document.getElementById('display-name').textContent = name; document.getElementById('display-section').textContent = section;
+        document.getElementById('active-inv-title').textContent = res.nomeInventario;
+        showScreen('counting-panel');
+      } else alert(res.message);
+      setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
     }
 
     function startScanner() {
       document.getElementById('scanner-overlay').style.display = 'flex';
       html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, processBipe);
+      html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, processBipe);
     }
 
-    function stopScanner() {
-      if(html5QrCode) html5QrCode.stop().then(() => { document.getElementById('scanner-overlay').style.display = 'none'; });
-      else document.getElementById('scanner-overlay').style.display = 'none';
-    }
+    function stopScanner() { if(html5QrCode) html5QrCode.stop().then(() => document.getElementById('scanner-overlay').style.display = 'none'); }
 
     async function processBipe(ean) {
-      if(window.isProcessing) return;
-      window.isProcessing = true;
+      if(window.isProcessing) return; window.isProcessing = true;
       const msg = document.getElementById('scanner-msg');
-      msg.textContent = "Registrando: " + ean;
-      msg.style.color = "#673ab7";
-      try {
-        const res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
-        window.isProcessing = false;
-        if(res.success) {
-          msg.textContent = "✅ OK: " + ean; msg.style.color = "#4caf50";
-          if(navigator.vibrate) navigator.vibrate(50);
-          setTimeout(() => { msg.textContent = ""; }, 1000);
-        } else alert("Erro: " + res.message);
-      } catch (e) {
-        window.isProcessing = false;
-        alert(e);
-      }
+      msg.textContent = "Lendo: " + ean; msg.style.color = "var(--primary)";
+      const res = await callGAS({ api: 'registrarBipeInventario', ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
+      window.isProcessing = false;
+      if(res.success) {
+        msg.textContent = "✅ REGISTRADO: " + ean; msg.style.color = "var(--success)";
+        if(navigator.vibrate) navigator.vibrate(50);
+        setTimeout(() => msg.textContent = "", 1000);
+      } else alert(res.message);
     }
 
     async function doConcluirSecao() {
-      if(!confirm("Deseja concluir esta seção?")) return;
+      if(!confirm("Concluir seção?")) return;
       setBtnLoading('btn-concluir', true);
-      try {
-        const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, nomeInventario: currentInvName });
-        setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
-        if(res.success) { alert("Seção concluída! " + res.count + " itens."); showScreen('main-menu'); }
-        else alert("Erro: " + res.message);
-      } catch (e) {
-        setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
-        alert(e);
-      }
+      const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, nomeInventario: currentInvName });
+      if(res.success) { alert("Concluído! " + res.count + " itens."); showScreen('main-menu'); } else alert(res.message);
+      setBtnLoading('btn-concluir', false, 'CONCLUIR SEÇÃO');
     }
   </script>
 </body>
