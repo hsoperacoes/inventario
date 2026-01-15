@@ -57,7 +57,6 @@
 </head>
 <body>
 
-  <!-- MENU PRINCIPAL -->
   <div class="container" id="main-menu">
     <h2>Sistema de Inventário</h2>
     <button onclick="showScreen('master-login')">
@@ -68,7 +67,6 @@
     </button>
   </div>
 
-  <!-- TELA MASTER LOGIN -->
   <div class="container hidden" id="master-login">
     <h2>Acesso Master</h2>
     <div class="form-group">
@@ -79,7 +77,6 @@
     <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
   </div>
 
-  <!-- TELA MASTER PAINEL -->
   <div class="container hidden" id="master-panel">
     <h2>Novo Inventário</h2>
     <div class="form-group">
@@ -94,7 +91,6 @@
     <button class="btn-secundario" onclick="showScreen('main-menu')">Sair</button>
   </div>
 
-  <!-- TELA CONFERENTE LOGIN -->
   <div class="container hidden" id="conferente-login">
     <h2>Acesso Conferente</h2>
     <div class="form-group">
@@ -117,7 +113,6 @@
     <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
   </div>
 
-  <!-- TELA DE CONTAGEM ATIVA -->
   <div class="container hidden" id="counting-panel">
     <h2 id="active-inv-title">Inventário</h2>
     <div class="card">
@@ -133,7 +128,6 @@
     <div id="count-status" class="status-msg"></div>
   </div>
 
-  <!-- SCANNER OVERLAY -->
   <div id="scanner-overlay">
     <div id="reader"></div>
     <div class="scanner-controls">
@@ -145,6 +139,8 @@
   </div>
 
   <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
+    
     let currentUser = "";
     let currentSection = "";
     let currentInvId = "";
@@ -167,19 +163,41 @@
       }
     }
 
+    async function callAPI(payload) {
+      const response = await fetch(WEB_APP_URL, {
+        method: "POST",
+        mode: "no-cors", // Necessário para redirecionamentos do Google
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload)
+      });
+      // Como o Google usa redirecionamentos e o no-cors não permite ler a resposta,
+      // em um ambiente real de Web App, o ideal é usar google.script.run se estiver no mesmo projeto.
+      // Mas para link externo, vamos usar uma abordagem de fallback ou google.script.run se disponível.
+      
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        return new Promise((resolve, reject) => {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[payload.api](...Object.values(payload).slice(1));
+        });
+      } else {
+        // Fallback para fetch se não estiver no ambiente do Apps Script
+        const resp = await fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        return await resp.json();
+      }
+    }
+
     // MASTER LOGIC
     function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
       if(!pass) return alert("Digite a senha");
-      
       setBtnLoading('btn-master-login', true);
+      
       google.script.run.withSuccessHandler(res => {
         setBtnLoading('btn-master-login', false, 'Entrar');
         if(res.success) showScreen('master-panel');
         else alert(res.message);
-      }).withFailureHandler(err => {
-        setBtnLoading('btn-master-login', false, 'Entrar');
-        alert("Erro de conexão: " + err);
       }).masterLogin(pass);
     }
 
@@ -187,27 +205,21 @@
       const name = document.getElementById('inv-name').value;
       const pass = document.getElementById('inv-pass').value;
       if(!name || !pass) return alert("Preencha todos os campos");
-      
       setBtnLoading('btn-create-inv', true);
+      
       google.script.run.withSuccessHandler(res => {
         setBtnLoading('btn-create-inv', false, 'Criar Inventário');
-        if(res.success) {
-          alert("Inventário criado com sucesso!");
-          showScreen('main-menu');
-        } else alert(res.message);
+        if(res.success) { alert("Inventário criado!"); showScreen('main-menu'); }
+        else alert(res.message);
       }).criarNovoInventario(name, pass);
     }
 
-    // CONFERENTE LOGIC
     function showConferentePanel() {
       setBtnLoading('btn-open-conf', true);
       google.script.run.withSuccessHandler(list => {
         setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
         const select = document.getElementById('inv-select');
-        if(!list || list.length === 0) {
-          alert("Não há inventários abertos no momento.");
-          return;
-        }
+        if(!list || list.length === 0) return alert("Não há inventários abertos.");
         select.innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
         showScreen('conferente-login');
       }).listarInventariosAbertos();
@@ -218,18 +230,13 @@
       const invId = document.getElementById('inv-select').value;
       const invPass = document.getElementById('conf-inv-pass').value;
       const section = document.getElementById('conf-section').value;
-      
       if(!name || !invPass || !section) return alert("Preencha todos os campos");
-
       setBtnLoading('btn-conf-login', true);
+      
       google.script.run.withSuccessHandler(res => {
         setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
         if(res.success) {
-          currentUser = name;
-          currentSection = section;
-          currentInvId = invId;
-          currentInvName = res.nomeInventario;
-          
+          currentUser = name; currentSection = section; currentInvId = invId; currentInvName = res.nomeInventario;
           document.getElementById('display-name').textContent = name;
           document.getElementById('display-section').textContent = section;
           document.getElementById('active-inv-title').textContent = res.nomeInventario;
@@ -238,33 +245,20 @@
       }).validarAcessoInventario(invId, invPass);
     }
 
-    // SCANNER LOGIC
     function startScanner() {
       document.getElementById('scanner-overlay').style.display = 'flex';
       html5QrCode = new Html5Qrcode("reader");
-      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-      
-      html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-        processBipe(decodedText);
-      });
+      html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, processBipe);
     }
 
     function stopScanner() {
-      if(html5QrCode) {
-        html5QrCode.stop().then(() => {
-          document.getElementById('scanner-overlay').style.display = 'none';
-        }).catch(() => {
-          document.getElementById('scanner-overlay').style.display = 'none';
-        });
-      } else {
-        document.getElementById('scanner-overlay').style.display = 'none';
-      }
+      if(html5QrCode) html5QrCode.stop().then(() => { document.getElementById('scanner-overlay').style.display = 'none'; });
+      else document.getElementById('scanner-overlay').style.display = 'none';
     }
 
     function processBipe(ean) {
       if(window.isProcessing) return;
       window.isProcessing = true;
-      
       const msg = document.getElementById('scanner-msg');
       msg.textContent = "Registrando: " + ean;
       msg.style.color = "#673ab7";
@@ -272,29 +266,20 @@
       google.script.run.withSuccessHandler(res => {
         window.isProcessing = false;
         if(res.success) {
-          msg.textContent = "✅ OK: " + ean;
-          msg.style.color = "#4caf50";
+          msg.textContent = "✅ OK: " + ean; msg.style.color = "#4caf50";
           if(navigator.vibrate) navigator.vibrate(50);
           setTimeout(() => { msg.textContent = ""; }, 1000);
-        } else alert("Erro ao registrar: " + res.message);
-      }).registrarBipeInventario({
-        ean: ean,
-        usuario: currentUser,
-        secao: currentSection,
-        nomeInventario: currentInvName
-      });
+        } else alert("Erro: " + res.message);
+      }).registrarBipeInventario({ ean, usuario: currentUser, secao: currentSection, nomeInventario: currentInvName });
     }
 
     function doConcluirSecao() {
-      if(!confirm("Deseja concluir esta seção e enviar os dados para o consolidado?")) return;
-      
+      if(!confirm("Deseja concluir esta seção?")) return;
       setBtnLoading('btn-concluir', true);
       google.script.run.withSuccessHandler(res => {
         setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
-        if(res.success) {
-          alert("Seção concluída! " + res.count + " itens consolidados.");
-          showScreen('main-menu');
-        } else alert("Erro: " + res.message);
+        if(res.success) { alert("Seção concluída! " + res.count + " itens."); showScreen('main-menu'); }
+        else alert("Erro: " + res.message);
       }).concluirSecao(currentUser, currentInvName);
     }
   </script>
