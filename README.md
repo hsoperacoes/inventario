@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    /* Estilos baseados no layout original que você gosta */
     *{box-sizing:border-box}
     body{
       font-family: Arial, sans-serif;
@@ -31,12 +30,12 @@
       display:flex;align-items:center;justify-content:center;gap:10px;
     }
     button:hover{background:#5e35b1}
+    button:disabled{background:#444;cursor:not-allowed;opacity:0.7}
     .btn-secundario{background:#5f6368;margin-top:10px}
     .hidden{display:none}
     .card{background:#1e1e1e;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #333}
     h2{text-align:center;margin-top:0;color:#673ab7}
     
-    /* Scanner Overlay */
     #scanner-overlay{
       position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:1000;
       display:none;flex-direction:column;align-items:center;justify-content:center;
@@ -45,18 +44,26 @@
     .scanner-controls{margin-top:20px;width:90%;max-width:400px}
     
     .status-msg{text-align:center;margin-top:10px;font-size:13px}
-    .success{color:#4caf50}
-    .error{color:#f44336}
+    .loading-spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
+  <!-- MENU PRINCIPAL -->
   <div class="container" id="main-menu">
     <h2>Sistema de Inventário</h2>
     <button onclick="showScreen('master-login')">
       <i class="fas fa-user-shield"></i> Painel Master (Leonardo)
     </button>
-    <button class="btn-secundario" onclick="showConferentePanel()">
+    <button class="btn-secundario" id="btn-open-conf" onclick="showConferentePanel()">
       <i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)
     </button>
   </div>
@@ -68,7 +75,7 @@
       <label>Senha Master</label>
       <input type="password" id="master-pass" placeholder="Digite a senha master" />
     </div>
-    <button onclick="doMasterLogin()">Entrar</button>
+    <button id="btn-master-login" onclick="doMasterLogin()">Entrar</button>
     <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
   </div>
 
@@ -83,9 +90,8 @@
       <label>Senha para Conferentes</label>
       <input type="text" id="inv-pass" placeholder="Crie uma senha" />
     </div>
-    <button onclick="doCreateInventory()">Criar Inventário</button>
+    <button id="btn-create-inv" onclick="doCreateInventory()">Criar Inventário</button>
     <button class="btn-secundario" onclick="showScreen('main-menu')">Sair</button>
-    <div id="master-status" class="status-msg"></div>
   </div>
 
   <!-- TELA CONFERENTE LOGIN -->
@@ -107,7 +113,7 @@
       <label>Seção / Local</label>
       <input type="text" id="conf-section" placeholder="Ex: Corredor A, Prateleira 1" />
     </div>
-    <button onclick="doConferenteLogin()">Iniciar Scanner</button>
+    <button id="btn-conf-login" onclick="doConferenteLogin()">Iniciar Scanner</button>
     <button class="btn-secundario" onclick="showScreen('main-menu')">Voltar</button>
   </div>
 
@@ -121,7 +127,7 @@
     <button onclick="startScanner()">
       <i class="fas fa-camera"></i> ABRIR SCANNER
     </button>
-    <button class="btn-secundario" style="background:#d32f2f" onclick="doConcluirSecao()">
+    <button class="btn-secundario" id="btn-concluir" style="background:#d32f2f" onclick="doConcluirSecao()">
       <i class="fas fa-check-double"></i> CONCLUIR SEÇÃO
     </button>
     <div id="count-status" class="status-msg"></div>
@@ -135,7 +141,7 @@
         <i class="fas fa-times"></i> FECHAR SCANNER
       </button>
     </div>
-    <div id="scanner-msg" style="margin-top:15px; font-weight:bold"></div>
+    <div id="scanner-msg" style="margin-top:15px; font-weight:bold; text-align:center"></div>
   </div>
 
   <script>
@@ -150,12 +156,30 @@
       document.getElementById(id).classList.remove('hidden');
     }
 
+    function setBtnLoading(id, isLoading, text) {
+      const btn = document.getElementById(id);
+      if (isLoading) {
+        btn.disabled = true;
+        btn.innerHTML = `<div class="loading-spinner"></div> Processando...`;
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = text;
+      }
+    }
+
     // MASTER LOGIC
     function doMasterLogin() {
       const pass = document.getElementById('master-pass').value;
+      if(!pass) return alert("Digite a senha");
+      
+      setBtnLoading('btn-master-login', true);
       google.script.run.withSuccessHandler(res => {
+        setBtnLoading('btn-master-login', false, 'Entrar');
         if(res.success) showScreen('master-panel');
         else alert(res.message);
+      }).withFailureHandler(err => {
+        setBtnLoading('btn-master-login', false, 'Entrar');
+        alert("Erro de conexão: " + err);
       }).masterLogin(pass);
     }
 
@@ -164,16 +188,26 @@
       const pass = document.getElementById('inv-pass').value;
       if(!name || !pass) return alert("Preencha todos os campos");
       
+      setBtnLoading('btn-create-inv', true);
       google.script.run.withSuccessHandler(res => {
-        alert("Inventário criado com sucesso!");
-        showScreen('main-menu');
+        setBtnLoading('btn-create-inv', false, 'Criar Inventário');
+        if(res.success) {
+          alert("Inventário criado com sucesso!");
+          showScreen('main-menu');
+        } else alert(res.message);
       }).criarNovoInventario(name, pass);
     }
 
     // CONFERENTE LOGIC
     function showConferentePanel() {
+      setBtnLoading('btn-open-conf', true);
       google.script.run.withSuccessHandler(list => {
+        setBtnLoading('btn-open-conf', false, '<i class="fas fa-barcode"></i> Iniciar Contagem (Conferente)');
         const select = document.getElementById('inv-select');
+        if(!list || list.length === 0) {
+          alert("Não há inventários abertos no momento.");
+          return;
+        }
         select.innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
         showScreen('conferente-login');
       }).listarInventariosAbertos();
@@ -187,7 +221,9 @@
       
       if(!name || !invPass || !section) return alert("Preencha todos os campos");
 
+      setBtnLoading('btn-conf-login', true);
       google.script.run.withSuccessHandler(res => {
+        setBtnLoading('btn-conf-login', false, 'Iniciar Scanner');
         if(res.success) {
           currentUser = name;
           currentSection = section;
@@ -198,9 +234,7 @@
           document.getElementById('display-section').textContent = section;
           document.getElementById('active-inv-title').textContent = res.nomeInventario;
           showScreen('counting-panel');
-        } else {
-          alert(res.message);
-        }
+        } else alert(res.message);
       }).validarAcessoInventario(invId, invPass);
     }
 
@@ -219,6 +253,8 @@
       if(html5QrCode) {
         html5QrCode.stop().then(() => {
           document.getElementById('scanner-overlay').style.display = 'none';
+        }).catch(() => {
+          document.getElementById('scanner-overlay').style.display = 'none';
         });
       } else {
         document.getElementById('scanner-overlay').style.display = 'none';
@@ -226,7 +262,6 @@
     }
 
     function processBipe(ean) {
-      // Trava simples de interface para não bipar repetido enquanto processa
       if(window.isProcessing) return;
       window.isProcessing = true;
       
@@ -237,13 +272,11 @@
       google.script.run.withSuccessHandler(res => {
         window.isProcessing = false;
         if(res.success) {
-          msg.textContent = "OK: " + ean;
+          msg.textContent = "✅ OK: " + ean;
           msg.style.color = "#4caf50";
-          // Beep ou vibração aqui se quiser
+          if(navigator.vibrate) navigator.vibrate(50);
           setTimeout(() => { msg.textContent = ""; }, 1000);
-        } else {
-          alert("Erro ao registrar: " + res.message);
-        }
+        } else alert("Erro ao registrar: " + res.message);
       }).registrarBipeInventario({
         ean: ean,
         usuario: currentUser,
@@ -255,18 +288,13 @@
     function doConcluirSecao() {
       if(!confirm("Deseja concluir esta seção e enviar os dados para o consolidado?")) return;
       
-      const status = document.getElementById('count-status');
-      status.textContent = "Consolidando dados...";
-      status.className = "status-msg";
-
+      setBtnLoading('btn-concluir', true);
       google.script.run.withSuccessHandler(res => {
+        setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR SEÇÃO');
         if(res.success) {
           alert("Seção concluída! " + res.count + " itens consolidados.");
           showScreen('main-menu');
-        } else {
-          status.textContent = "Erro: " + res.message;
-          status.className = "status-msg error";
-        }
+        } else alert("Erro: " + res.message);
       }).concluirSecao(currentUser, currentInvName);
     }
   </script>
