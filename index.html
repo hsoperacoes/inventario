@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -325,7 +324,6 @@
   <div class="count-hero">
     <div class="count-hero-lbl">Peças bipadas</div>
     <div class="count-hero-num" id="user-count">0</div>
-    <div class="count-hero-meta" id="count-meta-lbl"></div>
   </div>
 
   <!-- Último EAN -->
@@ -424,21 +422,15 @@ function updateCounterUI(newEan){
   const v=String(localCount);
   document.getElementById('user-count').textContent=v;
   document.getElementById('scanner-count-val').textContent=v;
-  // bump animation
   if(newEan){
     const n=document.getElementById('user-count');
     n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');
     setTimeout(()=>n.classList.remove('bump'),220);
-    // mostra EAN no painel de contagem
     const ev=document.getElementById('last-ean-val');
     const eb=document.getElementById('last-ean-badge');
     if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
     if(eb)eb.style.display='inline-block';
   }
-  // meta label
-  const ml=document.getElementById('count-meta-lbl');
-  if(ml&&currentMeta){const p=Math.round((localCount/currentMeta)*100);ml.innerHTML=`Meta: <strong>${currentMeta}</strong> pcs &nbsp;·&nbsp; ${p}%`;}
-  else if(ml)ml.textContent='';
 }
 function updateQueueUI(){
   const pnd=queue.length;
@@ -657,7 +649,6 @@ async function mostrarSelecaoGrupo(){
         <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
           <div>
             <div class="grupo-card-nome">${g.nome}</div>
-            <div class="grupo-card-meta">Meta: ${g.meta} pcs</div>
           </div>
           <span class="grupo-card-badge">DISPONÍVEL ›</span>
         </div>`).join('');
