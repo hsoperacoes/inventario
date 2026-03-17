@@ -277,7 +277,7 @@
 <!-- ESCOLHA DE GRUPO -->
 <div class="container hidden" id="grupo-select-panel">
   <h2>ESCOLHER GRUPO</h2>
-  <p style="text-align:center;color:var(--dim);font-size:13px;margin-bottom:20px;">Selecione um grupo pré-criado ou crie um novo.</p>
+  <p id="debug-inv-id" style="text-align:center;color:var(--dim);font-size:11px;margin-bottom:16px;"></p>
 
   <!-- Grupos disponíveis -->
   <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
@@ -287,11 +287,11 @@
 
   <!-- Criar novo grupo manual -->
   <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo (sem meta pré-definida)</div>
     <div class="form-group" style="margin-bottom:10px;">
       <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
     </div>
-    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E ENTRAR</button>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E AGUARDAR META</button>
   </div>
 
   <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
@@ -626,22 +626,44 @@ async function doConferenteLogin(){
 // Passo 2: mostra grupos disponíveis
 async function mostrarSelecaoGrupo(){
   showScreen('grupo-select-panel');
-  document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Carregando...</div>';
+  const elLista=document.getElementById('lista-grupos-disponiveis');
+  elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
+
+  // Mostra o ID do inventário sendo consultado para debug
+  document.getElementById('debug-inv-id').textContent='Inventário: '+_confInvId+' ('+_confInvNome+')';
+
   try{
     const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_confInvId});
-    if(r&&r.success){
-      const grupos=r.grupos||[];
-      if(!grupos.length){
-        document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Nenhum grupo pré-criado disponível.</div>';
-      }else{
-        document.getElementById('lista-grupos-disponiveis').innerHTML=grupos.map(g=>`
-          <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${g.nome}',${g.meta})">
-            <div><div class="grupo-card-nome">${g.nome}</div><div class="grupo-card-meta">Meta: ${g.meta} pcs</div></div>
-            <span class="grupo-card-badge">DISPONÍVEL</span>
-          </div>`).join('');
-      }
+
+    if(!r){
+      elLista.innerHTML='<div class="grupo-empty" style="color:var(--danger)">Sem resposta do servidor.</div>';
+      return;
     }
-  }catch(e){document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Erro ao carregar grupos.</div>';}
+    if(!r.success){
+      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro: ${r.message||'?'}</div>`;
+      return;
+    }
+
+    // Mostra info de debug embaixo do ID do inventário
+    document.getElementById('debug-inv-id').textContent=
+      `Inv: ${_confInvId} · ${r.debug_total||0} grupos no total · ${(r.grupos||[]).length} disponíveis para este inv`;
+
+    const grupos=r.grupos||[];
+    if(!grupos.length){
+      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo pré-criado disponível para este inventário.</div>';
+    }else{
+      elLista.innerHTML=grupos.map(g=>`
+        <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
+          <div>
+            <div class="grupo-card-nome">${g.nome}</div>
+            <div class="grupo-card-meta">Meta: ${g.meta} pcs</div>
+          </div>
+          <span class="grupo-card-badge">DISPONÍVEL ›</span>
+        </div>`).join('');
+    }
+  }catch(e){
+    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão: ${e}</div>`;
+  }
 }
 
 // Pegou um grupo pré-criado
