@@ -786,15 +786,7 @@ function startScanner(){
       // Atualiza o timestamp de "última vez que viu um código"
       _lastSeenAt=now;
 
-      // Prefixo GS1 Brasil
-      if(!raw.startsWith('789')){
-        // Só mostra popup inválido se não estiver dentro do lock de um código bom
-        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
-          showEANPopup(raw,false);bip(false);
-          if(navigator.vibrate)navigator.vibrate([40,20,40]);
-        }
-        return;
-      }
+      // Prefixo GS1 Brasil — REMOVIDO (confiar apenas no checksum)
 
       // Checksum EAN-13
       if(!validarEAN13(raw)){
