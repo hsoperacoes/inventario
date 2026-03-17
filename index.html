@@ -1,899 +1,825 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HS INVENTÁRIO PRO</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    :root {
-      --primary: #673ab7;
-      --primary-dark: #5e35b1;
-      --bg: #0f0f0f;
-      --card-bg: #1e1e1e;
-      --text: #ffffff;
-      --text-dim: #b0b0b0;
-      --success: #4caf50;
-      --danger: #f44336;
-      --warning: #ff9800;
-    }
-    * { box-sizing: border-box; transition: all 0.2s ease; }
-    body {
-      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg); color: var(--text); margin: 0; padding: 0;
-      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-    }
-    .container {
-      width: 95%; max-width: 600px; background: var(--card-bg);
-      padding: 30px 20px; border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      margin: 20px 10px; border: 1px solid #333;
-    }
-    h2 { text-align: center; margin-top: 0; color: var(--primary); font-weight: 800; letter-spacing: 1px; }
+/**
+ * SISTEMA DE INVENTÁRIO PROFISSIONAL HS - VERSÃO MASTER TURBO v2
+ * Planilha: 1vMatvOMDOqDXBvc6zKjGwCODuLs-kIU0Y1eWiUBhvgc
+ *
+ * CHANGELOG v2:
+ * - Sistema de Grupos com meta oculta (CONFIG_GRUPOS)
+ * - Bloqueio de conclusão se contagem ≠ meta
+ * - Correção: "49" solto em getUserOpenCount
+ * - Correção: isProcessing nunca resetado (tratado no frontend)
+ * - Correção: clearContent sem deletar linhas (usando deleteRows)
+ * - Retry de lock para múltiplos usuários simultâneos
+ * - Nova API: cadastrarGrupo, listarGrupos, excluirGrupo, getMetaGrupo
+ * - Nova API: getCountComMeta (retorna count + meta ao mesmo tempo, meta oculta até conclusão)
+ * - Nova API: excluirItemUsuario (admin deleta item específico)
+ * - Nova API: zerarContagemUsuario (admin zera tudo de um usuário)
+ * - getSheetsData: retorna dados ricos para o sidebar do Sheets
+ */
 
-    .home-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px; }
-    .home-card {
-      background: #252525; padding: 25px; border-radius: 15px; border: 1px solid #333;
-      cursor: pointer; display: flex; align-items: center; gap: 20px;
-    }
-    .home-card:hover { transform: translateY(-5px); border-color: var(--primary); background: #2a2a2a; }
-    .home-card i { font-size: 30px; color: var(--primary); }
-    .home-card div h3 { margin: 0; font-size: 18px; }
-    .home-card div p { margin: 5px 0 0; font-size: 13px; color: var(--text-dim); }
+const SPREADSHEET_ID        = '1vMatvOMDOqDXBvc6zKjGwCODuLs-kIU0Y1eWiUBhvgc';
+const SHEET_INVENTARIOS     = 'CONFIG_INVENTARIOS';
+const SHEET_CONSOLIDADO     = 'CONSOLIDADO_GERAL';
+const SHEET_GRUPOS          = 'CONFIG_GRUPOS';   // id_inventario | nome_grupo | meta | data_criacao
 
-    .form-group { margin-bottom: 15px; }
-    label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-dim); }
-    input, select {
-      width: 100%; padding: 14px; font-size: 15px; border: 1px solid #333;
-      border-radius: 10px; background: #121212; color: #fff; outline: none;
-    }
-    input:focus { border-color: var(--primary); }
+/* =========================================================
+   ROTEADOR
+   ========================================================= */
+function doGet(e) {
+  try {
+    const api = (e && e.parameter && e.parameter.api) ? e.parameter.api : '';
+    let result;
 
-    button {
-      background: var(--primary); color: #fff; border: none; padding: 15px;
-      border-radius: 10px; font-size: 15px; cursor: pointer; font-weight: 700;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      width: 100%;
-    }
-    button:hover { background: var(--primary-dark); transform: scale(1.02); }
-    button:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
-    .btn-secundario { background: #333; margin-top: 10px; }
-    .btn-danger { background: var(--danger); }
-    .btn-warning { background: var(--warning); color: #000; margin-top: 10px; }
+    switch(api) {
+      // Auth
+      case 'masterLogin':             result = masterLogin(e.parameter.senha); break;
 
-    .hidden { display: none; }
+      // Inventários
+      case 'criarNovoInventario':     result = criarNovoInventario(e.parameter.nome, e.parameter.senha); break;
+      case 'listarInventariosAbertos':result = listarInventariosAbertos(); break;
+      case 'validarAcessoInventario': result = validarAcessoInventario(e.parameter.idInventario, e.parameter.senhaDigitada); break;
+      case 'finalizarInventario':     result = finalizarInventario(e.parameter.id); break;
+      case 'excluirInventario':       result = excluirInventario(e.parameter.id); break;
 
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-    .stat-box {
-      background: #121212; padding: 15px; border-radius: 12px; text-align: center;
-      border: 1px solid #333; position: relative;
-    }
-    .stat-box span { display: block; font-size: 24px; font-weight: 800; color: var(--primary); }
-    .stat-box label { font-size: 11px; text-transform: uppercase; margin: 0; }
+      // Grupos (seções com meta)
+      case 'cadastrarGrupo':          result = cadastrarGrupo(e.parameter.idInventario, e.parameter.nomeGrupo, e.parameter.meta); break;
+      case 'listarGrupos':            result = listarGrupos(e.parameter.idInventario); break;
+      case 'excluirGrupo':            result = excluirGrupo(e.parameter.idInventario, e.parameter.nomeGrupo); break;
+      case 'getMetaGrupo':            result = getMetaGrupo(e.parameter.idInventario, e.parameter.nomeGrupo); break; // ADMIN ONLY
 
-    .list-item {
-      background: #121212; padding: 12px; border-radius: 8px; margin-bottom: 8px;
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 14px; border-left: 4px solid var(--primary); gap: 10px;
-    }
-    .badge { background: var(--warning); color: #000; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+      // Seção / contagem
+      case 'iniciarSecao':            result = iniciarSecao(e.parameter.usuario, e.parameter.idInventario, e.parameter.secao); break;
+      case 'registrarBipeInventario': result = registrarBipeInventario(e.parameter); break;
+      case 'concluirSecao':           result = concluirSecao(e.parameter.usuario, e.parameter.idInventario); break;
 
-    .live-indicator {
-      display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--success);
-      justify-content: center; margin-bottom: 10px; text-transform: uppercase; font-weight: bold;
-    }
-    .dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+      // Contador (conferente) — retorna count SEM meta
+      case 'getUserOpenCount':        result = getUserOpenCount(e.parameter.idInventario, e.parameter.usuario); break;
 
-    /* ---- SCANNER OVERLAY ---- */
-    #scanner-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.97); z-index: 1000;
-      display: none; flex-direction: column; align-items: center; justify-content: center;
-      gap: 16px;
-    }
-    #reader { width: 90%; max-width: 400px; border: 2px solid var(--primary); border-radius: 20px; overflow: hidden; }
+      // Admin: itens
+      case 'excluirItemUsuario':      result = excluirItemUsuario(e.parameter.idInventario, e.parameter.usuario, e.parameter.rowIndex); break;
+      case 'zerarContagemUsuario':    result = zerarContagemUsuario(e.parameter.idInventario, e.parameter.usuario); break;
+      case 'masterConcluirSecao':     result = masterConcluirSecao(e.parameter.usuario, e.parameter.idInventario); break;
+      case 'masterAddManualCode':     result = masterAddManualCode(e.parameter); break;
 
-    /* Contador flutuante na câmera */
-    #scanner-counter-box {
-      background: rgba(103, 58, 183, 0.85);
-      border: 1px solid var(--primary);
-      border-radius: 16px;
-      padding: 10px 28px;
-      text-align: center;
-      backdrop-filter: blur(4px);
-      min-width: 220px;
-    }
-    #scanner-counter-box .sc-label { font-size: 11px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px; }
-    #scanner-counter-box .sc-value { font-size: 36px; font-weight: 900; color: #fff; line-height: 1.1; }
-    #scanner-counter-box .sc-group { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+      // Dashboard
+      case 'getDashboardData':        result = getDashboardData(); break;
 
-    #scanner-msg { font-weight: bold; text-align: center; font-size: 18px; min-height: 28px; }
+      // Sidebar do Sheets
+      case 'getSheetsData':           result = getSheetsData(); break;
 
-    .loading-spinner {
-      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3);
-      border-radius: 50%; border-top-color: #fff; animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .mini-btn {
-      padding: 6px 10px !important; font-size: 10px !important;
-      border-radius: 8px !important; line-height: 1 !important;
-      gap: 6px !important; margin-top: 0 !important; white-space: nowrap;
-      width: auto !important;
-    }
-    .mini-btn.btn-secundario { background: #2d2d2d; }
-    .mini-btn.btn-danger { background: var(--danger); }
-
-    .hint { font-size: 12px; color: var(--text-dim); text-align: center; margin-top: -10px; margin-bottom: 15px; }
-
-    .count-pill {
-      display: inline-flex; align-items: center; gap: 8px; background: #111;
-      border: 1px solid #2a2a2a; padding: 10px 12px; border-radius: 14px;
-      margin: 12px 0 4px; width: 100%; justify-content: center;
-      font-weight: 800; letter-spacing: 0.3px;
-    }
-    .count-pill small { font-weight: 600; color: var(--text-dim); letter-spacing: 0; }
-
-    /* Alerta contagem não bate */
-    #contagem-nao-bate {
-      background: #1a0a0a; border: 2px solid var(--danger); border-radius: 16px;
-      padding: 20px; margin: 15px 0; text-align: center; display: none;
-    }
-    #contagem-nao-bate h3 { color: var(--danger); margin-top: 0; }
-    #contagem-nao-bate .diff-box { font-size: 28px; font-weight: 900; margin: 10px 0; }
-    #contagem-nao-bate p { font-size: 13px; color: var(--text-dim); margin: 5px 0; }
-    .diff-pos { color: var(--warning); }
-    .diff-neg { color: var(--danger); }
-
-    /* Alerta inventário encerrado */
-    .alerta-encerrado {
-      background: #1a0a00; border: 2px solid var(--warning); border-radius: 14px;
-      padding: 16px; margin-bottom: 15px; font-size: 14px; text-align: center; color: var(--warning);
+      default: result = { success: false, message: 'API não encontrada: ' + api };
     }
 
-    .select-wrapper { position: relative; }
-    .select-wrapper select { appearance: none; padding-right: 40px; }
-    .select-wrapper::after {
-      content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
-      position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
-      color: var(--text-dim); pointer-events: none;
+    return responderJSONP_(e, result);
+  } catch (err) {
+    return responderJSONP_(e, { success: false, message: err.toString() });
+  }
+}
+
+/* =========================================================
+   HELPERS GERAIS
+   ========================================================= */
+function responderJSONP_(e, obj) {
+  const callback = e.parameter.callback;
+  const json = JSON.stringify(obj);
+  if (callback) {
+    return ContentService.createTextOutput(callback + '(' + json + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getSS_() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
+
+function garantirAba(nomeAba, cabecalhos) {
+  const ss = getSS_();
+  let sh = ss.getSheetByName(nomeAba);
+  if (!sh) {
+    sh = ss.insertSheet(nomeAba);
+    sh.appendRow(cabecalhos);
+    sh.getRange(1, 1, 1, cabecalhos.length).setFontWeight('bold').setBackground('#eeeeee');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function garantirColunas_(sh, headers) {
+  const lastCol = sh.getLastColumn();
+  if (lastCol === 0) return sh;
+  const headerRow = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  let changed = false;
+  headers.forEach(h => {
+    if (headerRow.indexOf(h) === -1) {
+      sh.getRange(1, sh.getLastColumn() + 1).setValue(h).setFontWeight('bold').setBackground('#eeeeee');
+      changed = true;
     }
-  </style>
-</head>
-<body>
+  });
+  if (changed) sh.setFrozenRows(1);
+  return sh;
+}
 
-  <!-- HOME -->
-  <div class="container" id="main-menu">
-    <h2>HS INVENTÁRIO PRO</h2>
-    <p style="text-align:center; color:var(--text-dim); font-size:14px; margin-bottom:25px;">Selecione o modo de operação</p>
-    <div class="home-grid">
-      <div class="home-card" onclick="showScreen('master-login')">
-        <i class="fas fa-user-shield"></i>
-        <div><h3>Painel Master</h3><p>Gestão de inventários e monitoramento em tempo real.</p></div>
-      </div>
-      <button id="btn-open-conf" class="hidden"></button>
-      <div class="home-card" onclick="showConferentePanel()">
-        <i class="fas fa-barcode"></i>
-        <div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar produtos.</p></div>
-      </div>
-      <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;">
-        <i class="fas fa-rotate-left"></i>
-        <div><h3>Continuar Última Contagem</h3><p id="continuar-desc">Retomar inventário e usuário já preenchidos.</p></div>
-      </div>
-      <div class="home-card" id="card-limpar" onclick="limparSessao()" style="display:none;">
-        <i class="fas fa-trash"></i>
-        <div><h3>Limpar Sessão</h3><p>Apaga a última contagem salva deste dispositivo.</p></div>
-      </div>
-    </div>
-  </div>
+function sanitizarNomeAba_(nome) {
+  let n = String(nome || '').trim();
+  if (!n) n = 'INVENTARIO';
+  n = n.replace(/[\\\/\?\*\[\]]/g, '-');
+  n = n.replace(/\s+/g, ' ').trim();
+  if (n.length > 100) n = n.slice(0, 100);
+  return n;
+}
 
-  <!-- MASTER LOGIN -->
-  <div class="container hidden" id="master-login">
-    <h2>ACESSO MASTER</h2>
-    <div class="form-group">
-      <label>Senha do Leonardo</label>
-      <input type="password" id="master-pass" placeholder="Digite a senha master" />
-    </div>
-    <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
-    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
-  </div>
+function sanitizarUserKey_(txt) {
+  let t = String(txt || '').toUpperCase().trim();
+  if (!t) t = 'ANONIMO';
+  t = t.replace(/\s+/g, '_');
+  t = t.replace(/[^A-Z0-9_]/g, '_');
+  t = t.replace(/_+/g, '_');
+  if (t.length > 60) t = t.slice(0, 60);
+  return t;
+}
 
-  <!-- DASHBOARD MASTER -->
-  <div class="container hidden" id="master-panel" style="max-width:800px;">
-    <div class="live-indicator"><div class="dot"></div> Monitoramento em Tempo Real Ativo</div>
-    <h2>PAINEL DO LEONARDO</h2>
+function nomeAbaUser_(idInventario, usuario) {
+  const inv = String(idInventario || '').trim();
+  const u   = sanitizarUserKey_(usuario);
+  return 'USER_' + inv + '__' + u;
+}
 
-    <div class="stats-grid">
-      <div class="stat-box"><span id="stat-total">0</span><label>Total Consolidado</label></div>
-      <div class="stat-box"><span id="stat-aberto">0</span><label>Bipes em Aberto</label></div>
-    </div>
-
-    <div style="display:flex; gap:10px; margin-bottom:15px;">
-      <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
-      <button style="flex:1; background:#2a2a2a" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
-    </div>
-    <div style="margin-bottom:20px;">
-      <button style="background:#1a3a1a;" onclick="showScreen('create-grupo-screen')"><i class="fas fa-layer-group"></i> Gerenciar Grupos / Metas</button>
-    </div>
-
-    <div style="background:#1a1a1a; padding:15px; border-radius:15px; margin-bottom:20px;">
-      <h3 style="font-size:16px; margin-top:0; color:var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto por Usuário</h3>
-      <div class="hint">Finalizar bloqueia a seção. "Manual" adiciona item direto na aba do usuário.</div>
-      <div id="list-usuarios"></div>
-    </div>
-
-    <div style="background:#1a1a1a; padding:15px; border-radius:15px;">
-      <h3 style="font-size:16px; margin-top:0;"><i class="fas fa-list-check"></i> Gestão de Inventários</h3>
-      <div id="list-inventarios"></div>
-    </div>
-
-    <button class="btn-secundario" style="margin-top:20px;" onclick="stopRealTime(); showScreen('main-menu');">SAIR DO PAINEL</button>
-  </div>
-
-  <!-- CRIAR INVENTÁRIO -->
-  <div class="container hidden" id="create-inv-screen">
-    <h2>NOVO INVENTÁRIO</h2>
-    <div class="form-group">
-      <label>Nome do Inventário</label>
-      <input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025" />
-    </div>
-    <div class="form-group">
-      <label>Senha para Conferentes</label>
-      <input type="text" id="inv-pass" placeholder="Crie uma senha" />
-    </div>
-    <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
-    <button class="btn-secundario" onclick="showScreen('master-panel')">CANCELAR</button>
-  </div>
-
-  <!-- GERENCIAR GRUPOS -->
-  <div class="container hidden" id="create-grupo-screen">
-    <h2>GRUPOS / METAS</h2>
-    <p class="hint" style="margin-top:0;">Cadastre os grupos que os conferentes vão selecionar e defina a meta de peças de cada um. A meta é oculta para o conferente durante a contagem.</p>
-
-    <div class="form-group">
-      <label>Inventário</label>
-      <div class="select-wrapper">
-        <select id="grupo-inv-select"></select>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Nome do Grupo</label>
-      <input type="text" id="grupo-nome" placeholder="Ex: Módulo A, Corredor 3, Amostragem 1..." />
-    </div>
-    <div class="form-group">
-      <label>Meta de Peças (contagem física)</label>
-      <input type="number" id="grupo-meta" placeholder="Ex: 150" min="1" />
-    </div>
-    <button id="btn-save-grupo" onclick="doSalvarGrupo()"><i class="fas fa-save"></i> SALVAR GRUPO</button>
-    <button class="btn-secundario" onclick="loadGruposList()"><i class="fas fa-sync"></i> Atualizar Lista</button>
-    <button class="btn-secundario" onclick="showScreen('master-panel')">VOLTAR</button>
-
-    <div style="margin-top:20px;" id="grupos-list-container">
-      <h3 style="font-size:14px; color:var(--text-dim);">Grupos cadastrados</h3>
-      <div id="grupos-list"></div>
-    </div>
-  </div>
-
-  <!-- CONFERENTE LOGIN -->
-  <div class="container hidden" id="conferente-login">
-    <h2>CONFERENTE</h2>
-    <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name" /></div>
-    <div class="form-group">
-      <label>Inventário</label>
-      <div class="select-wrapper"><select id="inv-select"></select></div>
-    </div>
-    <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass" /></div>
-    <div class="form-group">
-      <label>Grupo</label>
-      <div class="select-wrapper"><select id="conf-grupo-select"><option value="">Carregando grupos...</option></select></div>
-    </div>
-    <button id="btn-conf-login" onclick="doConferenteLogin()">INICIAR SCANNER</button>
-    <button class="btn-secundario" onclick="showScreen('main-menu')">VOLTAR</button>
-  </div>
-
-  <!-- SCANNER ATIVO -->
-  <div class="container hidden" id="counting-panel">
-    <h2 id="active-inv-title">...</h2>
-
-    <div class="count-pill">
-      <small>Peças bipadas (banco):</small>
-      <span id="user-count">0</span>
-    </div>
-
-    <div style="font-size:14px; margin:10px 0;">
-      <p style="margin:4px 0"><strong>Conferente:</strong> <span id="display-name"></span></p>
-      <p style="margin:4px 0"><strong>Grupo:</strong> <span id="display-section"></span></p>
-    </div>
-
-    <!-- Alerta quando contagem não bate -->
-    <div id="contagem-nao-bate">
-      <h3><i class="fas fa-triangle-exclamation"></i> Contagem não bate com a meta!</h3>
-      <div class="diff-box">
-        <span id="contagem-atual-val">0</span> bipados
-      </div>
-      <p id="diff-msg"></p>
-      <p style="color:var(--text-dim); font-size:12px;">Aguarde o administrador ajustar a contagem ou inclua os itens faltantes.</p>
-    </div>
-
-    <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
-    <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()" style="margin-top:10px;"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
-    <button class="btn-secundario" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
-  </div>
-
-  <!-- SCANNER OVERLAY -->
-  <div id="scanner-overlay">
-    <div id="reader"></div>
-
-    <!-- Contador flutuante na câmera -->
-    <div id="scanner-counter-box">
-      <div class="sc-label">Peças bipadas</div>
-      <div class="sc-value" id="scanner-count-val">0</div>
-      <div class="sc-group" id="scanner-group-label"></div>
-    </div>
-
-    <div style="width:90%; max-width:400px;">
-      <button class="btn-secundario" onclick="stopScanner()"><i class="fas fa-times"></i> FECHAR SCANNER</button>
-    </div>
-    <div id="scanner-msg"></div>
-  </div>
-
-  <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-
-    let currentUser = "", currentSection = "", currentInvName = "", currentInvId = "";
-    let html5QrCode = null;
-    let refreshInterval = null;
-    let userCountTimer = null;
-    const LS_KEY = "HS_INV_SESSAO_01";
-
-    // AudioContext para beep
-    let audioCtx = null;
-    function bip() {
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.type = "square"; o.frequency.value = 880; g.gain.value = 0.05;
-        o.connect(g); g.connect(audioCtx.destination); o.start();
-        setTimeout(() => { try { o.stop(); } catch(_){} }, 80);
-      } catch(_){}
+function obterInventarioPorId_(idInventario) {
+  const ss = getSS_();
+  const sh = ss.getSheetByName(SHEET_INVENTARIOS);
+  if (!sh) return null;
+  garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(idInventario)) {
+      return {
+        id:              data[i][0],
+        nome:            data[i][1],
+        senha:           data[i][2],
+        status:          data[i][3],
+        dataCriacao:     data[i][4],
+        msgBloqueio:     data[i][5] || '',
+        dataFinalizacao: data[i][6] || ''
+      };
     }
+  }
+  return null;
+}
 
-    /* =========================================================
-       NAVEGAÇÃO
-       ========================================================= */
-    function showScreen(id) {
-      document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
-      document.getElementById(id).classList.remove('hidden');
-      if (id === 'master-panel') startRealTime(); else stopRealTime();
-      if (id === 'counting-panel') startUserCountAuto(); else stopUserCountAuto();
-      if (id === 'create-grupo-screen') initGrupoScreen();
-    }
+/* =========================================================
+   BLOQUEIO DE SEÇÃO
+   ========================================================= */
+function chaveSecao_(idInventario, usuario) {
+  return 'SECAOLOCK__' + String(idInventario || '').trim() + '__' + sanitizarUserKey_(usuario);
+}
+function bloquearSecao_(idInventario, usuario)   { PropertiesService.getScriptProperties().setProperty(chaveSecao_(idInventario, usuario), '1'); }
+function desbloquearSecao_(idInventario, usuario){ PropertiesService.getScriptProperties().deleteProperty(chaveSecao_(idInventario, usuario)); }
+function estaBloqueada_(idInventario, usuario)   { return PropertiesService.getScriptProperties().getProperty(chaveSecao_(idInventario, usuario)) === '1'; }
 
-    function startRealTime() {
-      loadDashboard();
-      if (!refreshInterval) refreshInterval = setInterval(loadDashboard, 10000);
-    }
-    function stopRealTime() {
-      if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
-    }
+function limparLocksInventario_(idInventario) {
+  const props  = PropertiesService.getScriptProperties().getProperties();
+  const prefix = 'SECAOLOCK__' + String(idInventario || '').trim() + '__';
+  const keys   = Object.keys(props).filter(k => k.indexOf(prefix) === 0);
+  keys.forEach(k => { try { PropertiesService.getScriptProperties().deleteProperty(k); } catch(_){} });
+}
 
-    /* =========================================================
-       LOADING STATE
-       ========================================================= */
-    function setBtnLoading(id, isLoading, text) {
-      const btn = document.getElementById(id);
-      if (!btn) return;
-      btn.disabled = isLoading;
-      btn.innerHTML = isLoading ? `<div class="loading-spinner"></div>` : (text || btn.innerHTML);
-    }
+/* =========================================================
+   GRUPOS (SEÇÕES COM META OCULTA)
+   ========================================================= */
 
-    /* =========================================================
-       CALL GAS (JSONP com retry)
-       ========================================================= */
-    function callGAS(params, retries = 2) {
-      return new Promise((resolve, reject) => {
-        let attempt = 0;
-        function tryCall() {
-          const callbackName = 'jsonp_' + Math.round(1e7 * Math.random());
-          window[callbackName] = (data) => {
-            delete window[callbackName];
-            try { document.body.removeChild(script); } catch(_){}
-            resolve(data);
-          };
-          const script = document.createElement('script');
-          let url = WEB_APP_URL + '?callback=' + callbackName;
-          for (let k in params) url += '&' + k + '=' + encodeURIComponent(params[k]);
-          script.src = url;
-          script.onerror = () => {
-            try { delete window[callbackName]; } catch(_){}
-            try { document.body.removeChild(script); } catch(_){}
-            if (attempt < retries) { attempt++; setTimeout(tryCall, 800); }
-            else reject("Erro de conexão após " + (retries + 1) + " tentativas.");
-          };
-          document.body.appendChild(script);
-          setTimeout(() => {
-            if (window[callbackName]) {
-              delete window[callbackName];
-              try { document.body.removeChild(script); } catch(_){}
-              if (attempt < retries) { attempt++; setTimeout(tryCall, 800); }
-              else reject("Timeout");
-            }
-          }, 22000);
-        }
-        tryCall();
-      });
-    }
+/**
+ * Garante a aba CONFIG_GRUPOS com cabeçalhos corretos.
+ */
+function garantirAbaGrupos_() {
+  return garantirAba(SHEET_GRUPOS, ['ID_INVENTARIO', 'NOME_GRUPO', 'META', 'DATA_CRIACAO']);
+}
 
-    /* =========================================================
-       SESSÃO LOCAL
-       ========================================================= */
-    function salvarSessaoLocal() {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify({
-          user: currentUser, section: currentSection,
-          invId: currentInvId, invName: currentInvName, ts: Date.now()
-        }));
-        atualizarCardsSessao();
-      } catch(_){}
-    }
-    function lerSessaoLocal() {
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) return null;
-        const obj = JSON.parse(raw);
-        return (obj && obj.invId && obj.user) ? obj : null;
-      } catch(_) { return null; }
-    }
-    function limparSessao() {
-      if (!confirm("Apagar a última contagem salva deste dispositivo?")) return;
-      try { localStorage.removeItem(LS_KEY); } catch(_){}
-      atualizarCardsSessao();
-      alert("Sessão apagada.");
-    }
-    function atualizarCardsSessao() {
-      const s = lerSessaoLocal();
-      document.getElementById("card-continuar").style.display = s ? "flex" : "none";
-      document.getElementById("card-limpar").style.display    = s ? "flex" : "none";
-      if (s) document.getElementById("continuar-desc").textContent = `Inventário: ${s.invName} | Usuário: ${s.user} | Grupo: ${s.section}`;
-    }
-    async function continuarUltimaContagem() {
-      const s = lerSessaoLocal();
-      if (!s) return alert("Não existe sessão salva.");
-      try {
-        const list = await callGAS({ api: 'listarInventariosAbertos' });
-        if (!list || list.length === 0) return alert("Nenhum inventário aberto.");
-        document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
-        if (list.some(i => String(i.id) === String(s.invId))) document.getElementById('inv-select').value = s.invId;
-        document.getElementById('conf-name').value    = s.user    || "";
-        document.getElementById('conf-inv-pass').value = "";
-        await carregarGruposConferente(s.invId, s.section);
-        showScreen('conferente-login');
-      } catch(e) { alert("Erro ao carregar inventários."); }
-    }
-    function voltarSemPerderSessao() {
-      stopScanner();
-      showScreen('main-menu');
-      atualizarCardsSessao();
-    }
+/**
+ * Cadastra ou atualiza a meta de um grupo dentro de um inventário.
+ * Chamado pelo ADMIN.
+ */
+function cadastrarGrupo(idInventario, nomeGrupo, meta) {
+  try {
+    if (!idInventario || !nomeGrupo) return { success: false, message: 'idInventario e nomeGrupo são obrigatórios.' };
+    const metaNum = parseInt(meta, 10);
+    if (isNaN(metaNum) || metaNum <= 0) return { success: false, message: 'Meta deve ser um número inteiro positivo.' };
 
-    /* =========================================================
-       CONTADOR (sempre do banco, polling 3s)
-       ========================================================= */
-    async function atualizarContadorBanco() {
-      if (!currentInvId || !currentUser) return;
-      try {
-        const res = await callGAS({ api: 'getUserOpenCount', idInventario: currentInvId, usuario: currentUser });
-        if (res && res.success) {
-          const c = res.count || 0;
-          document.getElementById('user-count').textContent = String(c);
-          document.getElementById('scanner-count-val').textContent = String(c);
-        }
-      } catch(_){}
-    }
-    function startUserCountAuto() {
-      atualizarContadorBanco();
-      if (userCountTimer) clearInterval(userCountTimer);
-      userCountTimer = setInterval(atualizarContadorBanco, 3000);
-    }
-    function stopUserCountAuto() {
-      if (userCountTimer) { clearInterval(userCountTimer); userCountTimer = null; }
-    }
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
 
-    /* =========================================================
-       MASTER
-       ========================================================= */
-    async function doMasterLogin() {
-      const pass = document.getElementById('master-pass').value;
-      setBtnLoading('btn-master-login', true);
-      try {
-        const res = await callGAS({ api: 'masterLogin', senha: pass });
-        if (res.success) showScreen('master-panel'); else alert(res.message);
-      } catch(e) { alert(e); }
-      setBtnLoading('btn-master-login', false, 'ENTRAR NO PAINEL');
-    }
+    const sh   = garantirAbaGrupos_();
+    const data = sh.getDataRange().getValues();
 
-    let invNameById = {};
-
-    async function loadDashboard() {
-      try {
-        const res = await callGAS({ api: 'getDashboardData' });
-        if (!res.success) return;
-
-        document.getElementById('stat-total').textContent  = res.totalConsolidado;
-        document.getElementById('stat-aberto').textContent = res.totalEmAberto;
-
-        invNameById = {};
-        (res.inventarios || []).forEach(i => { invNameById[String(i.id)] = i.nome; });
-
-        document.getElementById('list-usuarios').innerHTML = (res.usuariosAtivos || []).map(u => {
-          const uNome   = String(u.nome || '');
-          const invId   = String(u.idInventario || '');
-          const invNome = invNameById[invId] || ('INV ' + invId);
-          const grupo   = u.grupo ? `<small style="color:var(--text-dim); font-size:11px;">[${u.grupo}]</small>` : '';
-          const meta    = u.meta  ? `<small style="color:var(--success); font-size:11px;">meta: ${u.meta}</small>` : '';
-          const blk     = u.bloqueado ? `<small style="color:var(--warning);">(BLOQ)</small>` : '';
-          const safe = s => String(s || '').replace(/'/g, "\\'");
-          return `
-            <div class="list-item">
-              <span style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex:1; font-size:13px;">
-                <i class="fas fa-user"></i> <strong>${uNome}</strong>
-                <small style="color:var(--text-dim); font-size:11px;">(${invNome})</small>
-                ${grupo} ${meta} ${blk}
-              </span>
-              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-                <span class="badge">${u.bipes} bipes</span>
-                <button class="mini-btn" onclick="masterConcluirUsuario('${safe(uNome)}', '${safe(invId)}')">Finalizar</button>
-                <button class="mini-btn btn-secundario" onclick="masterAddManual('${safe(uNome)}', '${safe(invId)}', '${safe(u.grupo)}')">Manual</button>
-              </div>
-            </div>`;
-        }).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum bipe em aberto.</p>';
-
-        document.getElementById('list-inventarios').innerHTML = (res.inventarios || []).map(i => `
-          <div class="list-item" style="border-left-color:${i.status === 'ABERTO' ? 'var(--success)' : '#555'}">
-            <div style="min-width:160px;">
-              <strong>${i.nome}</strong><br><small>${i.status} • ID: ${i.id}</small>
-            </div>
-            <div style="display:flex; gap:5px;">
-              ${i.status === 'ABERTO' ? `<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>` : ''}
-              <button class="mini-btn btn-danger" onclick="excluirInv('${i.id}')">X</button>
-            </div>
-          </div>`
-        ).join('') || '<p style="font-size:12px; color:gray; text-align:center">Nenhum inventário.</p>';
-      } catch(e) { console.error("Erro no refresh:", e); }
-    }
-
-    async function finalizarInv(id) {
-      if (!confirm("Fechar este inventário?\n- Arquiva o consolidado\n- Apaga abas USER")) return;
-      const res = await callGAS({ api: 'finalizarInventario', id });
-      if (res && res.success) alert(`${res.message}\nAba: ${res.abaCriada || '-'}\nItens: ${res.itensMovidos || 0}\nUsers apagados: ${res.abasUsersApagadas || 0}`);
-      else alert((res && res.message) || "Erro ao finalizar.");
-      loadDashboard();
-    }
-
-    async function excluirInv(id) {
-      if (!confirm("EXCLUIR permanentemente?")) return;
-      const res = await callGAS({ api: 'excluirInventario', id });
-      alert(res && res.success ? "Excluído." : ((res && res.message) || "Erro."));
-      loadDashboard();
-    }
-
-    async function doCreateInventory() {
-      const name = document.getElementById('inv-name').value;
-      const pass = document.getElementById('inv-pass').value;
-      if (!name || !pass) return alert("Preencha nome e senha.");
-      setBtnLoading('btn-create-inv', true);
-      const res = await callGAS({ api: 'criarNovoInventario', nome: name, senha: pass });
-      if (res.success) { alert("Inventário criado! ID: " + res.id); showScreen('master-panel'); }
-      else alert(res.message);
-      setBtnLoading('btn-create-inv', false, 'CRIAR AGORA');
-    }
-
-    async function masterConcluirUsuario(usuario, invId) {
-      if (!confirm(`Finalizar seção de "${usuario}"?\nEle será bloqueado até iniciar nova seção.`)) return;
-      const res = await callGAS({ api: 'masterConcluirSecao', usuario, idInventario: invId });
-      if (res && res.success) { alert(`Finalizado! ${res.count || 0} itens. Usuário bloqueado.`); loadDashboard(); }
-      else alert((res && res.message) || "Erro.");
-    }
-
-    async function masterAddManual(usuario, invId, grupo) {
-      const ean = prompt(`Incluir código manual para "${usuario}" (EAN):`);
-      if (!ean) return;
-      const res = await callGAS({ api: 'masterAddManualCode', usuario, idInventario: invId, ean, secao: grupo || 'MANUAL_LEO' });
-      if (res && res.success) { alert("Incluído! Novo total: " + (res.newCount || '?')); loadDashboard(); }
-      else { if (res && res.code === 'INVENTARIO_ENCERRADO') alert(res.message || "Inventário encerrado."); else alert((res && res.message) || "Erro."); }
-    }
-
-    /* =========================================================
-       GRUPOS (tela admin)
-       ========================================================= */
-    async function initGrupoScreen() {
-      const list = await callGAS({ api: 'listarInventariosAbertos' }).catch(() => []);
-      const sel = document.getElementById('grupo-inv-select');
-      sel.innerHTML = list.length > 0
-        ? list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('')
-        : '<option value="">Nenhum inventário aberto</option>';
-      loadGruposList();
-    }
-
-    async function loadGruposList() {
-      const invId = document.getElementById('grupo-inv-select').value;
-      if (!invId) return;
-      const res = await callGAS({ api: 'getDashboardData' }).catch(() => null);
-      // Usa getSheetsData para pegar grupos com meta
-      const sdata = await callGAS({ api: 'getSheetsData' }).catch(() => null);
-      const grupos = sdata && sdata.grupos ? sdata.grupos.filter(g => String(g.idInventario) === String(invId)) : [];
-
-      document.getElementById('grupos-list').innerHTML = grupos.length > 0
-        ? grupos.map(g => `
-          <div class="list-item">
-            <div><strong>${g.nome}</strong><br><small style="color:var(--text-dim)">Meta: ${g.meta} peças</small></div>
-            <button class="mini-btn btn-danger" onclick="excluirGrupoAdmin('${String(invId).replace(/'/g,"\\'")}', '${String(g.nome).replace(/'/g,"\\'")}')">Excluir</button>
-          </div>`).join('')
-        : '<p style="font-size:12px; color:gray; text-align:center">Nenhum grupo cadastrado.</p>';
-    }
-
-    async function doSalvarGrupo() {
-      const invId = document.getElementById('grupo-inv-select').value;
-      const nome  = document.getElementById('grupo-nome').value.trim();
-      const meta  = document.getElementById('grupo-meta').value;
-      if (!invId || !nome || !meta) return alert("Preencha todos os campos.");
-      setBtnLoading('btn-save-grupo', true);
-      const res = await callGAS({ api: 'cadastrarGrupo', idInventario: invId, nomeGrupo: nome, meta });
-      setBtnLoading('btn-save-grupo', false, '<i class="fas fa-save"></i> SALVAR GRUPO');
-      if (res && res.success) {
-        alert(`Grupo "${nome}" ${res.action === 'criado' ? 'criado' : 'atualizado'} com meta de ${res.meta} peças.`);
-        document.getElementById('grupo-nome').value = '';
-        document.getElementById('grupo-meta').value = '';
-        loadGruposList();
-      } else alert((res && res.message) || "Erro ao salvar.");
-    }
-
-    async function excluirGrupoAdmin(invId, nome) {
-      if (!confirm(`Excluir grupo "${nome}"?`)) return;
-      const res = await callGAS({ api: 'excluirGrupo', idInventario: invId, nomeGrupo: nome });
-      if (res && res.success) loadGruposList(); else alert((res && res.message) || "Erro.");
-    }
-
-    /* =========================================================
-       CONFERENTE
-       ========================================================= */
-    async function carregarGruposConferente(invId, selecionado) {
-      const grupos = await callGAS({ api: 'listarGrupos', idInventario: invId }).catch(() => []);
-      const sel = document.getElementById('conf-grupo-select');
-      if (!grupos || grupos.length === 0) {
-        sel.innerHTML = '<option value="">Nenhum grupo disponível</option>';
-      } else {
-        sel.innerHTML = grupos.map(g => `<option value="${g.nome}"${String(g.nome) === String(selecionado) ? ' selected' : ''}>${g.nome}</option>`).join('');
+    // Atualiza se já existe
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(idInventario) && String(data[i][1]).toLowerCase() === String(nomeGrupo).toLowerCase()) {
+        sh.getRange(i + 1, 3).setValue(metaNum);
+        return { success: true, action: 'atualizado', nomeGrupo, meta: metaNum };
       }
     }
 
-    async function showConferentePanel() {
-      setBtnLoading('btn-open-conf', true);
-      try {
-        const list = await callGAS({ api: 'listarInventariosAbertos' });
-        setBtnLoading('btn-open-conf', false, '');
-        if (!list || list.length === 0) return alert("Nenhum inventário aberto.");
+    // Insere novo
+    sh.appendRow([idInventario, nomeGrupo, metaNum, new Date()]);
+    return { success: true, action: 'criado', nomeGrupo, meta: metaNum };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
 
-        document.getElementById('inv-select').innerHTML = list.map(i => `<option value="${i.id}">${i.nome}</option>`).join('');
+/**
+ * Lista grupos (sem a meta) — para o conferente escolher qual grupo vai bipar.
+ */
+function listarGrupos(idInventario) {
+  try {
+    const sh = garantirAbaGrupos_();
+    const data = sh.getDataRange().getValues();
+    const grupos = [];
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(idInventario)) {
+        grupos.push({ nome: data[i][1] }); // SEM meta
+      }
+    }
+    return grupos;
+  } catch(e) { return []; }
+}
 
-        const s = lerSessaoLocal();
-        if (s && list.some(i => String(i.id) === String(s.invId))) {
-          document.getElementById('inv-select').value  = s.invId;
-          document.getElementById('conf-name').value   = s.user || "";
-        }
+/**
+ * Lista grupos COM a meta — SOMENTE para o admin.
+ */
+function getMetaGrupo(idInventario, nomeGrupo) {
+  try {
+    const sh   = garantirAbaGrupos_();
+    const data = sh.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(idInventario) && String(data[i][1]).toLowerCase() === String(nomeGrupo).toLowerCase()) {
+        return { success: true, meta: data[i][2] };
+      }
+    }
+    return { success: false, message: 'Grupo não encontrado.' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
 
-        const invId = document.getElementById('inv-select').value;
-        await carregarGruposConferente(invId, s ? s.section : '');
+/**
+ * Exclui um grupo.
+ */
+function excluirGrupo(idInventario, nomeGrupo) {
+  try {
+    const sh   = garantirAbaGrupos_();
+    const data = sh.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(idInventario) && String(data[i][1]).toLowerCase() === String(nomeGrupo).toLowerCase()) {
+        sh.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, message: 'Grupo não encontrado.' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
 
-        // Atualiza grupos ao trocar de inventário
-        document.getElementById('inv-select').onchange = async function() {
-          await carregarGruposConferente(this.value, '');
+/* =========================================================
+   MASTER AUTH
+   ========================================================= */
+function masterLogin(senha) {
+  if (senha === '1') return { success: true, user: 'LEONARDO' };
+  return { success: false, message: 'Senha Master Incorreta' };
+}
+
+/* =========================================================
+   INVENTÁRIOS
+   ========================================================= */
+function criarNovoInventario(nome, senha) {
+  try {
+    const sh = garantirAba(SHEET_INVENTARIOS, ['ID', 'Nome Inventário', 'Senha', 'Status', 'Data Criação']);
+    garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
+    const id = Utilities.getUuid().substring(0, 8);
+    sh.appendRow([id, nome, senha, 'ABERTO', new Date(), '', '']);
+    garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora', 'Data Conclusão']);
+    garantirAbaGrupos_();
+    return { success: true, id };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function listarInventariosAbertos() {
+  try {
+    const ss = getSS_();
+    const sh = ss.getSheetByName(SHEET_INVENTARIOS);
+    if (!sh) return [];
+    const data = sh.getDataRange().getValues();
+    const abertos = [];
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][3] === 'ABERTO') abertos.push({ id: data[i][0], nome: data[i][1] });
+    }
+    return abertos;
+  } catch(e) { return []; }
+}
+
+function validarAcessoInventario(idInventario, senhaDigitada) {
+  try {
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Nenhum inventário configurado.' };
+    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'O administrador encerrou o inventário.', nomeInventario: inv.nome };
+    if (String(inv.senha) === String(senhaDigitada)) return { success: true, nomeInventario: inv.nome };
+    return { success: false, message: 'Senha do inventário incorreta.' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/* =========================================================
+   SEÇÃO / CONTAGEM
+   ========================================================= */
+
+/**
+ * Inicia seção — valida se o grupo existe no inventário.
+ * Desbloqueia caso estivesse bloqueado.
+ */
+function iniciarSecao(usuario, idInventario, secao) {
+  try {
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'O administrador encerrou o inventário.' };
+
+    // Valida se o grupo existe
+    const grupos = listarGrupos(idInventario);
+    const grupoValido = grupos.some(g => String(g.nome).toLowerCase() === String(secao).toLowerCase());
+    if (!grupoValido) {
+      return { success: false, code: 'GRUPO_NAO_ENCONTRADO', message: 'Grupo "' + secao + '" não encontrado. Peça ao administrador para cadastrá-lo primeiro.' };
+    }
+
+    desbloquearSecao_(idInventario, usuario);
+    return { success: true };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/**
+ * Registra um bipe na aba do usuário.
+ */
+function registrarBipeInventario(data) {
+  try {
+    const ean     = String(data.ean        || '').trim();
+    const usuario = String(data.usuario    || 'Anonimo').trim();
+    const secao   = String(data.secao      || 'Geral').trim();
+    const nomeInv = String(data.nomeInventario || 'Sem Nome').trim();
+    const idInv   = String(data.idInventario   || '').trim();
+
+    if (!ean)   return { success: false, message: 'EAN vazio.' };
+    if (!idInv) return { success: false, message: 'Inventário inválido (sem ID).' };
+
+    const inv = obterInventarioPorId_(idInv);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'O administrador encerrou o inventário.' };
+    if (estaBloqueada_(idInv, usuario)) return { success: false, code: 'SECAO_FECHADA', message: 'Sua seção foi finalizada pelo administrador. Favor iniciar uma nova seção para continuidade do inventário.' };
+
+    const abaUser = nomeAbaUser_(idInv, usuario);
+    const sh      = garantirAba(abaUser, ['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora']);
+
+    // Retry de lock para múltiplos usuários simultâneos
+    const lock = LockService.getScriptLock();
+    let acquired = false;
+    for (let t = 0; t < 3; t++) {
+      try { lock.waitLock(8000); acquired = true; break; }
+      catch(_) { Utilities.sleep(300); }
+    }
+    if (!acquired) return { success: false, message: 'Servidor ocupado. Tente novamente.' };
+
+    try {
+      sh.appendRow([ean, usuario, secao, nomeInv, new Date()]);
+      // Retorna o count atualizado para o frontend atualizar o contador em tempo real
+      const newCount = Math.max(0, sh.getLastRow() - 1);
+      return { success: true, count: newCount };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/**
+ * Retorna a contagem atual do usuário (sem meta).
+ * Usado pelo polling do conferente a cada 3s.
+ */
+function getUserOpenCount(idInventario, usuario) {
+  try {
+    const ss  = getSS_();
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+
+    const abaUser = nomeAbaUser_(idInventario, usuario);
+    const sh      = ss.getSheetByName(abaUser);
+    const count   = sh ? Math.max(0, sh.getLastRow() - 1) : 0;
+
+    return { success: true, count };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/**
+ * Conclui a seção do usuário.
+ * - Verifica se a contagem bate com a meta do grupo
+ * - Se não bater: retorna erro com diferença (não move os dados)
+ * - Se bater: move para CONSOLIDADO e limpa a aba do usuário
+ */
+function concluirSecao(usuario, idInventario) {
+  try {
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+
+    const ss            = getSS_();
+    const nomeAbaOrigem = nomeAbaUser_(idInventario, usuario);
+    const shOrigem      = ss.getSheetByName(nomeAbaOrigem);
+    if (!shOrigem) return { success: false, message: 'Nenhum dado encontrado para este usuário.' };
+
+    const dataOrigem = shOrigem.getDataRange().getValues();
+    if (dataOrigem.length < 2) return { success: false, message: 'Aba vazia. Nenhum item para concluir.' };
+
+    // Descobre o grupo (seção) desta contagem (pega da primeira linha de dados)
+    const nomeGrupo = dataOrigem[1][2]; // coluna Seção
+
+    // Verifica meta
+    const metaRes = getMetaGrupo(idInventario, nomeGrupo);
+    if (metaRes && metaRes.success) {
+      const meta  = parseInt(metaRes.meta, 10);
+      const count = dataOrigem.length - 1;
+      if (count !== meta) {
+        return {
+          success: false,
+          code: 'CONTAGEM_NAO_BATE',
+          message: 'A contagem não bate com a meta do grupo.',
+          contagem: count,
+          meta: meta,
+          diferenca: count - meta
         };
+      }
+    }
+    // Se grupo não tem meta cadastrada, permite concluir normalmente (compatibilidade)
 
-        showScreen('conferente-login');
-      } catch(e) {
-        setBtnLoading('btn-open-conf', false, '');
-        alert("Erro ao carregar inventários.");
+    const shDestino = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora', 'Data Conclusão']);
+
+    const lock = LockService.getScriptLock();
+    let acquired = false;
+    for (let t = 0; t < 3; t++) {
+      try { lock.waitLock(15000); acquired = true; break; }
+      catch(_) { Utilities.sleep(500); }
+    }
+    if (!acquired) return { success: false, message: 'Servidor ocupado. Tente novamente.' };
+
+    try {
+      const rows   = dataOrigem.slice(1);
+      const now    = new Date();
+      const toMove = rows.map(r => [r[0], r[1], r[2], r[3], r[4], now]);
+
+      if (toMove.length > 0) {
+        shDestino.getRange(shDestino.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
+
+        // FIX: deleteRows em vez de clearContent para limpar corretamente
+        const lastRow = shOrigem.getLastRow();
+        if (lastRow > 1) shOrigem.deleteRows(2, lastRow - 1);
+
+        return { success: true, count: toMove.length };
+      }
+      return { success: false, message: 'Nada para mover.' };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/* =========================================================
+   ADMIN: ITENS INDIVIDUAIS
+   ========================================================= */
+
+/**
+ * Exclui uma linha específica da aba do usuário (por índice 1-based incluindo header).
+ * rowIndex = linha real na planilha (2 = primeira linha de dados).
+ */
+function excluirItemUsuario(idInventario, usuario, rowIndex) {
+  try {
+    const ss      = getSS_();
+    const abaUser = nomeAbaUser_(idInventario, usuario);
+    const sh      = ss.getSheetByName(abaUser);
+    if (!sh) return { success: false, message: 'Aba do usuário não encontrada.' };
+
+    const ri = parseInt(rowIndex, 10);
+    if (isNaN(ri) || ri < 2) return { success: false, message: 'Índice inválido.' };
+    if (ri > sh.getLastRow()) return { success: false, message: 'Linha não existe.' };
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(8000);
+    try {
+      sh.deleteRow(ri);
+      const newCount = Math.max(0, sh.getLastRow() - 1);
+      return { success: true, newCount };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/**
+ * Zera toda a contagem em aberto de um usuário (limpa a aba USER).
+ */
+function zerarContagemUsuario(idInventario, usuario) {
+  try {
+    const ss      = getSS_();
+    const abaUser = nomeAbaUser_(idInventario, usuario);
+    const sh      = ss.getSheetByName(abaUser);
+    if (!sh) return { success: false, message: 'Aba do usuário não encontrada.' };
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(8000);
+    try {
+      const lastRow = sh.getLastRow();
+      if (lastRow > 1) sh.deleteRows(2, lastRow - 1);
+      return { success: true };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/* =========================================================
+   ADMIN: SEÇÃO MASTER
+   ========================================================= */
+function masterConcluirSecao(usuario, idInventario) {
+  // Admin não precisa validar meta — ele conclui forçado
+  try {
+    const inv = obterInventarioPorId_(idInventario);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+
+    const ss            = getSS_();
+    const nomeAbaOrigem = nomeAbaUser_(idInventario, usuario);
+    const shOrigem      = ss.getSheetByName(nomeAbaOrigem);
+    if (!shOrigem) return { success: false, message: 'Nenhum dado encontrado.' };
+
+    const dataOrigem = shOrigem.getDataRange().getValues();
+    if (dataOrigem.length < 2) return { success: false, message: 'Aba vazia.' };
+
+    const shDestino = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora', 'Data Conclusão']);
+    const lock      = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+      const rows   = dataOrigem.slice(1);
+      const now    = new Date();
+      const toMove = rows.map(r => [r[0], r[1], r[2], r[3], r[4], now]);
+      if (toMove.length > 0) {
+        shDestino.getRange(shDestino.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
+        const lastRow = shOrigem.getLastRow();
+        if (lastRow > 1) shOrigem.deleteRows(2, lastRow - 1);
+      }
+
+      bloquearSecao_(idInventario, usuario);
+      return { success: true, count: toMove.length, message: 'Seção finalizada pelo administrador.', secaoBloqueada: true };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+function masterAddManualCode(p) {
+  try {
+    const ean     = String(p.ean           || '').trim();
+    const usuario = String(p.usuario       || '').trim();
+    const idInv   = String(p.idInventario  || '').trim();
+    const secao   = String(p.secao         || 'MANUAL').trim();
+
+    if (!ean)     return { success: false, message: 'EAN vazio.' };
+    if (!usuario) return { success: false, message: 'Usuário vazio.' };
+    if (!idInv)   return { success: false, message: 'Inventário inválido.' };
+
+    const inv = obterInventarioPorId_(idInv);
+    if (!inv) return { success: false, message: 'Inventário não encontrado.' };
+    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'O administrador encerrou o inventário.' };
+
+    const abaUser = nomeAbaUser_(idInv, usuario);
+    const sh      = garantirAba(abaUser, ['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora']);
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    try {
+      sh.appendRow([ean, usuario, secao, inv.nome, new Date()]);
+      const newCount = Math.max(0, sh.getLastRow() - 1);
+      return { success: true, newCount };
+    } finally {
+      try { lock.releaseLock(); } catch(_){}
+    }
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/* =========================================================
+   FINALIZAR / EXCLUIR INVENTÁRIO
+   ========================================================= */
+function obterOuCriarAbaInventario_(nomeInventario) {
+  const ss     = getSS_();
+  const nomeAba = sanitizarNomeAba_(nomeInventario);
+  let sh = ss.getSheetByName(nomeAba);
+  if (!sh) {
+    sh = ss.insertSheet(nomeAba);
+    sh.appendRow(['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora', 'Data Conclusão']);
+    sh.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#eeeeee');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function moverDoConsolidadoParaAbaDoInventario_(nomeInventario) {
+  const ss     = getSS_();
+  const shCons = ss.getSheetByName(SHEET_CONSOLIDADO);
+  if (!shCons) return { moved: 0 };
+
+  const values = shCons.getDataRange().getValues();
+  if (values.length < 2) return { moved: 0 };
+
+  const data  = values.slice(1);
+  const mover  = data.filter(r => String(r[3]) === String(nomeInventario));
+  const manter = data.filter(r => String(r[3]) !== String(nomeInventario));
+
+  if (mover.length === 0) return { moved: 0 };
+
+  const shInv = obterOuCriarAbaInventario_(nomeInventario);
+  shInv.getRange(shInv.getLastRow() + 1, 1, mover.length, 6).setValues(mover);
+
+  shCons.clearContents();
+  shCons.getRange(1, 1, 1, 6).setValues([['EAN13', 'Usuário', 'Seção', 'Inventário', 'Data/Hora', 'Data Conclusão']]);
+  shCons.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#eeeeee');
+  shCons.setFrozenRows(1);
+  if (manter.length > 0) shCons.getRange(2, 1, manter.length, 6).setValues(manter);
+
+  return { moved: mover.length, sheetName: shInv.getName() };
+}
+
+function apagarAbasUsersDoInventario_(idInventario) {
+  const ss     = getSS_();
+  const prefix = 'USER_' + String(idInventario) + '__';
+  const toDelete = ss.getSheets().filter(s => s.getName().indexOf(prefix) === 0);
+  let removed = 0;
+  toDelete.forEach(s => { try { ss.deleteSheet(s); removed++; } catch(_){} });
+  return removed;
+}
+
+function finalizarInventario(id) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const ss = getSS_();
+    const sh = ss.getSheetByName(SHEET_INVENTARIOS);
+    if (!sh) return { success: false, message: 'Aba de inventários não encontrada.' };
+
+    garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
+    const data = sh.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(id)) {
+        const nomeInv = data[i][1];
+        sh.getRange(i + 1, 4).setValue('FINALIZADO');
+        sh.getRange(i + 1, 6).setValue('O administrador encerrou o inventário.');
+        sh.getRange(i + 1, 7).setValue(new Date());
+
+        const mv           = moverDoConsolidadoParaAbaDoInventario_(nomeInv);
+        const removedUsers = apagarAbasUsersDoInventario_(id);
+        limparLocksInventario_(id);
+
+        return { success: true, message: 'Inventário finalizado, arquivado e usuários removidos.', inventario: nomeInv, abaCriada: mv.sheetName || sanitizarNomeAba_(nomeInv), itensMovidos: mv.moved || 0, abasUsersApagadas: removedUsers };
+      }
+    }
+    return { success: false, message: 'Inventário não encontrado' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+  finally { try { lock.releaseLock(); } catch(_){} }
+}
+
+function excluirInventario(id) {
+  try {
+    const ss = getSS_();
+    const sh = ss.getSheetByName(SHEET_INVENTARIOS);
+    if (!sh) return { success: false, message: 'Aba de inventários não encontrada.' };
+
+    const data = sh.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === String(id)) {
+        sh.deleteRow(i + 1);
+        limparLocksInventario_(id);
+        return { success: true };
+      }
+    }
+    return { success: false, message: 'Inventário não encontrado' };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
+
+/* =========================================================
+   DASHBOARD (site do admin)
+   ========================================================= */
+function getDashboardData() {
+  try {
+    const ss    = getSS_();
+    const shInv = ss.getSheetByName(SHEET_INVENTARIOS);
+    const shCons= ss.getSheetByName(SHEET_CONSOLIDADO);
+
+    const consolidado = shCons ? shCons.getDataRange().getValues().slice(1) : [];
+
+    let inventarios = [];
+    if (shInv) {
+      garantirColunas_(shInv, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
+      const data = shInv.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        inventarios.push({ id: data[i][0], nome: data[i][1], status: data[i][3], data: data[i][4], msgBloqueio: data[i][5] || '', dataFinalizacao: data[i][6] || '' });
       }
     }
 
-    async function doConferenteLogin() {
-      const name    = document.getElementById('conf-name').value.trim();
-      const invId   = document.getElementById('inv-select').value;
-      const invPass = document.getElementById('conf-inv-pass').value;
-      const section = document.getElementById('conf-grupo-select').value;
+    const usuariosAtivos = [];
+    let bipesEmAberto    = 0;
 
-      if (!name || !invPass || !section) return alert("Preencha todos os campos.");
-      setBtnLoading('btn-conf-login', true);
+    ss.getSheets().forEach(s => {
+      const name = s.getName();
+      if (!name || name.indexOf('USER_') !== 0) return;
+      const parts   = name.split('__');
+      const invId   = parts[0].replace('USER_', '');
+      const userName = (parts[1] || '').replace(/_/g, ' ') || name;
+      const count   = Math.max(0, s.getLastRow() - 1);
+      if (count > 0) {
+        // Tenta descobrir o grupo atual (seção da última linha)
+        let grupo = '';
+        try {
+          const lastDataRow = s.getRange(s.getLastRow(), 3).getValue();
+          grupo = String(lastDataRow || '');
+        } catch(_){}
 
-      try {
-        const res = await callGAS({ api: 'validarAcessoInventario', idInventario: invId, senhaDigitada: invPass });
+        // Busca meta do grupo
+        let meta = null;
+        try {
+          const mr = getMetaGrupo(invId, grupo);
+          if (mr && mr.success) meta = mr.meta;
+        } catch(_){}
 
-        if (res && res.code === 'INVENTARIO_ENCERRADO') {
-          alert(res.message || "O administrador encerrou o inventário.");
-          showScreen('main-menu');
-          setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
-          return;
-        }
+        usuariosAtivos.push({ nome: userName, bipes: count, idInventario: invId, bloqueado: estaBloqueada_(invId, userName), grupo, meta });
+        bipesEmAberto += count;
+      }
+    });
 
-        if (res && res.success) {
-          const r2 = await callGAS({ api: 'iniciarSecao', usuario: name, idInventario: invId, secao: section });
+    return { success: true, totalConsolidado: consolidado.length, totalEmAberto: bipesEmAberto, usuariosAtivos, inventarios, ultimosBipes: consolidado.slice(-10).reverse() };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
 
-          if (r2 && r2.code === 'GRUPO_NAO_ENCONTRADO') {
-            alert(r2.message || "Grupo não encontrado. Peça ao administrador para cadastrá-lo.");
-            setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
-            return;
-          }
+/* =========================================================
+   SIDEBAR DO SHEETS — dados ricos para o HTML do Sheets
+   ========================================================= */
+function getSheetsData() {
+  try {
+    const ss    = getSS_();
+    const shInv = ss.getSheetByName(SHEET_INVENTARIOS);
+    const shCons= ss.getSheetByName(SHEET_CONSOLIDADO);
 
-          if (r2 && !r2.success) {
-            alert(r2.message || "Erro ao iniciar seção.");
-            setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
-            return;
-          }
+    const consolidado = shCons ? shCons.getDataRange().getValues().slice(1) : [];
 
-          currentUser    = name;
-          currentSection = section;
-          currentInvName = res.nomeInventario;
-          currentInvId   = invId;
-
-          document.getElementById('display-name').textContent    = name;
-          document.getElementById('display-section').textContent = section;
-          document.getElementById('active-inv-title').textContent = res.nomeInventario;
-          document.getElementById('scanner-group-label').textContent = 'Grupo: ' + section;
-          document.getElementById('contagem-nao-bate').style.display = 'none';
-
-          salvarSessaoLocal();
-          showScreen('counting-panel');
-          atualizarContadorBanco();
-        } else {
-          alert(res && res.message ? res.message : "Erro no login.");
-        }
-      } catch(e) { alert("Erro: " + e); }
-
-      setBtnLoading('btn-conf-login', false, 'INICIAR SCANNER');
-    }
-
-    /* =========================================================
-       SCANNER
-       ========================================================= */
-    function startScanner() {
-      document.getElementById('scanner-overlay').style.display = 'flex';
-      document.getElementById('scanner-group-label').textContent = 'Grupo: ' + currentSection;
-      html5QrCode = new Html5Qrcode("reader");
-      html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, processBipe);
-    }
-
-    function stopScanner() {
-      if (html5QrCode) {
-        html5QrCode.stop()
-          .then(() => { document.getElementById('scanner-overlay').style.display = 'none'; })
-          .catch(() => { document.getElementById('scanner-overlay').style.display = 'none'; });
-      } else {
-        document.getElementById('scanner-overlay').style.display = 'none';
+    let inventarios = [];
+    if (shInv) {
+      garantirColunas_(shInv, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
+      const data = shInv.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        inventarios.push({ id: data[i][0], nome: data[i][1], status: data[i][3] });
       }
     }
 
-    function forcarNovaSecao(msg) {
-      try { stopScanner(); } catch(_){}
-      alert(msg || "Sua seção foi finalizada pelo administrador. Favor iniciar uma nova seção.");
-      showConferentePanel();
-    }
-
-    let isProcessing = false; // FIX: variável local em vez de window.isProcessing
-
-    async function processBipe(ean) {
-      if (isProcessing) return;
-      isProcessing = true;
-
-      const msg = document.getElementById('scanner-msg');
-      msg.textContent = "Lendo: " + ean;
-      msg.style.color = "var(--primary)";
-
-      let res;
-      try {
-        res = await callGAS({
-          api: 'registrarBipeInventario',
-          ean, usuario: currentUser, secao: currentSection,
-          nomeInventario: currentInvName, idInventario: currentInvId
-        });
-      } catch(e) {
-        isProcessing = false; // FIX: sempre reseta
-        msg.textContent = "⚠️ Erro de conexão — tente novamente";
-        msg.style.color = "var(--warning)";
-        setTimeout(() => msg.textContent = "", 2000);
-        return;
-      }
-
-      isProcessing = false; // FIX: sempre reseta
-
-      if (res && res.success) {
-        msg.textContent = "✅ " + ean;
-        msg.style.color = "var(--success)";
-        bip();
-        if (navigator.vibrate) navigator.vibrate(60);
-
-        // Atualiza contador inline imediatamente com o valor retornado pelo backend
-        if (res.count !== undefined) {
-          document.getElementById('user-count').textContent       = String(res.count);
-          document.getElementById('scanner-count-val').textContent = String(res.count);
-        }
-
-        setTimeout(() => msg.textContent = "", 800);
-      } else {
-        if (res && res.code === 'INVENTARIO_ENCERRADO') {
-          alert(res.message || "O administrador encerrou o inventário.");
-          stopScanner();
-          try { localStorage.removeItem(LS_KEY); } catch(_){}
-          showScreen('main-menu');
-          atualizarCardsSessao();
-          return;
-        }
-        if (res && res.code === 'SECAO_FECHADA') {
-          forcarNovaSecao(res.message);
-          return;
-        }
-        if (res && res.code === 'SERVIDOR_OCUPADO') {
-          msg.textContent = "⏳ Servidor ocupado, tentando novamente...";
-          msg.style.color = "var(--warning)";
-          setTimeout(() => msg.textContent = "", 2000);
-          return;
-        }
-        msg.textContent = "❌ " + ((res && res.message) || "Erro");
-        msg.style.color = "var(--danger)";
-        setTimeout(() => msg.textContent = "", 2000);
+    // Grupos com meta
+    const shGrupos = ss.getSheetByName(SHEET_GRUPOS);
+    const grupos   = [];
+    if (shGrupos) {
+      const gData = shGrupos.getDataRange().getValues();
+      for (let i = 1; i < gData.length; i++) {
+        grupos.push({ idInventario: gData[i][0], nome: gData[i][1], meta: gData[i][2] });
       }
     }
 
-    /* =========================================================
-       CONCLUIR SEÇÃO
-       ========================================================= */
-    async function doConcluirSecao() {
-      if (!confirm("Concluir contagem do grupo?")) return;
-      setBtnLoading('btn-concluir', true);
+    // Usuários com itens abertos + lista de itens (para excluir individualmente)
+    const usuarios = [];
+    ss.getSheets().forEach(s => {
+      const name = s.getName();
+      if (!name || name.indexOf('USER_') !== 0) return;
+      const parts   = name.split('__');
+      const invId   = parts[0].replace('USER_', '');
+      const userKey = parts[1] || '';
+      const userName= userKey.replace(/_/g, ' ');
+      const lastRow = s.getLastRow();
+      if (lastRow < 2) return;
 
-      const res = await callGAS({ api: 'concluirSecao', usuario: currentUser, idInventario: currentInvId });
+      const rows  = s.getRange(2, 1, lastRow - 1, 5).getValues();
+      const items = rows.map((r, idx) => ({ rowIndex: idx + 2, ean: r[0], secao: r[2], dataHora: r[4] ? String(r[4]) : '' }));
+      const grupo = items.length > 0 ? items[items.length - 1].secao : '';
 
-      if (res && res.success) {
-        document.getElementById('contagem-nao-bate').style.display = 'none';
-        alert(`✅ Concluído! ${res.count} itens enviados.`);
-        salvarSessaoLocal();
-        showScreen('main-menu');
-        atualizarCardsSessao();
+      let meta = null;
+      const gr = grupos.find(g => String(g.idInventario) === String(invId) && String(g.nome).toLowerCase() === String(grupo).toLowerCase());
+      if (gr) meta = gr.meta;
 
-      } else if (res && res.code === 'CONTAGEM_NAO_BATE') {
-        // Mostra alerta de diferença — NÃO conclui
-        const box  = document.getElementById('contagem-nao-bate');
-        const diff = res.diferenca; // positivo = a mais, negativo = a menos
+      usuarios.push({ nome: userName, idInventario: invId, grupo, bipes: items.length, meta, bloqueado: estaBloqueada_(invId, userName), items });
+    });
 
-        document.getElementById('contagem-atual-val').textContent = String(res.contagem);
-        document.getElementById('diff-msg').innerHTML = diff > 0
-          ? `<span class="diff-pos">+${diff} peça(s) a mais</span> do que a meta de <strong>${res.meta}</strong>.`
-          : `<span class="diff-neg">${diff} peça(s) a menos</span> do que a meta de <strong>${res.meta}</strong>.`;
+    return { success: true, inventarios, grupos, usuarios, totalConsolidado: consolidado.length };
+  } catch(e) { return { success: false, message: e.toString() }; }
+}
 
-        box.style.display = 'block';
-        box.scrollIntoView({ behavior: 'smooth' });
+/* =========================================================
+   SIDEBAR HTML (abre pelo menu do Sheets)
+   ========================================================= */
+function abrirSidebar() {
+  const html = HtmlService.createHtmlOutputFromFile('Sidebar')
+    .setTitle('HS Inventário — Admin')
+    .setWidth(400);
+  SpreadsheetApp.getUi().showSidebar(html);
+}
 
-      } else if (res && res.code === 'INVENTARIO_ENCERRADO') {
-        alert(res.message || "O administrador encerrou o inventário.");
-        try { localStorage.removeItem(LS_KEY); } catch(_){}
-        showScreen('main-menu');
-        atualizarCardsSessao();
-
-      } else {
-        alert(res && res.message ? res.message : "Erro ao concluir.");
-      }
-
-      setBtnLoading('btn-concluir', false, '<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
-    }
-
-    /* =========================================================
-       BOOT
-       ========================================================= */
-    (function boot() {
-      atualizarCardsSessao();
-    })();
-  </script>
-</body>
-</html>
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('HS Inventário')
+    .addItem('Abrir Painel Admin', 'abrirSidebar')
+    .addToUi();
+}
