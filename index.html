@@ -659,19 +659,23 @@ function validarEAN13(code){
 }
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
-// Anti-disparo infinito: o código fica bloqueado enquanto a câmera
-// permanecer em cima dele. Só libera depois de MISS_TO_UNLOCK frames
-// consecutivos sem detectar nada (câmera saiu do código).
+// Estratégia dupla:
+// 1. Lista negra por TEMPO: código aceito fica bloqueado por BLACKLIST_MS
+//    independente de frames vazios. Elimina re-leituras erradas.
+// 2. Miss count ALTO: só libera o lockedEAN depois de 25 frames sem código
+//    (~2.5s a 10fps). Câmera precisa realmente sair do código.
 let h5scanner=null,_scanLock=false;
 let lockedEAN='',missCount=0;
-const MISS_TO_UNLOCK=8; // 8 frames a 10fps ≈ 0.8s fora do código para liberar
+const MISS_TO_UNLOCK=25;   // frames sem código para liberar (2.5s a 10fps)
+const BLACKLIST_MS=3000;   // ms que um código aceito fica na lista negra
+const blacklist=new Map(); // ean -> timestamp de quando foi aceito
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  lockedEAN='';missCount=0;_scanLock=false;
+  lockedEAN='';missCount=0;_scanLock=false;blacklist.clear();
 
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
@@ -688,8 +692,15 @@ function startScanner(){
       const raw=(decodedText||'').trim();
       if(raw.length!==13)return;
 
-      // Câmera ainda está em cima do mesmo código bloqueado — ignora e reseta miss
+      // Câmera ainda está em cima do código bloqueado — reseta miss e ignora
       if(raw===lockedEAN){missCount=0;return;}
+
+      // Lista negra por tempo — código aceito recentemente
+      const bl=blacklist.get(raw);
+      if(bl&&Date.now()-bl<BLACKLIST_MS){
+        missCount=0; // câmera ainda está na área, reseta miss do locked
+        return;
+      }
 
       // Prefixo GS1 Brasil obrigatório
       if(!raw.startsWith('789')){
@@ -705,10 +716,15 @@ function startScanner(){
         return;
       }
 
-      // Código novo e válido — aceita, bloqueia e registra
+      // Código novo, válido e fora da lista negra — aceita
       _scanLock=true;
       lockedEAN=raw;
       missCount=0;
+      blacklist.set(raw,Date.now());
+
+      // Limpa entradas antigas da blacklist para não acumular
+      const now=Date.now();
+      blacklist.forEach((t,k)=>{if(now-t>BLACKLIST_MS*2)blacklist.delete(k);});
 
       showEANPopup(raw,true);
       doFlash();
@@ -718,7 +734,7 @@ function startScanner(){
 
       setTimeout(()=>{_scanLock=false;},150);
     },
-    // ── frame sem código detectado ──
+    // ── frame sem código ──
     ()=>{
       if(!lockedEAN)return;
       missCount++;
