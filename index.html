@@ -650,32 +650,16 @@ async function doConferenteLogin(){
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
 }
 
-// ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
-function validarEAN13(code){
-  if(!/^\d{13}$/.test(code))return false;
-  let s=0;
-  for(let i=0;i<12;i++)s+=parseInt(code[i])*(i%2===0?1:3);
-  return (10-(s%10))%10===parseInt(code[12]);
-}
-
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
-// Estratégia dupla:
-// 1. Lista negra por TEMPO: código aceito fica bloqueado por BLACKLIST_MS
-//    independente de frames vazios. Elimina re-leituras erradas.
-// 2. Miss count ALTO: só libera o lockedEAN depois de 25 frames sem código
-//    (~2.5s a 10fps). Câmera precisa realmente sair do código.
-let h5scanner=null,_scanLock=false;
-let lockedEAN='',missCount=0;
-const MISS_TO_UNLOCK=25;   // frames sem código para liberar (2.5s a 10fps)
-const BLACKLIST_MS=3000;   // ms que um código aceito fica na lista negra
-const blacklist=new Map(); // ean -> timestamp de quando foi aceito
+let h5scanner=null,lastEAN='',lastEANTime=0,_scanLock=false;
+const DEBOUNCE=2000; // 2s entre bipes do mesmo código
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  lockedEAN='';missCount=0;_scanLock=false;blacklist.clear();
+  lastEAN='';lastEANTime=0;_scanLock=false;
 
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
@@ -686,45 +670,39 @@ function startScanner(){
       formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
       experimentalFeatures:{useBarCodeDetectorIfSupported:true},
     },
-    // ── leitura detectada ──
     (decodedText)=>{
+      // Lock duro: ignora callbacks simultâneos
       if(_scanLock)return;
+
       const raw=(decodedText||'').trim();
+
+      // Deve ter exatamente 13 dígitos
       if(raw.length!==13)return;
 
-      // Câmera ainda está em cima do código bloqueado — reseta miss e ignora
-      if(raw===lockedEAN){missCount=0;return;}
-
-      // Lista negra por tempo — código aceito recentemente
-      const bl=blacklist.get(raw);
-      if(bl&&Date.now()-bl<BLACKLIST_MS){
-        missCount=0; // câmera ainda está na área, reseta miss do locked
-        return;
-      }
-
-      // Prefixo GS1 Brasil obrigatório
+      // Prefixo GS1 Brasil: deve começar com 789
+      // Descarta leituras erradas que trocam o início do código
       if(!raw.startsWith('789')){
-        showEANPopup(raw,false);bip(false);
+        showEANPopup(raw,false);
+        bip(false);
         if(navigator.vibrate)navigator.vibrate([40,20,40]);
         return;
       }
 
       // Checksum EAN-13
       if(!validarEAN13(raw)){
-        showEANPopup(raw,false);bip(false);
+        showEANPopup(raw,false);
+        bip(false);
         if(navigator.vibrate)navigator.vibrate([40,20,40]);
         return;
       }
 
-      // Código novo, válido e fora da lista negra — aceita
-      _scanLock=true;
-      lockedEAN=raw;
-      missCount=0;
-      blacklist.set(raw,Date.now());
-
-      // Limpa entradas antigas da blacklist para não acumular
       const now=Date.now();
-      blacklist.forEach((t,k)=>{if(now-t>BLACKLIST_MS*2)blacklist.delete(k);});
+      // Debounce: mesmo código dentro do tempo mínimo é ignorado
+      if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
+
+      // Ativa lock para bloquear callbacks simultâneos
+      _scanLock=true;
+      lastEAN=raw;lastEANTime=now;
 
       showEANPopup(raw,true);
       doFlash();
@@ -732,14 +710,10 @@ function startScanner(){
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
 
-      setTimeout(()=>{_scanLock=false;},150);
+      // Libera lock após 300ms — tempo suficiente para descartar duplicatas do mesmo frame
+      setTimeout(()=>{_scanLock=false;},300);
     },
-    // ── frame sem código ──
-    ()=>{
-      if(!lockedEAN)return;
-      missCount++;
-      if(missCount>=MISS_TO_UNLOCK){lockedEAN='';missCount=0;}
-    }
+    ()=>{} // erros de frame são normais, ignora
   );
 }
 
