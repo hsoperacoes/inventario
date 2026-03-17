@@ -445,22 +445,44 @@ function startRT(){
   rtTimer=setInterval(async()=>{
     if(!currentInvId||!currentUser||queue.length>0)return;
     try{
-      const r=await callGAS({api:'getUserOpenCount',idInventario:currentInvId,usuario:currentUser});
-      if(r&&r.success){
-        if(r.count!==bankCount){
-          const prev=bankCount;
-          bankCount=r.count;localCount=r.count;
-          updateCounterUI();
-          // Destaque visual se admin removeu peça
-          if(r.count<prev){
-            const n=document.getElementById('user-count');
-            if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
-          }
-        }
-        setRT('ok');
+      const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+      if(!r||!r.success)return;
+
+      // Admin finalizou a seção deste conferente
+      if(r.status==='SECAO_BLOQUEADA'){
+        stopRT();
+        stopScanner();
+        alert('O administrador finalizou sua contagem.');
+        try{localStorage.removeItem(LS_KEY);}catch(_){}
+        atualizarCardsSessao();
+        showScreen('main-menu');
+        return;
       }
+
+      // Admin encerrou o inventário inteiro
+      if(r.status==='INVENTARIO_ENCERRADO'){
+        stopRT();
+        stopScanner();
+        alert(r.message||'O inventário foi encerrado pelo administrador.');
+        try{localStorage.removeItem(LS_KEY);}catch(_){}
+        atualizarCardsSessao();
+        showScreen('main-menu');
+        return;
+      }
+
+      // Atualiza contagem normalmente
+      if(r.count!==undefined&&r.count!==bankCount){
+        const prev=bankCount;
+        bankCount=r.count;localCount=r.count;
+        updateCounterUI();
+        if(r.count<prev){
+          const n=document.getElementById('user-count');
+          if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
+        }
+      }
+      setRT('ok');
     }catch(_){setRT('err');}
-  },4000);
+  },5000);
 }
 function stopRT(){if(rtTimer){clearInterval(rtTimer);rtTimer=null;}}
 
@@ -755,7 +777,7 @@ function validarEAN13(code){
 // Só libera depois que a câmera fica IDLE_MS sem ver nenhum código
 let h5scanner=null;
 let _lastAccepted='', _lastAcceptedAt=0, _lastSeenAt=0;
-const LOCK_MS=3000;  // ms que o mesmo código fica bloqueado após ser aceito
+const LOCK_MS=1500;  // ms que o mesmo código fica bloqueado após ser aceito
 const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
 
 function startScanner(){
