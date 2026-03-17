@@ -185,6 +185,23 @@
     .mini-btn.s{background:#2d2d2d;}
     .mini-btn.d{background:var(--danger);}
     .hint{font-size:12px;color:var(--dim);text-align:center;margin:-8px 0 14px;}
+
+    /* Grupo card */
+    .grupo-card{
+      background:#121212;border:1px solid #2a2a2a;border-radius:12px;
+      padding:12px 14px;margin-bottom:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      cursor:pointer;transition:border-color .2s,background .2s;
+    }
+    .grupo-card:hover{border-color:var(--primary);background:#1a1a2e;}
+    .grupo-card-nome{font-weight:700;font-size:14px;}
+    .grupo-card-meta{font-size:11px;color:var(--dim);margin-top:2px;}
+    .grupo-card-badge{
+      background:rgba(76,175,80,.15);color:var(--success);
+      border:1px solid rgba(76,175,80,.3);border-radius:8px;
+      padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;
+    }
+    .grupo-empty{text-align:center;color:var(--dim);font-size:13px;padding:12px 0;}
   </style>
 </head>
 <body>
@@ -251,11 +268,33 @@
 <div class="container hidden" id="conferente-login">
   <h2>CONFERENTE</h2>
   <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
-  <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
+  <div class="form-group"><label>Inventário</label><select id="inv-select" onchange="onInvSelectChange()"></select></div>
   <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass"/></div>
-  <div class="form-group"><label>Nome do Grupo / Seção</label><input type="text" id="conf-grupo" placeholder="Ex: INTIMO, CORREDOR 3..." style="text-transform:uppercase;"/></div>
-  <button id="btn-conf-login" onclick="doConferenteLogin()">ENTRAR E AGUARDAR META</button>
+  <button id="btn-conf-login" onclick="doConferenteLogin()">AVANÇAR</button>
   <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
+</div>
+
+<!-- ESCOLHA DE GRUPO -->
+<div class="container hidden" id="grupo-select-panel">
+  <h2>ESCOLHER GRUPO</h2>
+  <p style="text-align:center;color:var(--dim);font-size:13px;margin-bottom:20px;">Selecione um grupo pré-criado ou crie um novo.</p>
+
+  <!-- Grupos disponíveis -->
+  <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px;font-weight:700;">Grupos disponíveis</div>
+    <div id="lista-grupos-disponiveis"></div>
+  </div>
+
+  <!-- Criar novo grupo manual -->
+  <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo</div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
+    </div>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E ENTRAR</button>
+  </div>
+
+  <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
 </div>
 
 <!-- WAITING PANEL -->
@@ -303,11 +342,14 @@
 
   <div id="queue-pill"></div>
 
-  <div id="contagem-nao-bate">
-    <h3><i class="fas fa-triangle-exclamation"></i> Contagem não bate!</h3>
-    <div style="font-size:28px;font-weight:900;margin:8px 0;"><span id="contagem-atual-val">0</span> bipados</div>
-    <p id="diff-msg" style="font-size:13px;color:var(--dim);"></p>
-    <p style="font-size:12px;color:var(--dim);margin-top:6px;">Aguarde o admin ajustar ou bipe os itens faltantes.</p>
+  <div id="contagem-nao-bate" style="background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;">
+    <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+    <h3 style="color:var(--danger);margin:0 0 8px;font-size:18px;">Contagem divergente</h3>
+    <p style="font-size:13px;color:var(--dim);margin:0 0 14px;">A quantidade bipada não confere com a meta.<br>Digite a senha de autorização para concluir assim mesmo.</p>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <input type="password" id="senha-forca-input" placeholder="Senha de autorização" style="flex:1;padding:12px;font-size:14px;border-radius:10px;border:1px solid #333;background:#111;color:#fff;outline:none;"/>
+      <button id="btn-concluir-forca" onclick="doConcluirForcado()" style="width:auto;padding:12px 18px;font-size:13px;background:var(--danger);">CONFIRMAR</button>
+    </div>
   </div>
 
   <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
@@ -539,6 +581,10 @@ async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;con
 async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
 
 // ── CONFERENTE ─────────────────────────────────────────────────────────────
+let _confInvId='', _confInvNome='';
+
+function onInvSelectChange(){ /* placeholder para eventos futuros */ }
+
 async function showConferentePanel(){
   setBtnLoading('btn-open-conf',true);
   try{
@@ -550,28 +596,99 @@ async function showConferentePanel(){
     if(s&&list.some(i=>String(i.id)===String(s.invId))){
       document.getElementById('inv-select').value=s.invId;
       document.getElementById('conf-name').value=s.user||"";
-      document.getElementById('conf-grupo').value=s.section||"";
     }
     showScreen('conferente-login');
   }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
 }
 
+// Passo 1: valida acesso e vai para tela de seleção de grupo
+async function doConferenteLogin(){
+  const name=document.getElementById('conf-name').value.trim();
+  const invId=document.getElementById('inv-select').value;
+  const invPass=document.getElementById('conf-inv-pass').value;
+  if(!name||!invPass)return alert("Preencha nome e senha.");
+  setBtnLoading('btn-conf-login',true);
+  try{
+    const res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
+    if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'AVANÇAR');return;}
+    if(res&&res.success){
+      currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
+      _confInvId=invId;_confInvNome=res.nomeInventario;
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+      await mostrarSelecaoGrupo();
+    }else{
+      alert(res&&res.message?res.message:"Senha incorreta.");
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
+}
+
+// Passo 2: mostra grupos disponíveis
+async function mostrarSelecaoGrupo(){
+  showScreen('grupo-select-panel');
+  document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Carregando...</div>';
+  try{
+    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_confInvId});
+    if(r&&r.success){
+      const grupos=r.grupos||[];
+      if(!grupos.length){
+        document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Nenhum grupo pré-criado disponível.</div>';
+      }else{
+        document.getElementById('lista-grupos-disponiveis').innerHTML=grupos.map(g=>`
+          <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${g.nome}',${g.meta})">
+            <div><div class="grupo-card-nome">${g.nome}</div><div class="grupo-card-meta">Meta: ${g.meta} pcs</div></div>
+            <span class="grupo-card-badge">DISPONÍVEL</span>
+          </div>`).join('');
+      }
+    }
+  }catch(e){document.getElementById('lista-grupos-disponiveis').innerHTML='<div class="grupo-empty">Erro ao carregar grupos.</div>';}
+}
+
+// Pegou um grupo pré-criado
+async function doUsarGrupo(idGrupo, nomeGrupo, meta){
+  try{
+    const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
+    if(r&&r.success){
+      currentSection=r.nomeGrupo||nomeGrupo;
+      currentMeta=r.meta||meta;
+      queue=[];bankCount=0;localCount=0;updateCounterUI();updateQueueUI();
+      ativarContagem(0);
+      salvarSessao();
+    }else{
+      alert(r&&r.message?r.message:"Erro ao reservar grupo.");
+      await mostrarSelecaoGrupo(); // recarrega lista
+    }
+  }catch(e){alert("Erro: "+e);}
+}
+
+// Criou grupo manual (sem meta pré-definida — vai para espera)
+async function doIniciarNovoGrupo(){
+  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
+  if(!nome)return alert("Digite o nome do grupo.");
+  setBtnLoading('btn-novo-grupo',true);
+  try{
+    const r2=await callGAS({api:'iniciarSecao',usuario:currentUser,idInventario:_confInvId,secao:nome});
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');return;}
+    currentSection=nome;currentMeta=null;
+    queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
+    // Verifica se já estava liberado
+    const sr=await callGAS({api:'getStatusSecao',idInventario:_confInvId,usuario:currentUser});
+    if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
+    else iniciarEspera();
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
+}
+
 /**
- * BUGFIX: "Continuar Última Contagem" agora NÃO passa pelo login nem pelo
- * iniciarSecao. Apenas verifica o status atual no banco e vai direto para
- * a tela de contagem se já estava LIBERADO — sem pedir senha ou meta de novo.
+ * BUGFIX: "Continuar Última Contagem" vai direto ao banco sem passar pelo login.
  */
 async function continuarUltimaContagem(){
   const s=lerSessao();
   if(!s)return alert("Nao existe sessao salva.");
-
-  // Mostra loading no card
   const card=document.getElementById('card-continuar');
   const orig=card.innerHTML;
   card.innerHTML='<i class="fas fa-spinner fa-spin"></i><div><h3>Verificando...</h3></div>';
-
   try{
-    // 1. Verifica se o inventário ainda está aberto
     const list=await callGAS({api:'listarInventariosAbertos'});
     if(!list||!list.some(i=>String(i.id)===String(s.invId))){
       card.innerHTML=orig;
@@ -579,75 +696,20 @@ async function continuarUltimaContagem(){
       atualizarCardsSessao();
       return alert("O inventario desta sessao foi encerrado.");
     }
-
-    // 2. Restaura variáveis de sessão
-    currentUser=s.user;
-    currentSection=s.section;
-    currentInvId=s.invId;
-    currentInvName=s.invName;
-
-    // 3. Consulta status atual — sem chamar iniciarSecao
+    currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
+    _confInvId=s.invId;_confInvNome=s.invName;
     const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
     card.innerHTML=orig;
-
-    if(!sr||!sr.success){return alert("Erro ao verificar status. Tente novamente.");}
-
+    if(!sr||!sr.success){return alert("Erro ao verificar status.");}
     if(sr.status==='LIBERADO'){
-      // Já estava liberado — vai direto para a contagem
-      queue=[];bankCount=sr.count||0;localCount=bankCount;
-      currentMeta=sr.meta||null;
-      updateCounterUI();updateQueueUI();
-      ativarContagem(bankCount);
-      return;
+      queue=[];bankCount=sr.count||0;localCount=bankCount;currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();ativarContagem(bankCount);return;
     }
-
-    if(sr.status==='INVENTARIO_ENCERRADO'){
-      try{localStorage.removeItem(LS_KEY);}catch(_){}
-      atualizarCardsSessao();
-      return alert(sr.message||"Inventario encerrado.");
-    }
-
-    if(sr.status==='SECAO_BLOQUEADA'){
-      try{localStorage.removeItem(LS_KEY);}catch(_){}
-      atualizarCardsSessao();
-      return alert("Sua secao foi bloqueada pelo administrador.");
-    }
-
-    if(sr.status==='AGUARDANDO_META'){
-      // Meta ainda não definida — vai para espera sem resetar nada
-      queue=[];localCount=0;bankCount=0;currentMeta=null;
-      updateCounterUI();updateQueueUI();
-      iniciarEspera();
-      return;
-    }
-
-    // Fallback: abre tela de login normal
+    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert(sr.message||"Inventario encerrado.");}
+    if(sr.status==='SECAO_BLOQUEADA'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert("Sua secao foi bloqueada.");}
+    if(sr.status==='AGUARDANDO_META'){queue=[];localCount=0;bankCount=0;currentMeta=null;updateCounterUI();updateQueueUI();iniciarEspera();return;}
     await showConferentePanel();
-
-  }catch(e){
-    card.innerHTML=orig;
-    alert("Erro: "+e);
-  }
-}
-
-async function doConferenteLogin(){
-  const name=document.getElementById('conf-name').value.trim(),invId=document.getElementById('inv-select').value,invPass=document.getElementById('conf-inv-pass').value,grupo=document.getElementById('conf-grupo').value.trim().toUpperCase();
-  if(!name||!invPass||!grupo)return alert("Preencha todos os campos.");
-  setBtnLoading('btn-conf-login',true);
-  try{
-    const res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
-    if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');return;}
-    if(res&&res.success){
-      const r2=await callGAS({api:'iniciarSecao',usuario:name,idInventario:invId,secao:grupo});
-      if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');return;}
-      currentUser=name;currentSection=grupo;currentInvName=res.nomeInventario;currentInvId=invId;
-      queue=[];localCount=0;bankCount=0;currentMeta=null;updateCounterUI();updateQueueUI();
-      setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');
-      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
-      if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
-      else iniciarEspera();
-    }else{alert(res&&res.message?res.message:"Erro.");setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
-  }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
+  }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
 }
 
 // ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
@@ -659,48 +721,79 @@ function validarEAN13(code){
 }
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
-let h5scanner=null,lastEAN='',lastEANTime=0;
-const DEBOUNCE=1500;
+// Lógica simples e robusta:
+// - Código aceito fica travado (lockedEAN)
+// - Cada frame vazio agenda um timer de 1.5s para liberar
+// - Se o código aparecer de novo antes do timer, cancela e mantém travado
+// - Códigos DIFERENTES são aceitos normalmente a qualquer momento
+let h5scanner=null,_scanLock=false,lockedEAN='',unlockTimer=null;
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
+  if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
+  lockedEAN='';_scanLock=false;
 
-  // O html5-qrcode renderiza dentro de #h5-reader
   h5scanner=new Html5Qrcode('h5-reader');
-
   h5scanner.start(
     {facingMode:'environment'},
     {
-      fps:15,
+      fps:10,
       qrbox:{width:280,height:100},
       formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
       experimentalFeatures:{useBarCodeDetectorIfSupported:true},
     },
+    // ── código detectado ──
     (decodedText)=>{
-      const raw=decodedText.trim();
-      if(!raw||raw.length!==13)return;
+      if(_scanLock)return;
+      const raw=(decodedText||'').trim();
+      if(raw.length!==13)return;
 
-      const now=Date.now();
-      if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
-      lastEAN=raw;lastEANTime=now;
+      // Ainda vendo o código travado — cancela o timer de unlock e ignora
+      if(raw===lockedEAN){
+        if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
+        return;
+      }
 
+      // Prefixo GS1 Brasil
+      if(!raw.startsWith('789')){
+        showEANPopup(raw,false);bip(false);
+        if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        return;
+      }
+
+      // Checksum EAN-13
       if(!validarEAN13(raw)){
-        showEANPopup(raw,false);
-      bip(false);
-      if(navigator.vibrate)navigator.vibrate([40,20,40]);
-      return;
-    }
+        showEANPopup(raw,false);bip(false);
+        if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        return;
+      }
 
-    // Código EAN-13 válido
-    showEANPopup(raw,true);
-    doFlash();
-    bip(true);
-    if(navigator.vibrate)navigator.vibrate(55);
-    enqueue(raw);
-  });
+      // Código novo e válido — aceita e trava
+      _scanLock=true;
+      if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
+      lockedEAN=raw;
+
+      showEANPopup(raw,true);
+      doFlash();
+      bip(true);
+      if(navigator.vibrate)navigator.vibrate(55);
+      enqueue(raw);
+
+      setTimeout(()=>{_scanLock=false;},150);
+    },
+    // ── frame sem código (câmera saiu do produto) ──
+    ()=>{
+      if(!lockedEAN||unlockTimer)return;
+      // Agenda liberação após 1.5s sem ver o código
+      unlockTimer=setTimeout(()=>{
+        lockedEAN='';
+        unlockTimer=null;
+      },1500);
+    }
+  );
 }
 
 function stopScanner(){
@@ -739,11 +832,46 @@ async function doConcluirSecao(){
   if(!confirm("Concluir contagem do grupo?"))return;
   setBtnLoading('btn-concluir',true);
   const res=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId});
-  if(res&&res.success){document.getElementById('contagem-nao-bate').style.display='none';alert(`Concluido! ${res.count} itens.`);salvarSessao();showScreen('main-menu');atualizarCardsSessao();}
-  else if(res&&res.code==='CONTAGEM_NAO_BATE'){const box=document.getElementById('contagem-nao-bate'),diff=res.diferenca;document.getElementById('contagem-atual-val').textContent=String(res.contagem);document.getElementById('diff-msg').innerHTML=diff>0?`<span class="diff-pos">+${diff} peca(s) a mais</span> do que a meta de <strong>${res.meta}</strong>.`:`<span class="diff-neg">${diff} peca(s) a menos</span> do que a meta de <strong>${res.meta}</strong>.`;box.style.display='block';box.scrollIntoView({behavior:'smooth'});}
-  else if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();}
-  else alert(res&&res.message?res.message:"Erro ao concluir.");
+  if(res&&res.success){
+    document.getElementById('contagem-nao-bate').style.display='none';
+    alert(`Concluido! ${res.count} itens.`);
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    atualizarCardsSessao();
+    showScreen('main-menu');
+  } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
+    // Mostra bloco de divergência SEM revelar quantidades
+    document.getElementById('contagem-nao-bate').style.display='block';
+    document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
+    document.getElementById('senha-forca-input').value='';
+  } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
+    alert(res.message);
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    atualizarCardsSessao();
+    showScreen('main-menu');
+  } else {
+    alert(res&&res.message?res.message:"Erro ao concluir.");
+  }
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
+}
+
+async function doConcluirForcado(){
+  const senha=document.getElementById('senha-forca-input').value.trim();
+  if(!senha)return alert("Digite a senha de autorização.");
+  setBtnLoading('btn-concluir-forca',true);
+  const res=await callGAS({api:'concluirSecaoForcado',usuario:currentUser,idInventario:currentInvId,senha});
+  if(res&&res.success){
+    document.getElementById('contagem-nao-bate').style.display='none';
+    alert(`Concluido com autorização! ${res.count} itens registrados.`);
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    atualizarCardsSessao();
+    showScreen('main-menu');
+  } else if(res&&res.code==='SENHA_INCORRETA'){
+    document.getElementById('senha-forca-input').value='';
+    alert("Senha incorreta. Solicite ao administrador.");
+  } else {
+    alert(res&&res.message?res.message:"Erro ao concluir.");
+  }
+  setBtnLoading('btn-concluir-forca',false,'CONFIRMAR');
 }
 
 (function boot(){atualizarCardsSessao();})();
