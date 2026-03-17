@@ -145,7 +145,7 @@
     <div class="wait-sub">O administrador vai contar fisicamente e definir a meta.<br>Você será liberado automaticamente.</div>
     <div class="wait-grupo-box"><div class="lbl">Grupo</div><div class="val" id="wait-grupo-nome"></div></div>
     <div class="wait-dots"><span></span><span></span><span></span></div>
-    <p style="font-size:11px;color:var(--dim);margin-top:16px;">Verificando a cada 4 segundos...</p>
+    <p style="font-size:11px;color:var(--dim);margin-top:16px;">Verificando a cada 5 segundos...</p>
   </div>
   <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
 </div>
@@ -271,12 +271,33 @@ async function continuarUltimaContagem(){const s=lerSessao();if(!s)return alert(
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
 
 // ── ESPERA ────────────────────────────────────────────────────────────────────
-function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');if(waitingTimer)clearInterval(waitingTimer);waitingTimer=setInterval(verificarLiberacao,4000);}
-function pararEspera(){if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}}
+// BUGFIX: flag para evitar race condition no polling — se uma verificacao
+// ainda esta em andamento, a proxima nao dispara ao mesmo tempo.
+let _verificandoLiberacao=false;
+
+function iniciarEspera(){
+  document.getElementById('wait-grupo-nome').textContent=currentSection;
+  showScreen('waiting-panel');
+  pararEspera();
+  // BUGFIX: intervalo aumentado para 5s e protegido por flag de concorrencia
+  waitingTimer=setInterval(verificarLiberacao,5000);
+  // Faz a primeira verificacao imediatamente sem esperar o intervalo
+  verificarLiberacao();
+}
+
+function pararEspera(){
+  if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}
+  _verificandoLiberacao=false;
+}
+
 async function verificarLiberacao(){
+  // BUGFIX: evita chamadas concorrentes caso a anterior ainda nao terminou
+  if(_verificandoLiberacao) return;
+  _verificandoLiberacao=true;
   try{
     const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
-    if(!res||!res.success)return;
+    if(!res||!res.success){_verificandoLiberacao=false;return;}
+
     if(res.status==='LIBERADO'){
       pararEspera();
       document.getElementById('display-name').textContent=currentUser;
@@ -285,11 +306,27 @@ async function verificarLiberacao(){
       document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
       document.getElementById('contagem-nao-bate').style.display='none';
       bankCount=res.count||0;localCount=bankCount;updateCounterUI();updateQueueUI();
-      showScreen('counting-panel');salvarSessao();return;
+      showScreen('counting-panel');salvarSessao();
+      return;
     }
-    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message);try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();}
-    if(res.status==='SECAO_BLOQUEADA'){pararEspera();alert("Secao bloqueada.");showScreen('main-menu');atualizarCardsSessao();}
-  }catch(_){}
+    if(res.status==='INVENTARIO_ENCERRADO'){
+      pararEspera();
+      alert(res.message||'Inventario encerrado.');
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      showScreen('main-menu');atualizarCardsSessao();
+      return;
+    }
+    if(res.status==='SECAO_BLOQUEADA'){
+      pararEspera();
+      alert("Sua secao foi bloqueada pelo administrador.");
+      showScreen('main-menu');atualizarCardsSessao();
+      return;
+    }
+    // status === 'AGUARDANDO_META': continua esperando normalmente
+  }catch(_){
+    // Erro de rede: ignora e tenta no proximo ciclo
+  }
+  _verificandoLiberacao=false;
 }
 
 // ── MASTER ────────────────────────────────────────────────────────────────────
@@ -335,7 +372,21 @@ async function doConferenteLogin(){
       currentUser=name;currentSection=grupo;currentInvName=res.nomeInventario;currentInvId=invId;
       queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
       setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');
-      iniciarEspera();
+
+      // BUGFIX: verifica status ANTES de ir para tela de espera
+      // Se ja estava LIBERADO (reconexao), vai direto para contagem
+      const statusRes=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(statusRes&&statusRes.success&&statusRes.status==='LIBERADO'){
+        document.getElementById('display-name').textContent=name;
+        document.getElementById('display-section').textContent=grupo;
+        document.getElementById('active-inv-title').textContent=res.nomeInventario;
+        document.getElementById('scanner-grp-lbl').textContent='Grupo: '+grupo;
+        document.getElementById('contagem-nao-bate').style.display='none';
+        bankCount=statusRes.count||0;localCount=bankCount;updateCounterUI();updateQueueUI();
+        showScreen('counting-panel');salvarSessao();
+      } else {
+        iniciarEspera();
+      }
     }else{alert(res&&res.message?res.message:"Erro.");setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
 }
