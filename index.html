@@ -659,7 +659,15 @@ async function mostrarSelecaoGrupo(){
 }
 
 // Pegou um grupo pré-criado
+let _pegandoGrupo=false;
 async function doUsarGrupo(idGrupo, nomeGrupo, meta){
+  if(_pegandoGrupo)return; // bloqueia double-click
+  _pegandoGrupo=true;
+
+  // Feedback visual nos cards
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
+
   try{
     const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
     if(r&&r.success){
@@ -669,10 +677,16 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
       ativarContagem(0);
       salvarSessao();
     }else{
+      // Restaura lista antes de mostrar erro
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       alert(r&&r.message?r.message:"Erro ao reservar grupo.");
-      await mostrarSelecaoGrupo(); // recarrega lista
+      await mostrarSelecaoGrupo();
     }
-  }catch(e){alert("Erro: "+e);}
+  }catch(e){
+    if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+    alert("Erro: "+e);
+  }
+  _pegandoGrupo=false;
 }
 
 // Criou grupo manual (sem meta pré-definida — vai para espera)
