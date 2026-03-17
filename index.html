@@ -574,7 +574,7 @@ async function doConferenteLogin(){
 }
 
 // ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
-// Valida: exatamente 13 dígitos numéricos + checksum correto (GS1)
+// Valida: exatamente 13 dígitos numéricos + checksum GS1 correto
 function validarEAN13(code){
   if(!/^\d{13}$/.test(code))return false;
   let s=0;
@@ -583,40 +583,60 @@ function validarEAN13(code){
 }
 
 // ── ZXING SCANNER ─────────────────────────────────────────────────────────
+// Sistema de confirmação: exige que o MESMO código seja lido
+// CONFIRM_NEEDED vezes seguidas antes de aceitar.
+// Isso elimina leituras erradas por frames parciais.
 let zxingReader=null,lastEAN='',lastEANTime=0;
-const DEBOUNCE=700; // ms mínimo entre leituras do mesmo código
+const DEBOUNCE=1200;      // ms mínimo entre bipes do MESMO código aceito
+const CONFIRM_NEEDED=2;   // quantas leituras iguais consecutivas para aceitar
+let confirmBuffer='';     // último código candidato
+let confirmCount=0;       // quantas vezes seguidas foi lido igual
 
 function startScanner(){
   const ov=document.getElementById('scanner-overlay');
   ov.style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
-  // Para reader anterior se existir
   if(zxingReader){try{zxingReader.reset();}catch(_){}zxingReader=null;}
+  confirmBuffer='';confirmCount=0;
 
-  // Apenas formatos de barras lineares — mais rápido que incluir QR/2D
+  // Apenas EAN_13 — remove formatos que causam conversões erradas
   const hints=new Map();
   hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
     ZXing.BarcodeFormat.EAN_13,
-    ZXing.BarcodeFormat.EAN_8,
-    ZXing.BarcodeFormat.UPC_A,
-    ZXing.BarcodeFormat.UPC_E,
   ]);
-  hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
-  // Intervalo de scan: 120ms (mais agressivo = mais rápido)
-  zxingReader=new ZXing.BrowserMultiFormatReader(hints,120);
+  // SEM TRY_HARDER — evita leituras forçadas com baixa confiança
+  hints.set(ZXing.DecodeHintType.TRY_HARDER,false);
+  // 200ms entre frames — mais estável que 120ms
+  zxingReader=new ZXing.BrowserMultiFormatReader(hints,200);
 
   zxingReader.decodeFromVideoDevice(null,'zxing-video',(result)=>{
     if(!result)return;
     const raw=result.getText();
-    if(!raw)return;
+    if(!raw||raw.length!==13)return; // descarta imediatamente se não for 13 dígitos
+
+    // Sistema de confirmação: acumula leituras iguais consecutivas
+    if(raw===confirmBuffer){
+      confirmCount++;
+    }else{
+      // Código diferente do anterior — reinicia contagem
+      confirmBuffer=raw;
+      confirmCount=1;
+      return; // ainda não confirmou
+    }
+
+    // Ainda não atingiu o mínimo de confirmações
+    if(confirmCount<CONFIRM_NEEDED)return;
+
+    // A partir daqui: código lido CONFIRM_NEEDED vezes seguidas
+    // Reseta para não disparar múltiplas vezes o mesmo
+    confirmBuffer='';confirmCount=0;
 
     const now=Date.now();
     if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
     lastEAN=raw;lastEANTime=now;
 
     if(!validarEAN13(raw)){
-      // Código inválido: mostra feedback e ignora
       showEANPopup(raw,false);
       bip(false);
       if(navigator.vibrate)navigator.vibrate([40,20,40]);
