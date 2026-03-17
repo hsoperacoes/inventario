@@ -750,19 +750,24 @@ function validarEAN13(code){
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
 // Lógica simples e robusta:
-// - Código aceito fica travado (lockedEAN)
-// - Cada frame vazio agenda um timer de 1.5s para liberar
-// - Se o código aparecer de novo antes do timer, cancela e mantém travado
-// - Códigos DIFERENTES são aceitos normalmente a qualquer momento
-let h5scanner=null,_scanLock=false,lockedEAN='',unlockTimer=null;
+// Scanner — lógica simples com timestamp
+// Cada código aceito fica bloqueado por LOCK_MS
+// Só libera depois que a câmera fica IDLE_MS sem ver nenhum código
+let h5scanner=null;
+let _lastAccepted='', _lastAcceptedAt=0, _lastSeenAt=0;
+const LOCK_MS=3000;  // ms que o mesmo código fica bloqueado após ser aceito
+const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
-  lockedEAN='';_scanLock=false;
+  _lastAccepted='';_lastAcceptedAt=0;_lastSeenAt=0;
+
+  // Limpa div
+  const rd=document.getElementById('h5-reader');
+  if(rd)rd.innerHTML='';
 
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
@@ -773,53 +778,53 @@ function startScanner(){
       formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
       experimentalFeatures:{useBarCodeDetectorIfSupported:true},
     },
-    // ── código detectado ──
     (decodedText)=>{
-      if(_scanLock)return;
       const raw=(decodedText||'').trim();
+      const now=Date.now();
       if(raw.length!==13)return;
 
-      // Ainda vendo o código travado — cancela o timer de unlock e ignora
-      if(raw===lockedEAN){
-        if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
-        return;
-      }
+      // Atualiza o timestamp de "última vez que viu um código"
+      _lastSeenAt=now;
 
       // Prefixo GS1 Brasil
       if(!raw.startsWith('789')){
-        showEANPopup(raw,false);bip(false);
-        if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        // Só mostra popup inválido se não estiver dentro do lock de um código bom
+        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
+          showEANPopup(raw,false);bip(false);
+          if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        }
         return;
       }
 
       // Checksum EAN-13
       if(!validarEAN13(raw)){
-        showEANPopup(raw,false);bip(false);
-        if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
+          showEANPopup(raw,false);bip(false);
+          if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        }
         return;
       }
 
-      // Código novo e válido — aceita e trava
-      _scanLock=true;
-      if(unlockTimer){clearTimeout(unlockTimer);unlockTimer=null;}
-      lockedEAN=raw;
+      // Mesmo código dentro do período de lock — ignora silenciosamente
+      if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
+
+      // Código diferente mas câmera ainda "viu" o anterior recentemente
+      // (câmera se moveu mas ainda está na mesma área) — verifica idle
+      if(_lastAccepted&&raw!==_lastAccepted&&now-_lastSeenAt<IDLE_MS) return;
+
+      // ACEITA
+      _lastAccepted=raw;
+      _lastAcceptedAt=now;
 
       showEANPopup(raw,true);
       doFlash();
       bip(true);
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
-
-      setTimeout(()=>{_scanLock=false;},150);
     },
-    // ── frame sem código (câmera saiu do produto) ──
     ()=>{
-      if(!lockedEAN||unlockTimer)return;
-      // Agenda liberação após 1.5s sem ver o código
-      unlockTimer=setTimeout(()=>{
-        lockedEAN='';
-        unlockTimer=null;
-      },1500);
+      // Frame sem código — reseta o "último visto" para contar idle
+      // Não faz nada com _lastAccepted, o LOCK_MS cuida disso
     }
   );
 }
