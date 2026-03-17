@@ -480,7 +480,7 @@ function salvarSessao(){try{localStorage.setItem(LS_KEY,JSON.stringify({user:cur
 function lerSessao(){try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
 function limparSessao(){if(!confirm("Apagar sessao salva?"))return;try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();alert("Sessao apagada.");}
 function atualizarCardsSessao(){const s=lerSessao();document.getElementById("card-continuar").style.display=s?"flex":"none";document.getElementById("card-limpar").style.display=s?"flex":"none";if(s)document.getElementById("continuar-desc").textContent=`${s.invName} · ${s.user} · ${s.section}`;}
-async function continuarUltimaContagem(){const s=lerSessao();if(!s)return alert("Nao existe sessao salva.");try{const list=await callGAS({api:'listarInventariosAbertos'});if(!list||!list.length)return alert("Nenhum inventario aberto.");document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');if(list.some(i=>String(i.id)===String(s.invId)))document.getElementById('inv-select').value=s.invId;document.getElementById('conf-name').value=s.user||"";document.getElementById('conf-grupo').value=s.section||"";document.getElementById('conf-inv-pass').value="";showScreen('conferente-login');}catch(e){alert("Erro: "+e);}}
+
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
 
 // ── ESPERA ─────────────────────────────────────────────────────────────────
@@ -539,7 +539,97 @@ async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;con
 async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
 
 // ── CONFERENTE ─────────────────────────────────────────────────────────────
-async function showConferentePanel(){setBtnLoading('btn-open-conf',true);try{const list=await callGAS({api:'listarInventariosAbertos'});setBtnLoading('btn-open-conf',false,'');if(!list||!list.length)return alert("Nenhum inventario aberto.");document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');const s=lerSessao();if(s&&list.some(i=>String(i.id)===String(s.invId))){document.getElementById('inv-select').value=s.invId;document.getElementById('conf-name').value=s.user||"";document.getElementById('conf-grupo').value=s.section||"";}showScreen('conferente-login');}catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}}
+async function showConferentePanel(){
+  setBtnLoading('btn-open-conf',true);
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    setBtnLoading('btn-open-conf',false,'');
+    if(!list||!list.length)return alert("Nenhum inventario aberto.");
+    document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
+    const s=lerSessao();
+    if(s&&list.some(i=>String(i.id)===String(s.invId))){
+      document.getElementById('inv-select').value=s.invId;
+      document.getElementById('conf-name').value=s.user||"";
+      document.getElementById('conf-grupo').value=s.section||"";
+    }
+    showScreen('conferente-login');
+  }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
+}
+
+/**
+ * BUGFIX: "Continuar Última Contagem" agora NÃO passa pelo login nem pelo
+ * iniciarSecao. Apenas verifica o status atual no banco e vai direto para
+ * a tela de contagem se já estava LIBERADO — sem pedir senha ou meta de novo.
+ */
+async function continuarUltimaContagem(){
+  const s=lerSessao();
+  if(!s)return alert("Nao existe sessao salva.");
+
+  // Mostra loading no card
+  const card=document.getElementById('card-continuar');
+  const orig=card.innerHTML;
+  card.innerHTML='<i class="fas fa-spinner fa-spin"></i><div><h3>Verificando...</h3></div>';
+
+  try{
+    // 1. Verifica se o inventário ainda está aberto
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    if(!list||!list.some(i=>String(i.id)===String(s.invId))){
+      card.innerHTML=orig;
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      atualizarCardsSessao();
+      return alert("O inventario desta sessao foi encerrado.");
+    }
+
+    // 2. Restaura variáveis de sessão
+    currentUser=s.user;
+    currentSection=s.section;
+    currentInvId=s.invId;
+    currentInvName=s.invName;
+
+    // 3. Consulta status atual — sem chamar iniciarSecao
+    const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+    card.innerHTML=orig;
+
+    if(!sr||!sr.success){return alert("Erro ao verificar status. Tente novamente.");}
+
+    if(sr.status==='LIBERADO'){
+      // Já estava liberado — vai direto para a contagem
+      queue=[];bankCount=sr.count||0;localCount=bankCount;
+      currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();
+      ativarContagem(bankCount);
+      return;
+    }
+
+    if(sr.status==='INVENTARIO_ENCERRADO'){
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      atualizarCardsSessao();
+      return alert(sr.message||"Inventario encerrado.");
+    }
+
+    if(sr.status==='SECAO_BLOQUEADA'){
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      atualizarCardsSessao();
+      return alert("Sua secao foi bloqueada pelo administrador.");
+    }
+
+    if(sr.status==='AGUARDANDO_META'){
+      // Meta ainda não definida — vai para espera sem resetar nada
+      queue=[];localCount=0;bankCount=0;currentMeta=null;
+      updateCounterUI();updateQueueUI();
+      iniciarEspera();
+      return;
+    }
+
+    // Fallback: abre tela de login normal
+    await showConferentePanel();
+
+  }catch(e){
+    card.innerHTML=orig;
+    alert("Erro: "+e);
+  }
+}
+
 async function doConferenteLogin(){
   const name=document.getElementById('conf-name').value.trim(),invId=document.getElementById('inv-select').value,invPass=document.getElementById('conf-inv-pass').value,grupo=document.getElementById('conf-grupo').value.trim().toUpperCase();
   if(!name||!invPass||!grupo)return alert("Preencha todos os campos.");
