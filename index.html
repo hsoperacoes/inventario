@@ -7,23 +7,27 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
   <style>
-    :root{--primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;--text:#fff;--dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;}
-    *{box-sizing:border-box;transition:all .2s ease;}
+    :root{
+      --primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;
+      --text:#fff;--dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;
+      --cyan:#00e5ff;
+    }
+    *{box-sizing:border-box;}
     body{font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
     .container{width:95%;max-width:600px;background:var(--card);padding:30px 20px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);margin:20px 10px;border:1px solid #333;}
     h2{text-align:center;margin-top:0;color:var(--primary);font-weight:800;letter-spacing:1px;}
     .home-grid{display:grid;gap:20px;margin-top:20px;}
-    .home-card{background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px;}
+    .home-card{background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px;transition:transform .2s,border-color .2s,background .2s;}
     .home-card:hover{transform:translateY(-5px);border-color:var(--primary);background:#2a2a2a;}
     .home-card i{font-size:30px;color:var(--primary);}
     .home-card div h3{margin:0;font-size:18px;}
     .home-card div p{margin:5px 0 0;font-size:13px;color:var(--dim);}
     .form-group{margin-bottom:15px;}
     label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--dim);}
-    input,select{width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none;}
+    input,select{width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none;transition:border-color .2s;}
     input:focus{border-color:var(--primary);}
     select{appearance:none;}
-    button{background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;}
+    button{background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;transition:background .2s,transform .1s;}
     button:hover{background:var(--primary-dark);transform:scale(1.02);}
     button:disabled{background:#444;cursor:not-allowed;opacity:.7;transform:none;}
     .btn-sec{background:#333;margin-top:10px;}
@@ -51,25 +55,140 @@
     .wait-dots span:nth-child(2){animation-delay:.2s;}
     .wait-dots span:nth-child(3){animation-delay:.4s;}
     @keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
-    .count-pill{display:inline-flex;align-items:center;gap:8px;background:#111;border:1px solid #2a2a2a;padding:10px 12px;border-radius:14px;margin:12px 0 4px;width:100%;justify-content:center;font-weight:800;}
-    .count-pill small{font-weight:600;color:var(--dim);}
+
+    /* ─── COUNTING PANEL ─────────────────────── */
+    .count-hero{
+      background:#0e0e1a;
+      border:1px solid rgba(103,58,183,.35);
+      border-radius:18px;padding:18px 16px;margin:0 0 14px;text-align:center;
+    }
+    .count-hero-lbl{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:4px;}
+    .count-hero-num{
+      font-size:76px;font-weight:900;line-height:1;color:#fff;
+      transition:transform .12s,color .12s;
+    }
+    .count-hero-num.bump{transform:scale(1.13);color:var(--cyan);}
+    .count-hero-meta{font-size:12px;color:var(--dim);margin-top:6px;}
+    .count-hero-meta strong{color:#fff;}
+
+    .last-ean-box{
+      background:#060e14;border:1px solid rgba(0,229,255,.18);
+      border-radius:12px;padding:10px 14px;margin-bottom:12px;
+      display:flex;align-items:center;gap:10px;min-height:44px;
+    }
+    .last-ean-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);white-space:nowrap;}
+    .last-ean-val{
+      font-family:'Courier New',monospace;font-size:19px;font-weight:700;
+      color:var(--cyan);letter-spacing:2px;flex:1;
+    }
+    .last-ean-val.flash{animation:eanFlash .45s ease-out;}
+    @keyframes eanFlash{
+      0%{color:#fff;text-shadow:0 0 18px var(--cyan),0 0 36px var(--cyan);}
+      100%{color:var(--cyan);text-shadow:none;}
+    }
+    .last-ean-badge{
+      font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;
+      background:rgba(76,175,80,.18);color:var(--success);
+      border:1px solid rgba(76,175,80,.35);white-space:nowrap;
+    }
+    .info-row{display:flex;gap:10px;margin-bottom:12px;}
+    .info-chip{background:#181818;border:1px solid #252525;border-radius:10px;padding:8px 12px;flex:1;font-size:12px;}
+    .info-chip .ic-lbl{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    .info-chip .ic-val{font-weight:700;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rt-bar{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--success);margin-bottom:10px;}
+    .rt-dot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    .rt-dot.warn{background:var(--warning);}
+    .rt-dot.err{background:var(--danger);animation:none;}
+
     #queue-pill{display:none;background:#1a1000;border:1px solid var(--warning);border-radius:10px;padding:7px 14px;text-align:center;font-size:12px;color:var(--warning);margin-bottom:8px;}
-    #contagem-nao-bate{background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:15px 0;text-align:center;display:none;}
+    #contagem-nao-bate{background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;}
     #contagem-nao-bate h3{color:var(--danger);margin:0 0 10px;}
-    .diff-box{font-size:28px;font-weight:900;margin:8px 0;}
     .diff-pos{color:var(--warning);}
     .diff-neg{color:var(--danger);}
-    #scanner-overlay{position:fixed;inset:0;background:rgba(0,0,0,.97);z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
-    #video-container{width:90%;max-width:400px;border:2px solid var(--primary);border-radius:20px;overflow:hidden;position:relative;background:#000;}
-    #zxing-video{width:100%;display:block;}
-    #scan-line{position:absolute;left:0;right:0;height:2px;background:rgba(103,58,183,.8);box-shadow:0 0 8px rgba(103,58,183,.9);animation:scanMove 1.8s linear infinite;}
-    @keyframes scanMove{0%{top:10%}50%{top:85%}100%{top:10%}}
-    #scanner-counter-box{background:rgba(103,58,183,.85);border:1px solid var(--primary);border-radius:16px;padding:10px 28px;text-align:center;backdrop-filter:blur(4px);min-width:220px;}
-    #scanner-counter-box .sc-lbl{font-size:11px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:1px;}
-    #scanner-counter-box .sc-val{font-size:40px;font-weight:900;color:#fff;line-height:1.1;}
-    #scanner-counter-box .sc-pnd{font-size:11px;color:rgba(255,171,64,.9);margin-top:2px;min-height:16px;}
-    #scanner-counter-box .sc-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
-    #scanner-msg{font-weight:bold;text-align:center;font-size:18px;min-height:28px;}
+
+    /* ─── SCANNER ────────────────────────────── */
+    #scanner-overlay{
+      position:fixed;inset:0;background:#000;z-index:1000;
+      display:none;flex-direction:column;
+    }
+    #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
+    #zxing-video{width:100%;height:100%;object-fit:cover;display:block;}
+
+    /* guia de enquadramento */
+    .scan-guide{
+      position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-55%);
+      width:82%;max-width:360px;aspect-ratio:3.5/1;
+      pointer-events:none;
+    }
+    .scan-guide::before,.scan-guide::after,.sg-bl,.sg-br{
+      content:'';position:absolute;width:22px;height:22px;
+      border-color:var(--cyan);border-style:solid;
+    }
+    .scan-guide::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0;}
+    .scan-guide::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0;}
+    .sg-bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px;}
+    .sg-br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0;}
+    .scan-line{
+      position:absolute;left:5%;right:5%;height:2px;
+      background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+      box-shadow:0 0 6px var(--cyan);
+      animation:scanMove 1.8s ease-in-out infinite;
+    }
+    @keyframes scanMove{0%{top:6%}50%{top:88%}100%{top:6%}}
+
+    /* flash de leitura */
+    #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
+    #scan-flash.blink{animation:sfBlink .18s ease-out;}
+    @keyframes sfBlink{0%{opacity:1}100%{opacity:0}}
+
+    /* popup EAN lido */
+    #scan-ean-popup{
+      position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,.88);
+      border:1px solid var(--cyan);border-radius:14px;
+      padding:12px 22px;
+      font-family:'Courier New',monospace;font-size:24px;font-weight:700;
+      color:var(--cyan);letter-spacing:3px;text-align:center;
+      opacity:0;pointer-events:none;white-space:nowrap;
+    }
+    #scan-ean-popup.ok{animation:popOk .85s ease-out forwards;}
+    #scan-ean-popup.inv{border-color:var(--danger);color:var(--danger);animation:popInv .7s ease-out forwards;}
+    @keyframes popOk{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.88);}
+      55%{opacity:1;transform:translate(-50%,-50%) scale(1.04);}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(1.08);}
+    }
+    @keyframes popInv{
+      0%{opacity:1;transform:translate(calc(-50% + 0px),-50%);}
+      15%{transform:translate(calc(-50% + 7px),-50%);}
+      30%{transform:translate(calc(-50% - 7px),-50%);}
+      45%{transform:translate(calc(-50% + 4px),-50%);}
+      60%{opacity:1;transform:translate(-50%,-50%);}
+      100%{opacity:0;}
+    }
+
+    /* HUD inferior no scanner */
+    .scan-hud{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:14px 18px 18px;
+      background:linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 100%);
+    }
+    .scan-hud-cnt{font-size:56px;font-weight:900;color:#fff;line-height:1;}
+    .scan-hud-sub{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.45);}
+    .scan-hud-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+    .scan-hud-pnd{font-size:11px;color:var(--warning);min-height:16px;margin-top:2px;}
+
+    /* botão fechar scanner */
+    #btn-close-scan{
+      position:absolute;top:14px;right:14px;
+      width:42px;height:42px;background:rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.18);border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;z-index:5;font-size:17px;color:#fff;
+    }
+
     .loading-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:lspin 1s linear infinite;}
     @keyframes lspin{to{transform:rotate(360deg)}}
     .mini-btn{padding:6px 10px!important;font-size:10px!important;border-radius:8px!important;line-height:1!important;gap:6px!important;margin-top:0!important;white-space:nowrap;width:auto!important;}
@@ -79,6 +198,8 @@
   </style>
 </head>
 <body>
+
+<!-- MENU PRINCIPAL -->
 <div class="container" id="main-menu">
   <h2>HS INVENTÁRIO PRO</h2>
   <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
@@ -90,12 +211,16 @@
     <div class="home-card" id="card-limpar" onclick="limparSessao()" style="display:none;"><i class="fas fa-trash"></i><div><h3>Limpar Sessão</h3><p>Apaga a última contagem salva deste dispositivo.</p></div></div>
   </div>
 </div>
+
+<!-- MASTER LOGIN -->
 <div class="container hidden" id="master-login">
   <h2>ACESSO MASTER</h2>
   <div class="form-group"><label>Senha</label><input type="password" id="master-pass" placeholder="Senha master"/></div>
   <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
   <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
+
+<!-- MASTER PANEL -->
 <div class="container hidden" id="master-panel" style="max-width:800px;">
   <div class="live-indicator"><div class="dot"></div>Monitoramento em Tempo Real</div>
   <h2>PAINEL DO LEONARDO</h2>
@@ -122,6 +247,8 @@
   </div>
   <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
 </div>
+
+<!-- CRIAR INVENTÁRIO -->
 <div class="container hidden" id="create-inv-screen">
   <h2>NOVO INVENTÁRIO</h2>
   <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
@@ -129,15 +256,19 @@
   <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
   <button class="btn-sec" onclick="showScreen('master-panel')">CANCELAR</button>
 </div>
+
+<!-- LOGIN CONFERENTE -->
 <div class="container hidden" id="conferente-login">
   <h2>CONFERENTE</h2>
   <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
   <div class="form-group"><label>Inventário</label><select id="inv-select"></select></div>
   <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass"/></div>
-  <div class="form-group"><label>Nome do Grupo / Seção que vai contar</label><input type="text" id="conf-grupo" placeholder="Ex: INTIMO, CORREDOR 3, MODULO A..." style="text-transform:uppercase;"/></div>
+  <div class="form-group"><label>Nome do Grupo / Seção</label><input type="text" id="conf-grupo" placeholder="Ex: INTIMO, CORREDOR 3..." style="text-transform:uppercase;"/></div>
   <button id="btn-conf-login" onclick="doConferenteLogin()">ENTRAR E AGUARDAR META</button>
   <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
+
+<!-- WAITING PANEL -->
 <div class="container hidden" id="waiting-panel">
   <div style="text-align:center;">
     <div class="wait-icon">⏳</div>
@@ -149,101 +280,196 @@
   </div>
   <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
 </div>
+
+<!-- COUNTING PANEL -->
 <div class="container hidden" id="counting-panel">
-  <h2 id="active-inv-title">...</h2>
-  <div id="queue-pill"></div>
-  <div class="count-pill"><small>Peças bipadas:</small><span id="user-count">0</span></div>
-  <div style="font-size:14px;margin:10px 0;">
-    <p style="margin:4px 0"><strong>Conferente:</strong> <span id="display-name"></span></p>
-    <p style="margin:4px 0"><strong>Grupo:</strong> <span id="display-section"></span></p>
+  <h2 id="active-inv-title" style="font-size:15px;margin-bottom:12px;">...</h2>
+
+  <!-- Status em tempo real -->
+  <div class="rt-bar">
+    <div class="rt-dot" id="rt-dot"></div>
+    <span id="rt-lbl">Sincronizado</span>
   </div>
+
+  <!-- Contador principal -->
+  <div class="count-hero">
+    <div class="count-hero-lbl">Peças bipadas</div>
+    <div class="count-hero-num" id="user-count">0</div>
+    <div class="count-hero-meta" id="count-meta-lbl"></div>
+  </div>
+
+  <!-- Último EAN -->
+  <div class="last-ean-box">
+    <span class="last-ean-lbl">Último EAN</span>
+    <span class="last-ean-val" id="last-ean-val">—</span>
+    <span class="last-ean-badge" id="last-ean-badge" style="display:none">✓ EAN-13</span>
+  </div>
+
+  <!-- Info -->
+  <div class="info-row">
+    <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
+    <div class="info-chip"><div class="ic-lbl">Grupo</div><div class="ic-val" id="display-section">—</div></div>
+  </div>
+
+  <div id="queue-pill"></div>
+
   <div id="contagem-nao-bate">
     <h3><i class="fas fa-triangle-exclamation"></i> Contagem não bate!</h3>
-    <div class="diff-box"><span id="contagem-atual-val">0</span> bipados</div>
+    <div style="font-size:28px;font-weight:900;margin:8px 0;"><span id="contagem-atual-val">0</span> bipados</div>
     <p id="diff-msg" style="font-size:13px;color:var(--dim);"></p>
     <p style="font-size:12px;color:var(--dim);margin-top:6px;">Aguarde o admin ajustar ou bipe os itens faltantes.</p>
   </div>
-  <button onclick="startScanner()"><i class="fas fa-camera"></i> ABRIR SCANNER</button>
+
+  <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
   <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
   <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
 </div>
+
+<!-- SCANNER OVERLAY -->
 <div id="scanner-overlay">
-  <div id="video-container">
+  <div id="video-wrap">
     <video id="zxing-video" autoplay muted playsinline></video>
-    <div id="scan-line"></div>
+
+    <div class="scan-guide">
+      <div class="sg-bl"></div><div class="sg-br"></div>
+      <div class="scan-line"></div>
+    </div>
+
+    <div id="scan-flash"></div>
+    <div id="scan-ean-popup"></div>
+
+    <div class="scan-hud">
+      <div class="scan-hud-sub">Peças bipadas</div>
+      <div class="scan-hud-cnt" id="scanner-count-val">0</div>
+      <div class="scan-hud-grp" id="scanner-grp-lbl"></div>
+      <div class="scan-hud-pnd" id="scanner-pnd-lbl"></div>
+    </div>
+
+    <div id="btn-close-scan" onclick="stopScanner()">✕</div>
   </div>
-  <div id="scanner-counter-box">
-    <div class="sc-lbl">Peças bipadas</div>
-    <div class="sc-val" id="scanner-count-val">0</div>
-    <div class="sc-pnd" id="scanner-pnd-lbl"></div>
-    <div class="sc-grp" id="scanner-grp-lbl"></div>
-  </div>
-  <div style="width:90%;max-width:400px;">
-    <button class="btn-sec" onclick="stopScanner()"><i class="fas fa-times"></i> FECHAR SCANNER</button>
-  </div>
-  <div id="scanner-msg"></div>
 </div>
+
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-let currentUser="",currentSection="",currentInvName="",currentInvId="";
-let refreshInterval=null,userCountTimer=null,waitingTimer=null,flushTimer=null;
+let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
+let refreshInterval=null,waitingTimer=null,flushTimer=null,rtTimer=null;
 const LS_KEY="HS_INV_SESSAO_03";
 
-// ── FILA OTIMISTA ──────────────────────────────────────────────────────────────
+// ── FILA OTIMISTA ──────────────────────────────────────────────────────────
 let queue=[],localCount=0,bankCount=0,isFlushing=false;
 
 function enqueue(ean){
-  queue.push(ean); localCount++; updateCounterUI(); updateQueueUI(); scheduleFlush();
+  queue.push(ean);localCount++;
+  updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){
-  if(flushTimer) clearTimeout(flushTimer);
-  flushTimer=setTimeout(flushQueue,600);
-}
+function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,600);}
 async function flushQueue(){
-  if(isFlushing||queue.length===0) return;
+  if(isFlushing||queue.length===0)return;
   isFlushing=true;
   const batch=queue.slice();
   try{
     const res=await callGAS({api:'registrarBipeLote',eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
     if(res&&res.success){
-      queue=queue.slice(batch.length); bankCount=res.count;
-      if(localCount!==bankCount) localCount=bankCount;
-    } else {
+      queue=queue.slice(batch.length);bankCount=res.count;
+      if(localCount!==bankCount)localCount=bankCount;
+      setRT('ok');
+    }else{
+      setRT('err');
       if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);queue=[];localCount=bankCount;try{localStorage.removeItem(LS_KEY);}catch(_){}stopScanner();showScreen('main-menu');atualizarCardsSessao();}
       else if(res&&res.code==='SECAO_FECHADA'){queue=[];localCount=bankCount;forcarNovaSecao(res.message);}
       else setTimeout(flushQueue,3000);
     }
-  }catch(e){setTimeout(flushQueue,3000);}
-  isFlushing=false;
-  updateCounterUI();updateQueueUI();
+  }catch(e){setRT('err');setTimeout(flushQueue,3000);}
+  isFlushing=false;updateCounterUI();updateQueueUI();
 }
-function updateCounterUI(){const v=String(localCount);document.getElementById('user-count').textContent=v;document.getElementById('scanner-count-val').textContent=v;}
+
+function setRT(s){
+  const d=document.getElementById('rt-dot'),l=document.getElementById('rt-lbl');
+  if(!d)return;
+  d.className='rt-dot'+(s==='err'?' err':s==='warn'?' warn':'');
+  l.textContent=s==='err'?'Reconectando...':s==='warn'?'Sincronizando...':'Sincronizado';
+}
+
+function updateCounterUI(newEan){
+  const v=String(localCount);
+  document.getElementById('user-count').textContent=v;
+  document.getElementById('scanner-count-val').textContent=v;
+  // bump animation
+  if(newEan){
+    const n=document.getElementById('user-count');
+    n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');
+    setTimeout(()=>n.classList.remove('bump'),220);
+    // mostra EAN no painel de contagem
+    const ev=document.getElementById('last-ean-val');
+    const eb=document.getElementById('last-ean-badge');
+    if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
+    if(eb)eb.style.display='inline-block';
+  }
+  // meta label
+  const ml=document.getElementById('count-meta-lbl');
+  if(ml&&currentMeta){const p=Math.round((localCount/currentMeta)*100);ml.innerHTML=`Meta: <strong>${currentMeta}</strong> pcs &nbsp;·&nbsp; ${p}%`;}
+  else if(ml)ml.textContent='';
+}
 function updateQueueUI(){
-  const pnd=queue.length,pill=document.getElementById('queue-pill'),pndLbl=document.getElementById('scanner-pnd-lbl');
-  if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;pill.textContent=t;pill.style.display='block';pndLbl.textContent=t;}
-  else{pill.style.display='none';pndLbl.textContent='';}
+  const pnd=queue.length;
+  const pill=document.getElementById('queue-pill'),pndl=document.getElementById('scanner-pnd-lbl');
+  if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;if(pill){pill.textContent=t;pill.style.display='block';}if(pndl)pndl.textContent=t;setRT('warn');}
+  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!isFlushing)setRT('ok');}
 }
 
-// ── AUDIO ─────────────────────────────────────────────────────────────────────
-let audioCtx=null;
-function bip(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type="square";o.frequency.value=880;g.gain.value=0.05;o.connect(g);g.connect(audioCtx.destination);o.start();setTimeout(()=>{try{o.stop();}catch(_){}},80);}catch(_){}}
+// ── TEMPO REAL — pool de contagem ─────────────────────────────────────────
+function startRT(){
+  stopRT();
+  rtTimer=setInterval(async()=>{
+    if(!currentInvId||!currentUser||queue.length>0)return;
+    try{
+      const r=await callGAS({api:'getUserOpenCount',idInventario:currentInvId,usuario:currentUser});
+      if(r&&r.success){
+        if(r.count!==bankCount){
+          const prev=bankCount;
+          bankCount=r.count;localCount=r.count;
+          updateCounterUI();
+          // Destaque visual se admin removeu peça
+          if(r.count<prev){
+            const n=document.getElementById('user-count');
+            if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
+          }
+        }
+        setRT('ok');
+      }
+    }catch(_){setRT('err');}
+  },4000);
+}
+function stopRT(){if(rtTimer){clearInterval(rtTimer);rtTimer=null;}}
 
-// ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────────
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let actx=null;
+function bip(ok=true){
+  try{
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=ok?'square':'sawtooth';
+    o.frequency.value=ok?1046:280;
+    const t=actx.currentTime,dur=ok?.08:.11;
+    g.gain.setValueAtTime(ok?.07:.04,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start();o.stop(t+dur);
+  }catch(_){}
+}
+
+// ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
 function showScreen(id){
   document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   if(id==='master-panel')startRealTime();else stopRealTime();
-  if(id==='counting-panel')startBankPoll();else stopBankPoll();
+  if(id==='counting-panel')startRT();else stopRT();
   if(id!=='waiting-panel')pararEspera();
 }
 function startRealTime(){loadDashboard();if(!refreshInterval)refreshInterval=setInterval(loadDashboard,10000);}
 function stopRealTime(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
-function startBankPoll(){stopBankPoll();userCountTimer=setInterval(async()=>{if(!currentInvId||!currentUser)return;try{const r=await callGAS({api:'getUserOpenCount',idInventario:currentInvId,usuario:currentUser});if(r&&r.success){bankCount=r.count;if(queue.length===0){localCount=bankCount;updateCounterUI();}}}catch(_){}},5000);}
-function stopBankPoll(){if(userCountTimer){clearInterval(userCountTimer);userCountTimer=null;}}
-
 function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
 
-// ── CALL GAS ──────────────────────────────────────────────────────────────────
+// ── CALL GAS ───────────────────────────────────────────────────────────────
 function callGAS(params,retries=2){
   return new Promise((resolve,reject)=>{
     let attempt=0;
@@ -262,74 +488,42 @@ function callGAS(params,retries=2){
   });
 }
 
-// ── SESSÃO ────────────────────────────────────────────────────────────────────
+// ── SESSÃO ─────────────────────────────────────────────────────────────────
 function salvarSessao(){try{localStorage.setItem(LS_KEY,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarCardsSessao();}catch(_){}}
 function lerSessao(){try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
 function limparSessao(){if(!confirm("Apagar sessao salva?"))return;try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();alert("Sessao apagada.");}
-function atualizarCardsSessao(){const s=lerSessao();document.getElementById("card-continuar").style.display=s?"flex":"none";document.getElementById("card-limpar").style.display=s?"flex":"none";if(s)document.getElementById("continuar-desc").textContent=`Inventario: ${s.invName} | Usuario: ${s.user} | Grupo: ${s.section}`;}
+function atualizarCardsSessao(){const s=lerSessao();document.getElementById("card-continuar").style.display=s?"flex":"none";document.getElementById("card-limpar").style.display=s?"flex":"none";if(s)document.getElementById("continuar-desc").textContent=`${s.invName} · ${s.user} · ${s.section}`;}
 async function continuarUltimaContagem(){const s=lerSessao();if(!s)return alert("Nao existe sessao salva.");try{const list=await callGAS({api:'listarInventariosAbertos'});if(!list||!list.length)return alert("Nenhum inventario aberto.");document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');if(list.some(i=>String(i.id)===String(s.invId)))document.getElementById('inv-select').value=s.invId;document.getElementById('conf-name').value=s.user||"";document.getElementById('conf-grupo').value=s.section||"";document.getElementById('conf-inv-pass').value="";showScreen('conferente-login');}catch(e){alert("Erro: "+e);}}
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
 
-// ── ESPERA ────────────────────────────────────────────────────────────────────
-// BUGFIX: flag para evitar race condition no polling — se uma verificacao
-// ainda esta em andamento, a proxima nao dispara ao mesmo tempo.
-let _verificandoLiberacao=false;
-
-function iniciarEspera(){
-  document.getElementById('wait-grupo-nome').textContent=currentSection;
-  showScreen('waiting-panel');
-  pararEspera();
-  // BUGFIX: intervalo aumentado para 5s e protegido por flag de concorrencia
-  waitingTimer=setInterval(verificarLiberacao,5000);
-  // Faz a primeira verificacao imediatamente sem esperar o intervalo
-  verificarLiberacao();
-}
-
-function pararEspera(){
-  if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}
-  _verificandoLiberacao=false;
-}
-
+// ── ESPERA ─────────────────────────────────────────────────────────────────
+let _verif=false;
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();waitingTimer=setInterval(verificarLiberacao,5000);verificarLiberacao();}
+function pararEspera(){if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}_verif=false;}
 async function verificarLiberacao(){
-  // BUGFIX: evita chamadas concorrentes caso a anterior ainda nao terminou
-  if(_verificandoLiberacao) return;
-  _verificandoLiberacao=true;
+  if(_verif)return;_verif=true;
   try{
     const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
-    if(!res||!res.success){_verificandoLiberacao=false;return;}
-
-    if(res.status==='LIBERADO'){
-      pararEspera();
-      document.getElementById('display-name').textContent=currentUser;
-      document.getElementById('display-section').textContent=currentSection;
-      document.getElementById('active-inv-title').textContent=currentInvName;
-      document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
-      document.getElementById('contagem-nao-bate').style.display='none';
-      bankCount=res.count||0;localCount=bankCount;updateCounterUI();updateQueueUI();
-      showScreen('counting-panel');salvarSessao();
-      return;
-    }
-    if(res.status==='INVENTARIO_ENCERRADO'){
-      pararEspera();
-      alert(res.message||'Inventario encerrado.');
-      try{localStorage.removeItem(LS_KEY);}catch(_){}
-      showScreen('main-menu');atualizarCardsSessao();
-      return;
-    }
-    if(res.status==='SECAO_BLOQUEADA'){
-      pararEspera();
-      alert("Sua secao foi bloqueada pelo administrador.");
-      showScreen('main-menu');atualizarCardsSessao();
-      return;
-    }
-    // status === 'AGUARDANDO_META': continua esperando normalmente
-  }catch(_){
-    // Erro de rede: ignora e tenta no proximo ciclo
-  }
-  _verificandoLiberacao=false;
+    if(!res||!res.success){_verif=false;return;}
+    if(res.status==='LIBERADO'){pararEspera();currentMeta=res.meta||null;ativarContagem(res.count||0);return;}
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();return;}
+    if(res.status==='SECAO_BLOQUEADA'){pararEspera();alert("Sua secao foi bloqueada.");showScreen('main-menu');atualizarCardsSessao();return;}
+  }catch(_){}
+  _verif=false;
+}
+function ativarContagem(count){
+  document.getElementById('display-name').textContent=currentUser;
+  document.getElementById('display-section').textContent=currentSection;
+  document.getElementById('active-inv-title').textContent=currentInvName;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('contagem-nao-bate').style.display='none';
+  document.getElementById('last-ean-val').textContent='—';
+  document.getElementById('last-ean-badge').style.display='none';
+  bankCount=count;localCount=count;updateCounterUI();updateQueueUI();
+  showScreen('counting-panel');salvarSessao();
 }
 
-// ── MASTER ────────────────────────────────────────────────────────────────────
+// ── MASTER ─────────────────────────────────────────────────────────────────
 async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
 let invNameById={};
 async function loadDashboard(){
@@ -343,10 +537,10 @@ async function loadDashboard(){
       boxAg.style.display='block';
       const su=s=>String(s||'').replace(/'/g,"\\'");
       document.getElementById('list-aguardando').innerHTML=ag.map(a=>`<div class="list-item" style="border-left-color:var(--warning);"><span style="flex:1;"><i class="fas fa-user" style="color:var(--warning)"></i> <strong>${a.usuario}</strong><small style="color:var(--dim);display:block;font-size:11px;">${invNameById[String(a.idInventario)]||a.idInventario} · Grupo: <strong style="color:#fff">${a.grupo}</strong></small></span><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-espera">AGUARDANDO</span><button class="mini-btn" onclick="promptMeta('${su(a.usuario)}','${su(a.idInventario)}','${su(a.grupo)}')"><i class="fas fa-lock-open"></i> Definir Meta</button></div></div>`).join('');
-    }else{boxAg.style.display='none';}
+    }else boxAg.style.display='none';
     const ativos=(res.usuariosAtivos||[]).filter(u=>u.status!=='AGUARDANDO_META');
     const su=s=>String(s||'').replace(/'/g,"\\'");
-    document.getElementById('list-usuarios').innerHTML=ativos.length>0?ativos.map(u=>`<div class="list-item"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1;font-size:13px;"><i class="fas fa-user"></i> <strong>${u.nome}</strong> <small style="color:var(--dim);font-size:11px;">(${invNameById[String(u.idInventario)]||u.idInventario})</small>${u.grupo?`<small style="color:var(--dim);">[${u.grupo}]</small>`:''}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="badge">${u.bipes} bipes</span><button class="mini-btn" onclick="masterConcluirUsuario('${su(u.nome)}','${su(u.idInventario)}')">Finalizar</button><button class="mini-btn s" onclick="masterAddManual('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}')">Manual</button></div></div>`).join(''):'<p style="font-size:12px;color:gray;text-align:center">Nenhum bipe em aberto.</p>';
+    document.getElementById('list-usuarios').innerHTML=ativos.length?ativos.map(u=>`<div class="list-item"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1;font-size:13px;"><i class="fas fa-user"></i> <strong>${u.nome}</strong> <small style="color:var(--dim);font-size:11px;">(${invNameById[String(u.idInventario)]||u.idInventario})</small>${u.grupo?`<small style="color:var(--dim);">[${u.grupo}]</small>`:''}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="badge">${u.bipes} bipes</span><button class="mini-btn" onclick="masterConcluirUsuario('${su(u.nome)}','${su(u.idInventario)}')">Finalizar</button><button class="mini-btn s" onclick="masterAddManual('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}')">Manual</button></div></div>`).join(''):'<p style="font-size:12px;color:gray;text-align:center">Nenhum bipe em aberto.</p>';
     document.getElementById('list-inventarios').innerHTML=(res.inventarios||[]).map(i=>`<div class="list-item" style="border-left-color:${i.status==='ABERTO'?'var(--success)':'#555'}"><div><strong>${i.nome}</strong><br><small>${i.status} · ID: ${i.id}</small></div><div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>`:''}<button class="mini-btn d" onclick="excluirInv('${i.id}')">X</button></div></div>`).join('')||'<p style="font-size:12px;color:gray;text-align:center">Nenhum inventario.</p>';
   }catch(e){console.error(e);}
 }
@@ -357,7 +551,7 @@ async function finalizarInv(id){if(!confirm("Fechar este inventario?"))return;co
 async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;const r=await callGAS({api:'excluirInventario',id});alert(r&&r.success?"Excluido.":((r&&r.message)||"Erro."));loadDashboard();}
 async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
 
-// ── CONFERENTE ────────────────────────────────────────────────────────────────
+// ── CONFERENTE ─────────────────────────────────────────────────────────────
 async function showConferentePanel(){setBtnLoading('btn-open-conf',true);try{const list=await callGAS({api:'listarInventariosAbertos'});setBtnLoading('btn-open-conf',false,'');if(!list||!list.length)return alert("Nenhum inventario aberto.");document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');const s=lerSessao();if(s&&list.some(i=>String(i.id)===String(s.invId))){document.getElementById('inv-select').value=s.invId;document.getElementById('conf-name').value=s.user||"";document.getElementById('conf-grupo').value=s.section||"";}showScreen('conferente-login');}catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}}
 async function doConferenteLogin(){
   const name=document.getElementById('conf-name').value.trim(),invId=document.getElementById('inv-select').value,invPass=document.getElementById('conf-inv-pass').value,grupo=document.getElementById('conf-grupo').value.trim().toUpperCase();
@@ -370,59 +564,95 @@ async function doConferenteLogin(){
       const r2=await callGAS({api:'iniciarSecao',usuario:name,idInventario:invId,secao:grupo});
       if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');return;}
       currentUser=name;currentSection=grupo;currentInvName=res.nomeInventario;currentInvId=invId;
-      queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
+      queue=[];localCount=0;bankCount=0;currentMeta=null;updateCounterUI();updateQueueUI();
       setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');
-
-      // BUGFIX: verifica status ANTES de ir para tela de espera
-      // Se ja estava LIBERADO (reconexao), vai direto para contagem
-      const statusRes=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
-      if(statusRes&&statusRes.success&&statusRes.status==='LIBERADO'){
-        document.getElementById('display-name').textContent=name;
-        document.getElementById('display-section').textContent=grupo;
-        document.getElementById('active-inv-title').textContent=res.nomeInventario;
-        document.getElementById('scanner-grp-lbl').textContent='Grupo: '+grupo;
-        document.getElementById('contagem-nao-bate').style.display='none';
-        bankCount=statusRes.count||0;localCount=bankCount;updateCounterUI();updateQueueUI();
-        showScreen('counting-panel');salvarSessao();
-      } else {
-        iniciarEspera();
-      }
+      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
+      else iniciarEspera();
     }else{alert(res&&res.message?res.message:"Erro.");setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'ENTRAR E AGUARDAR META');}
 }
 
-// ── ZXING SCANNER ─────────────────────────────────────────────────────────────
-let zxingReader=null,lastScanned='',lastScannedTime=0;
-const DEBOUNCE_MS=500;
+// ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
+// Valida: exatamente 13 dígitos numéricos + checksum correto (GS1)
+function validarEAN13(code){
+  if(!/^\d{13}$/.test(code))return false;
+  let s=0;
+  for(let i=0;i<12;i++)s+=parseInt(code[i])*(i%2===0?1:3);
+  return (10-(s%10))%10===parseInt(code[12]);
+}
+
+// ── ZXING SCANNER ─────────────────────────────────────────────────────────
+let zxingReader=null,lastEAN='',lastEANTime=0;
+const DEBOUNCE=700; // ms mínimo entre leituras do mesmo código
 
 function startScanner(){
-  document.getElementById('scanner-overlay').style.display='flex';
+  const ov=document.getElementById('scanner-overlay');
+  ov.style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
-  document.getElementById('scanner-msg').textContent='';
+
+  // Para reader anterior se existir
+  if(zxingReader){try{zxingReader.reset();}catch(_){}zxingReader=null;}
+
+  // Apenas formatos de barras lineares — mais rápido que incluir QR/2D
   const hints=new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.QR_CODE,ZXing.BarcodeFormat.DATA_MATRIX,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.UPC_E]);
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
+    ZXing.BarcodeFormat.EAN_13,
+    ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.UPC_A,
+    ZXing.BarcodeFormat.UPC_E,
+  ]);
   hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
-  zxingReader=new ZXing.BrowserMultiFormatReader(hints,200);
+  // Intervalo de scan: 120ms (mais agressivo = mais rápido)
+  zxingReader=new ZXing.BrowserMultiFormatReader(hints,120);
+
   zxingReader.decodeFromVideoDevice(null,'zxing-video',(result)=>{
     if(!result)return;
-    const text=result.getText(),now=Date.now();
-    if(text===lastScanned&&now-lastScannedTime<DEBOUNCE_MS)return;
-    lastScanned=text;lastScannedTime=now;
-    onBipe(text);
+    const raw=result.getText();
+    if(!raw)return;
+
+    const now=Date.now();
+    if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
+    lastEAN=raw;lastEANTime=now;
+
+    if(!validarEAN13(raw)){
+      // Código inválido: mostra feedback e ignora
+      showEANPopup(raw,false);
+      bip(false);
+      if(navigator.vibrate)navigator.vibrate([40,20,40]);
+      return;
+    }
+
+    // Código EAN-13 válido
+    showEANPopup(raw,true);
+    doFlash();
+    bip(true);
+    if(navigator.vibrate)navigator.vibrate(55);
+    enqueue(raw);
   });
 }
-function stopScanner(){try{if(zxingReader)zxingReader.reset();}catch(_){}zxingReader=null;document.getElementById('scanner-overlay').style.display='none';}
-function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao foi finalizada. Inicie uma nova.");showConferentePanel();}
 
-function onBipe(ean){
-  const msg=document.getElementById('scanner-msg');
-  msg.textContent='✅ '+ean;msg.style.color='var(--success)';
-  bip();if(navigator.vibrate)navigator.vibrate(60);
-  setTimeout(()=>{if(msg.textContent.includes(ean))msg.textContent='';},700);
-  enqueue(ean);
+function stopScanner(){
+  try{if(zxingReader)zxingReader.reset();}catch(_){}
+  zxingReader=null;
+  document.getElementById('scanner-overlay').style.display='none';
 }
 
-// ── CONCLUIR ──────────────────────────────────────────────────────────────────
+function doFlash(){
+  const f=document.getElementById('scan-flash');
+  f.classList.remove('blink');void f.offsetWidth;f.classList.add('blink');
+}
+
+function showEANPopup(text,ok){
+  const el=document.getElementById('scan-ean-popup');
+  el.textContent=ok?text:'✕ '+text;
+  el.className='';void el.offsetWidth;
+  el.className=ok?'ok':'inv';
+}
+
+function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao foi finalizada. Inicie uma nova.");showConferentePanel();}
+
+// ── CONCLUIR ───────────────────────────────────────────────────────────────
 async function doConcluirSecao(){
   if(queue.length>0){
     if(!confirm(`Ainda ha ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir?`))return;
@@ -436,7 +666,7 @@ async function doConcluirSecao(){
   if(res&&res.success){document.getElementById('contagem-nao-bate').style.display='none';alert(`Concluido! ${res.count} itens.`);salvarSessao();showScreen('main-menu');atualizarCardsSessao();}
   else if(res&&res.code==='CONTAGEM_NAO_BATE'){const box=document.getElementById('contagem-nao-bate'),diff=res.diferenca;document.getElementById('contagem-atual-val').textContent=String(res.contagem);document.getElementById('diff-msg').innerHTML=diff>0?`<span class="diff-pos">+${diff} peca(s) a mais</span> do que a meta de <strong>${res.meta}</strong>.`:`<span class="diff-neg">${diff} peca(s) a menos</span> do que a meta de <strong>${res.meta}</strong>.`;box.style.display='block';box.scrollIntoView({behavior:'smooth'});}
   else if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();}
-  else{alert(res&&res.message?res.message:"Erro ao concluir.");}
+  else alert(res&&res.message?res.message:"Erro ao concluir.");
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
 }
 
