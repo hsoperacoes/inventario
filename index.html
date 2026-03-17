@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>HS INVENTÁRIO PRO</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root{
       --primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;
@@ -112,30 +112,20 @@
       display:none;flex-direction:column;
     }
     #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
-    #zxing-video{width:100%;height:100%;object-fit:cover;display:block;}
 
-    /* guia de enquadramento */
-    .scan-guide{
-      position:absolute;top:50%;left:50%;
-      transform:translate(-50%,-55%);
-      width:82%;max-width:360px;aspect-ratio:3.5/1;
-      pointer-events:none;
+    /* Esconde UI padrão do html5-qrcode (botões, selects, textos) */
+    #h5-reader{width:100%;height:100%;}
+    #h5-reader>div:first-child{width:100%!important;height:100%!important;}
+    #h5-reader video{width:100%!important;height:100%!important;object-fit:cover;}
+    #h5-reader img{display:none!important;}
+    #h5-reader button,#h5-reader select,
+    #h5-reader span,#h5-reader a{display:none!important;}
+    /* Caixa de scan do html5-qrcode — deixa ela aparecer */
+    #h5-reader__scan_region{
+      position:absolute!important;inset:0!important;
+      display:flex!important;align-items:center!important;justify-content:center!important;
     }
-    .scan-guide::before,.scan-guide::after,.sg-bl,.sg-br{
-      content:'';position:absolute;width:22px;height:22px;
-      border-color:var(--cyan);border-style:solid;
-    }
-    .scan-guide::before{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0;}
-    .scan-guide::after{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0;}
-    .sg-bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px;}
-    .sg-br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0;}
-    .scan-line{
-      position:absolute;left:5%;right:5%;height:2px;
-      background:linear-gradient(90deg,transparent,var(--cyan),transparent);
-      box-shadow:0 0 6px var(--cyan);
-      animation:scanMove 1.8s ease-in-out infinite;
-    }
-    @keyframes scanMove{0%{top:6%}50%{top:88%}100%{top:6%}}
+    #h5-reader__scan_region>img{display:none!important;}
 
     /* flash de leitura */
     #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
@@ -144,7 +134,7 @@
 
     /* popup EAN lido */
     #scan-ean-popup{
-      position:absolute;top:50%;left:50%;
+      position:absolute;top:42%;left:50%;
       transform:translate(-50%,-50%);
       background:rgba(0,0,0,.88);
       border:1px solid var(--cyan);border-radius:14px;
@@ -172,8 +162,8 @@
     /* HUD inferior no scanner */
     .scan-hud{
       position:absolute;bottom:0;left:0;right:0;
-      padding:14px 18px 18px;
-      background:linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 100%);
+      padding:14px 18px 24px;
+      background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
     }
     .scan-hud-cnt{font-size:56px;font-weight:900;color:#fff;line-height:1;}
     .scan-hud-sub{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.45);}
@@ -328,12 +318,9 @@
 <!-- SCANNER OVERLAY -->
 <div id="scanner-overlay">
   <div id="video-wrap">
-    <video id="zxing-video" autoplay muted playsinline></video>
 
-    <div class="scan-guide">
-      <div class="sg-bl"></div><div class="sg-br"></div>
-      <div class="scan-line"></div>
-    </div>
+    <!-- html5-qrcode renderiza aqui -->
+    <div id="h5-reader" style="width:100%;height:100%;"></div>
 
     <div id="scan-flash"></div>
     <div id="scan-ean-popup"></div>
@@ -574,7 +561,6 @@ async function doConferenteLogin(){
 }
 
 // ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
-// Valida: exatamente 13 dígitos numéricos + checksum GS1 correto
 function validarEAN13(code){
   if(!/^\d{13}$/.test(code))return false;
   let s=0;
@@ -582,62 +568,37 @@ function validarEAN13(code){
   return (10-(s%10))%10===parseInt(code[12]);
 }
 
-// ── ZXING SCANNER ─────────────────────────────────────────────────────────
-// Sistema de confirmação: exige que o MESMO código seja lido
-// CONFIRM_NEEDED vezes seguidas antes de aceitar.
-// Isso elimina leituras erradas por frames parciais.
-let zxingReader=null,lastEAN='',lastEANTime=0;
-const DEBOUNCE=1200;      // ms mínimo entre bipes do MESMO código aceito
-const CONFIRM_NEEDED=2;   // quantas leituras iguais consecutivas para aceitar
-let confirmBuffer='';     // último código candidato
-let confirmCount=0;       // quantas vezes seguidas foi lido igual
+// ── SCANNER html5-qrcode ───────────────────────────────────────────────────
+let h5scanner=null,lastEAN='',lastEANTime=0;
+const DEBOUNCE=1500;
 
 function startScanner(){
-  const ov=document.getElementById('scanner-overlay');
-  ov.style.display='flex';
+  document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
-  if(zxingReader){try{zxingReader.reset();}catch(_){}zxingReader=null;}
-  confirmBuffer='';confirmCount=0;
+  if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
 
-  // Apenas EAN_13 — remove formatos que causam conversões erradas
-  const hints=new Map();
-  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[
-    ZXing.BarcodeFormat.EAN_13,
-  ]);
-  // SEM TRY_HARDER — evita leituras forçadas com baixa confiança
-  hints.set(ZXing.DecodeHintType.TRY_HARDER,false);
-  // 200ms entre frames — mais estável que 120ms
-  zxingReader=new ZXing.BrowserMultiFormatReader(hints,200);
+  // O html5-qrcode renderiza dentro de #h5-reader
+  h5scanner=new Html5Qrcode('h5-reader');
 
-  zxingReader.decodeFromVideoDevice(null,'zxing-video',(result)=>{
-    if(!result)return;
-    const raw=result.getText();
-    if(!raw||raw.length!==13)return; // descarta imediatamente se não for 13 dígitos
+  h5scanner.start(
+    {facingMode:'environment'},
+    {
+      fps:15,
+      qrbox:{width:280,height:100},
+      formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+      experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    },
+    (decodedText)=>{
+      const raw=decodedText.trim();
+      if(!raw||raw.length!==13)return;
 
-    // Sistema de confirmação: acumula leituras iguais consecutivas
-    if(raw===confirmBuffer){
-      confirmCount++;
-    }else{
-      // Código diferente do anterior — reinicia contagem
-      confirmBuffer=raw;
-      confirmCount=1;
-      return; // ainda não confirmou
-    }
+      const now=Date.now();
+      if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
+      lastEAN=raw;lastEANTime=now;
 
-    // Ainda não atingiu o mínimo de confirmações
-    if(confirmCount<CONFIRM_NEEDED)return;
-
-    // A partir daqui: código lido CONFIRM_NEEDED vezes seguidas
-    // Reseta para não disparar múltiplas vezes o mesmo
-    confirmBuffer='';confirmCount=0;
-
-    const now=Date.now();
-    if(raw===lastEAN&&now-lastEANTime<DEBOUNCE)return;
-    lastEAN=raw;lastEANTime=now;
-
-    if(!validarEAN13(raw)){
-      showEANPopup(raw,false);
+      if(!validarEAN13(raw)){
+        showEANPopup(raw,false);
       bip(false);
       if(navigator.vibrate)navigator.vibrate([40,20,40]);
       return;
@@ -653,9 +614,14 @@ function startScanner(){
 }
 
 function stopScanner(){
-  try{if(zxingReader)zxingReader.reset();}catch(_){}
-  zxingReader=null;
+  if(h5scanner){
+    h5scanner.stop().catch(()=>{});
+    h5scanner=null;
+  }
   document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
+  const r=document.getElementById('h5-reader');
+  if(r)r.innerHTML='';
 }
 
 function doFlash(){
