@@ -443,7 +443,8 @@ function updateQueueUI(){
 function startRT(){
   stopRT();
   rtTimer=setInterval(async()=>{
-    if(!currentInvId||!currentUser||queue.length>0)return;
+    if(!currentInvId||!currentUser)return;
+    // Se há fila pendente, ainda verifica status mas não atualiza contagem
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
       if(!r||!r.success)return;
@@ -451,27 +452,28 @@ function startRT(){
       // Admin finalizou a seção deste conferente
       if(r.status==='SECAO_BLOQUEADA'){
         stopRT();
-        stopScanner();
-        alert('O administrador finalizou sua contagem.');
+        try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
         atualizarCardsSessao();
         showScreen('main-menu');
+        // Alert depois do redirect para não bloquear
+        setTimeout(()=>alert('O administrador finalizou sua contagem.'),100);
         return;
       }
 
       // Admin encerrou o inventário inteiro
       if(r.status==='INVENTARIO_ENCERRADO'){
         stopRT();
-        stopScanner();
-        alert(r.message||'O inventário foi encerrado pelo administrador.');
+        try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
         atualizarCardsSessao();
         showScreen('main-menu');
+        setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
         return;
       }
 
-      // Atualiza contagem normalmente
-      if(r.count!==undefined&&r.count!==bankCount){
+      // Atualiza contagem normalmente (só se fila vazia)
+      if(queue.length===0&&r.count!==undefined&&r.count!==bankCount){
         const prev=bankCount;
         bankCount=r.count;localCount=r.count;
         updateCounterUI();
