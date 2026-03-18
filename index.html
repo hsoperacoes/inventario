@@ -639,8 +639,11 @@ async function doConferenteLogin(){
 
 // Passo 2: mostra grupos disponíveis
 async function mostrarSelecaoGrupo(){
-  _pegandoGrupo=false; // reseta sempre que abre a tela de grupos
+  _pegandoGrupo=false;
   showScreen('grupo-select-panel');
+  // Garante que a lista está clicável
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
   const elLista=document.getElementById('lista-grupos-disponiveis');
   elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
 
@@ -683,23 +686,23 @@ async function mostrarSelecaoGrupo(){
 // Pegou um grupo pré-criado
 let _pegandoGrupo=false;
 async function doUsarGrupo(idGrupo, nomeGrupo, meta){
-  if(_pegandoGrupo)return; // bloqueia double-click
+  if(_pegandoGrupo)return;
   _pegandoGrupo=true;
 
-  // Feedback visual nos cards
   const lista=document.getElementById('lista-grupos-disponiveis');
   if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
 
   try{
     const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
     if(r&&r.success){
+      // Restaura ANTES de mudar de tela
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
       queue=[];bankCount=0;localCount=0;updateCounterUI();updateQueueUI();
       ativarContagem(0);
       salvarSessao();
     }else{
-      // Restaura lista antes de mostrar erro
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       alert(r&&r.message?r.message:"Erro ao reservar grupo.");
       await mostrarSelecaoGrupo();
