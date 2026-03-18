@@ -645,6 +645,35 @@ async function doConferenteLogin(){
     if(res&&res.success){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
       _confInvId=invId;_confInvNome=res.nomeInventario;
+
+      // Verifica se já tem seção ativa antes de mostrar lista de grupos
+      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(sr&&sr.success){
+        if(sr.status==='LIBERADO'){
+          // Já tem grupo ativo e liberado — vai direto para contagem
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          currentMeta=sr.meta||null;
+          queue=[];bankCount=sr.count||0;localCount=bankCount;
+          updateCounterUI();updateQueueUI();
+          ativarContagem(bankCount,sr.colaborativo||false);
+          return;
+        }
+        if(sr.status==='AGUARDANDO_META'){
+          // Tem grupo ativo aguardando meta — avisa e manda para espera
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação.\nAguarde o administrador definir a meta.`);
+          currentSection=sr.grupo||'';
+          iniciarEspera();
+          return;
+        }
+        if(sr.status==='SECAO_BLOQUEADA'){
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo}".`:`Seu grupo foi finalizado. Você pode iniciar um novo.`;
+          alert(msg);
+          // Seção bloqueada = pode criar novo grupo normalmente
+        }
+      }
+
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
       await mostrarSelecaoGrupo();
     }else{
