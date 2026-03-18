@@ -343,12 +343,8 @@
 
   <div id="contagem-nao-bate" style="background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;">
     <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
-    <h3 style="color:var(--danger);margin:0 0 8px;font-size:18px;">Contagem divergente</h3>
-    <p style="font-size:13px;color:var(--dim);margin:0 0 14px;">A quantidade bipada não confere com a meta.<br>Digite a senha de autorização para concluir assim mesmo.</p>
-    <div style="display:flex;gap:8px;margin-top:4px;">
-      <input type="password" id="senha-forca-input" placeholder="Senha de autorização" style="flex:1;padding:12px;font-size:14px;border-radius:10px;border:1px solid #333;background:#111;color:#fff;outline:none;"/>
-      <button id="btn-concluir-forca" onclick="doConcluirForcado()" style="width:auto;padding:12px 18px;font-size:13px;background:var(--danger);">CONFIRMAR</button>
-    </div>
+    <h3 style="color:var(--danger);margin:0 0 10px;font-size:18px;">Contagem divergente</h3>
+    <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
   </div>
 
   <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
@@ -890,10 +886,8 @@ async function doConcluirSecao(){
     atualizarCardsSessao();
     showScreen('main-menu');
   } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
-    // Mostra bloco de divergência SEM revelar quantidades
     document.getElementById('contagem-nao-bate').style.display='block';
     document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
-    document.getElementById('senha-forca-input').value='';
   } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
     alert(res.message);
     try{localStorage.removeItem(LS_KEY);}catch(_){}
@@ -903,26 +897,6 @@ async function doConcluirSecao(){
     alert(res&&res.message?res.message:"Erro ao concluir.");
   }
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
-}
-
-async function doConcluirForcado(){
-  const senha=document.getElementById('senha-forca-input').value.trim();
-  if(!senha)return alert("Digite a senha de autorização.");
-  setBtnLoading('btn-concluir-forca',true);
-  const res=await callGAS({api:'concluirSecaoForcado',usuario:currentUser,idInventario:currentInvId,senha});
-  if(res&&res.success){
-    document.getElementById('contagem-nao-bate').style.display='none';
-    alert(`Concluido com autorização! ${res.count} itens registrados.`);
-    try{localStorage.removeItem(LS_KEY);}catch(_){}
-    atualizarCardsSessao();
-    showScreen('main-menu');
-  } else if(res&&res.code==='SENHA_INCORRETA'){
-    document.getElementById('senha-forca-input').value='';
-    alert("Senha incorreta. Solicite ao administrador.");
-  } else {
-    alert(res&&res.message?res.message:"Erro ao concluir.");
-  }
-  setBtnLoading('btn-concluir-forca',false,'CONFIRMAR');
 }
 
 (function boot(){atualizarCardsSessao();})();
