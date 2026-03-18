@@ -650,9 +650,8 @@ async function doConferenteLogin(){
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
       if(sr&&sr.success){
         if(sr.status==='LIBERADO'&&sr.count>0){
-          // Tem grupo ativo COM bipes — avisa e pergunta se quer continuar
           const continuar=confirm(
-            `Você já tem o grupo "${sr.grupo}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
+            `Você já tem o grupo "${sr.grupo||'anterior'}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
           );
           if(continuar){
             setBtnLoading('btn-conf-login',false,'AVANÇAR');
@@ -662,21 +661,17 @@ async function doConferenteLogin(){
             ativarContagem(bankCount,sr.colaborativo||false);
             return;
           }
-          // Se não quer continuar, mostra lista de grupos normalmente
-        } else if(sr.status==='LIBERADO'&&(sr.count===0||sr.count===undefined)){
-          // Liberado mas sem bipes — deixa escolher novo grupo normalmente
-        } else if(sr.status==='AGUARDANDO_META'){
-          // Tem grupo aguardando meta do admin — avisa e manda para espera
+        } else if(sr.status==='AGUARDANDO_META'&&sr.grupo){
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
           alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
-          currentSection=sr.grupo||'';
+          currentSection=sr.grupo;
           iniciarEspera();
           return;
         } else if(sr.status==='SECAO_BLOQUEADA'){
-          // Grupo foi finalizado — pode criar novo, só avisa
-          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo}".`:'Seu grupo anterior foi finalizado.';
+          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo||''}".`:'Seu grupo anterior foi finalizado.';
           alert(msg+'\nVocê pode iniciar um novo grupo.');
         }
+        // SEM_GRUPO, LIBERADO sem bipes, ou qualquer outro → mostra lista de grupos
       }
 
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
@@ -810,8 +805,25 @@ async function continuarUltimaContagem(){
       updateCounterUI();updateQueueUI();ativarContagem(bankCount,sr&&sr.colaborativo||false);return;
     }
     if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert(sr.message||"Inventario encerrado.");}
-    if(sr.status==='SECAO_BLOQUEADA'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert("Sua secao foi bloqueada.");}
-    if(sr.status==='AGUARDANDO_META'){queue=[];localCount=0;bankCount=0;currentMeta=null;updateCounterUI();updateQueueUI();iniciarEspera();return;}
+    if(sr.status==='SECAO_BLOQUEADA'){
+      try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();
+      const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo.`:'Sua seção foi finalizada.';
+      return alert(msg);
+    }
+    if(sr.status==='AGUARDANDO_META'){
+      // Grupo existe mas aguarda meta — restaura currentSection da sessão salva
+      currentSection=sr.grupo||s.section||'';
+      queue=[];localCount=0;bankCount=0;currentMeta=null;
+      updateCounterUI();updateQueueUI();
+      iniciarEspera();
+      return;
+    }
+    if(sr.status==='SEM_GRUPO'){
+      // Usuário não tem grupo ativo — limpa sessão e mostra menu
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      atualizarCardsSessao();
+      return alert("Sua sessão anterior não está mais ativa. Inicie uma nova contagem.");
+    }
     await showConferentePanel();
   }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
 }
