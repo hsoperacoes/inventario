@@ -388,7 +388,7 @@ function enqueue(ean){
   queue.push(ean);localCount++;
   updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,600);}
+function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,300);}
 async function flushQueue(){
   if(isFlushing||queue.length===0)return;
   isFlushing=true;
@@ -484,7 +484,7 @@ function startRT(){
       }
       setRT('ok');
     }catch(_){setRT('err');}
-  },5000);
+  },3000);
 }
 function stopRT(){if(rtTimer){clearInterval(rtTimer);rtTimer=null;}}
 
@@ -551,7 +551,7 @@ function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizar
 
 // ── ESPERA ─────────────────────────────────────────────────────────────────
 let _verif=false;
-function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();waitingTimer=setInterval(verificarLiberacao,5000);verificarLiberacao();}
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();waitingTimer=setInterval(verificarLiberacao,3000);verificarLiberacao();}
 function pararEspera(){if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}_verif=false;}
 async function verificarLiberacao(){
   if(_verif)return;_verif=true;
