@@ -708,14 +708,13 @@ async function doIniciarNovoGrupo(){
   setBtnLoading('btn-novo-grupo',true);
   try{
     const r2=await callGAS({api:'iniciarSecao',usuario:currentUser,idInventario:_confInvId,secao:nome});
-    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');return;}
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
     currentSection=nome;currentMeta=null;
     queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
-    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
-    const sr=await callGAS({api:'getStatusSecao',idInventario:_confInvId,usuario:currentUser});
-    if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
-    else iniciarEspera();
-  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
+    // Sempre vai para espera — admin precisa definir a meta antes de liberar
+    iniciarEspera();
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
 }
 
 async function continuarUltimaContagem(){
