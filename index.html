@@ -935,18 +935,24 @@ function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao
 
 // ── CONCLUIR ───────────────────────────────────────────────────────────────
 async function doConcluirSecao(){
+  // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
-    if(!confirm(`Ainda ha ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir?`))return;
+    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
     if(flushTimer){clearTimeout(flushTimer);flushTimer=null;}
-    await flushQueue();
-    if(queue.length>0){alert("Nao foi possivel enviar todos os bipes. Tente novamente.");return;}
+    // Tenta flush até 3 vezes com 2s de espera entre tentativas
+    for(let t=0;t<3;t++){
+      await flushQueue();
+      if(queue.length===0)break;
+      if(t<2)await new Promise(r=>setTimeout(r,2000));
+    }
+    if(queue.length>0){alert("Não foi possível enviar todos os bipes. Verifique a conexão e tente novamente.");return;}
   }
   if(!confirm("Concluir contagem do grupo?"))return;
   setBtnLoading('btn-concluir',true);
   const res=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId});
   if(res&&res.success){
     document.getElementById('contagem-nao-bate').style.display='none';
-    alert(`Concluido! ${res.count} itens.`);
+    alert(`Concluído! ${res.count} itens registrados.`);
     try{localStorage.removeItem(LS_KEY);}catch(_){}
     atualizarCardsSessao();
     showScreen('main-menu');
