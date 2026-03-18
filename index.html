@@ -318,6 +318,7 @@
   <div class="rt-bar">
     <div class="rt-dot" id="rt-dot"></div>
     <span id="rt-lbl">Sincronizado</span>
+    <span id="colab-badge" style="display:none;align-items:center;gap:5px;margin-left:10px;background:rgba(255,171,64,.15);border:1px solid rgba(255,171,64,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--warning);">👥 COLABORATIVO</span>
   </div>
 
   <!-- Contador principal -->
@@ -366,6 +367,7 @@
       <div class="scan-hud-sub">Peças bipadas</div>
       <div class="scan-hud-cnt" id="scanner-count-val">0</div>
       <div class="scan-hud-grp" id="scanner-grp-lbl"></div>
+      <div id="scanner-colab-lbl" style="display:none;font-size:11px;color:var(--warning);font-weight:700;margin-top:2px;">👥 Grupo colaborativo</div>
       <div class="scan-hud-pnd" id="scanner-pnd-lbl"></div>
     </div>
 
@@ -452,8 +454,8 @@ function startRT(){
         try{localStorage.removeItem(LS_KEY);}catch(_){}
         atualizarCardsSessao();
         showScreen('main-menu');
-        // Alert depois do redirect para não bloquear
-        setTimeout(()=>alert('O administrador finalizou sua contagem.'),100);
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        setTimeout(()=>alert(msg),100);
         return;
       }
 
@@ -548,13 +550,25 @@ async function verificarLiberacao(){
   try{
     const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
     if(!res||!res.success){_verif=false;return;}
-    if(res.status==='LIBERADO'){pararEspera();currentMeta=res.meta||null;ativarContagem(res.count||0);return;}
+    if(res.status==='LIBERADO'){
+      pararEspera();currentMeta=res.meta||null;
+      ativarContagem(res.count||0,res.colaborativo||false);
+      return;
+    }
     if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();return;}
-    if(res.status==='SECAO_BLOQUEADA'){pararEspera();alert("Sua secao foi bloqueada.");showScreen('main-menu');atualizarCardsSessao();return;}
+    if(res.status==='SECAO_BLOQUEADA'){
+      pararEspera();
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
+      showScreen('main-menu');atualizarCardsSessao();
+      setTimeout(()=>alert(msg),100);
+      return;
+    }
   }catch(_){}
   _verif=false;
 }
-function ativarContagem(count){
+let currentColaborativo=false;
+function ativarContagem(count,colaborativo){
+  currentColaborativo=!!colaborativo;
   document.getElementById('display-name').textContent=currentUser;
   document.getElementById('display-section').textContent=currentSection;
   document.getElementById('active-inv-title').textContent=currentInvName;
@@ -562,6 +576,9 @@ function ativarContagem(count){
   document.getElementById('contagem-nao-bate').style.display='none';
   document.getElementById('last-ean-val').textContent='—';
   document.getElementById('last-ean-badge').style.display='none';
+  // Badge colaborativo
+  const badge=document.getElementById('colab-badge');
+  if(badge)badge.style.display=currentColaborativo?'flex':'none';
   bankCount=count;localCount=count;updateCounterUI();updateQueueUI();
   showScreen('counting-panel');salvarSessao();
 }
@@ -674,8 +691,9 @@ async function mostrarSelecaoGrupo(){
         <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
           <div>
             <div class="grupo-card-nome">${g.nome}</div>
+            ${g.colaborativo?`<div style="font-size:10px;color:var(--warning);margin-top:3px;font-weight:700;">👥 COLABORATIVO · ${g.vagasRestantes} vaga${g.vagasRestantes!==1?'s':''} restante${g.vagasRestantes!==1?'s':''}</div>`:''}
           </div>
-          <span class="grupo-card-badge">DISPONÍVEL ›</span>
+          <span class="grupo-card-badge">${g.colaborativo?'ENTRAR ›':'DISPONÍVEL ›'}</span>
         </div>`).join('');
     }
   }catch(e){
@@ -700,7 +718,7 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
       queue=[];bankCount=0;localCount=0;updateCounterUI();updateQueueUI();
-      ativarContagem(0);
+      ativarContagem(0,r&&r.colaborativo||false);
       salvarSessao();
     }else{
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
@@ -727,7 +745,7 @@ async function doIniciarNovoGrupo(){
     setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
     // Verifica se já estava liberado
     const sr=await callGAS({api:'getStatusSecao',idInventario:_confInvId,usuario:currentUser});
-    if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
+    if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0,sr.colaborativo||false);}
     else iniciarEspera();
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
 }
@@ -756,7 +774,7 @@ async function continuarUltimaContagem(){
     if(!sr||!sr.success){return alert("Erro ao verificar status.");}
     if(sr.status==='LIBERADO'){
       queue=[];bankCount=sr.count||0;localCount=bankCount;currentMeta=sr.meta||null;
-      updateCounterUI();updateQueueUI();ativarContagem(bankCount);return;
+      updateCounterUI();updateQueueUI();ativarContagem(bankCount,sr&&sr.colaborativo||false);return;
     }
     if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert(sr.message||"Inventario encerrado.");}
     if(sr.status==='SECAO_BLOQUEADA'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert("Sua secao foi bloqueada.");}
@@ -786,6 +804,8 @@ const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  const sc=document.getElementById('scanner-colab-lbl');
+  if(sc)sc.style.display=currentColaborativo?'block':'none';
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
   _lastAccepted='';_lastAcceptedAt=0;_lastSeenAt=0;
