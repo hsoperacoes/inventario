@@ -1,1134 +1,956 @@
-/**
- * SISTEMA DE INVENTÁRIO PROFISSIONAL HS - v6
- * CHANGELOG v6:
- * - Grupos colaborativos: múltiplos conferentes na mesma aba GRP_
- * - tornarColaborativo: migra USER_ para GRP_, abre vagas
- * - criarGrupo aceita colaborativo=true e vagas
- * - pegarGrupo detecta grupo colaborativo e entra na aba GRP_
- * - getStatusSecao retorna colaborativo, membros e quem fechou
- * - concluirSecao avisa todos os membros do grupo ao fechar
- * - criarNovoInventario disponível para chamar do Sidebar
- */
-
-const SPREADSHEET_ID    = '1vMatvOMDOqDXBvc6zKjGwCODuLs-kIU0Y1eWiUBhvgc';
-const SHEET_INVENTARIOS = 'CONFIG_INVENTARIOS';
-const SHEET_CONSOLIDADO = 'CONSOLIDADO_GERAL';
-const SHEET_METAS       = 'CONFIG_METAS';
-const SHEET_GRUPOS      = 'CONFIG_GRUPOS';
-const SENHA_FORCA       = 'hs1001';
-
-// Nome da aba compartilhada de um grupo colaborativo
-function nomeAbaGrupo_(idInv, nomeGrupo) {
-  return 'GRP_' + String(idInv).trim() + '__' + sanitizarUserKey_(nomeGrupo);
-}
-
-function doGet(e) {
-  try {
-    const api = (e && e.parameter && e.parameter.api) ? e.parameter.api : '';
-    let result;
-    switch (api) {
-      case 'masterLogin':                result = masterLogin(e.parameter.senha); break;
-      case 'criarNovoInventario':        result = criarNovoInventario(e.parameter.nome, e.parameter.senha); break;
-      case 'listarInventariosAbertos':   result = listarInventariosAbertos(); break;
-      case 'validarAcessoInventario':    result = validarAcessoInventario(e.parameter.idInventario, e.parameter.senhaDigitada); break;
-      case 'finalizarInventario':        result = finalizarInventario(e.parameter.id); break;
-      case 'excluirInventario':          result = excluirInventario(e.parameter.id); break;
-      case 'iniciarSecao':               result = iniciarSecao(e.parameter.usuario, e.parameter.idInventario, e.parameter.secao); break;
-      case 'iniciarSecaoNova':           result = iniciarSecaoNova(e.parameter.usuario, e.parameter.idInventario, e.parameter.secao); break;
-      case 'getStatusSecao':             result = getStatusSecao(e.parameter.idInventario, e.parameter.usuario); break;
-      case 'registrarBipeLote':          result = registrarBipeLote(e.parameter); break;
-      case 'concluirSecao':              result = concluirSecao(e.parameter.usuario, e.parameter.idInventario); break;
-      case 'concluirSecaoForcado':       result = concluirSecaoForcado(e.parameter.usuario, e.parameter.idInventario, e.parameter.senha); break;
-      case 'getUserOpenCount':           result = getUserOpenCount(e.parameter.idInventario, e.parameter.usuario); break;
-      case 'definirMeta':                result = definirMeta(e.parameter.idInventario, e.parameter.usuario, e.parameter.meta); break;
-      case 'excluirItemUsuario':         result = excluirItemUsuario(e.parameter.idInventario, e.parameter.usuario, e.parameter.rowIndex); break;
-      case 'zerarContagemUsuario':       result = zerarContagemUsuario(e.parameter.idInventario, e.parameter.usuario); break;
-      case 'masterConcluirSecao':        result = masterConcluirSecao(e.parameter.usuario, e.parameter.idInventario, e.parameter.senha); break;
-      case 'masterAddManualCode':        result = masterAddManualCode(e.parameter); break;
-      case 'getDashboardData':           result = getDashboardData(); break;
-      case 'getSheetsData':              result = getSheetsData(); break;
-      case 'criarGrupo':                 result = criarGrupo(e.parameter); break;
-      case 'listarGruposDisponiveis':    result = listarGruposDisponiveis(e.parameter.idInventario); break;
-      case 'pegarGrupo':                 result = pegarGrupo(e.parameter.idInventario, e.parameter.usuario, e.parameter.idGrupo); break;
-      case 'excluirGrupo':               result = excluirGrupo(e.parameter.idInventario, e.parameter.idGrupo); break;
-      case 'tornarColaborativo':         result = tornarColaborativo(e.parameter.idInventario, e.parameter.idGrupo, e.parameter.vagas); break;
-      default: result = { success: false, message: 'API nao encontrada: ' + api };
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>HS INVENTÁRIO PRO</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root{
+      --primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;
+      --text:#fff;--dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;
+      --cyan:#00e5ff;
     }
-    return responderJSONP_(e, result);
-  } catch (err) {
-    return responderJSONP_(e, { success: false, message: err.toString() });
+    *{box-sizing:border-box;}
+    body{font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+    .container{width:95%;max-width:600px;background:var(--card);padding:30px 20px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);margin:20px 10px;border:1px solid #333;}
+    h2{text-align:center;margin-top:0;color:var(--primary);font-weight:800;letter-spacing:1px;}
+    .home-grid{display:grid;gap:20px;margin-top:20px;}
+    .home-card{background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px;transition:transform .2s,border-color .2s,background .2s;}
+    .home-card:hover{transform:translateY(-5px);border-color:var(--primary);background:#2a2a2a;}
+    .home-card i{font-size:30px;color:var(--primary);}
+    .home-card div h3{margin:0;font-size:18px;}
+    .home-card div p{margin:5px 0 0;font-size:13px;color:var(--dim);}
+    .form-group{margin-bottom:15px;}
+    label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--dim);}
+    input,select{width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none;transition:border-color .2s;}
+    input:focus{border-color:var(--primary);}
+    select{appearance:none;}
+    button{background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;transition:background .2s,transform .1s;}
+    button:hover{background:var(--primary-dark);transform:scale(1.02);}
+    button:disabled{background:#444;cursor:not-allowed;opacity:.7;transform:none;}
+    .btn-sec{background:#333;margin-top:10px;}
+    .btn-danger{background:var(--danger);margin-top:10px;}
+    .hidden{display:none!important;}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;}
+    .stat-box{background:#121212;padding:15px;border-radius:12px;text-align:center;border:1px solid #333;}
+    .stat-box span{display:block;font-size:24px;font-weight:800;color:var(--primary);}
+    .stat-box label{font-size:11px;text-transform:uppercase;margin:0;}
+    .list-item{background:#121212;padding:12px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:14px;border-left:4px solid var(--primary);gap:10px;}
+    .badge{background:var(--warning);color:#000;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:bold;white-space:nowrap;}
+    .badge-espera{background:#333;color:var(--warning);border:1px solid var(--warning);}
+    .live-indicator{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--success);justify-content:center;margin-bottom:10px;text-transform:uppercase;font-weight:bold;}
+    .dot{width:8px;height:8px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .wait-icon{font-size:52px;margin:20px 0 10px;animation:wspin 3s linear infinite;display:inline-block;}
+    @keyframes wspin{to{transform:rotate(360deg)}}
+    .wait-title{font-size:20px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .wait-sub{font-size:14px;color:var(--dim);margin-bottom:24px;line-height:1.6;}
+    .wait-grupo-box{background:#111;border:1px solid #333;border-radius:12px;padding:16px;margin:16px 0;}
+    .wait-grupo-box .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;}
+    .wait-grupo-box .val{font-size:20px;font-weight:900;color:var(--primary);margin-top:4px;}
+    .wait-dots{display:inline-flex;gap:6px;margin-top:10px;}
+    .wait-dots span{width:8px;height:8px;background:var(--warning);border-radius:50%;animation:dp 1.4s infinite;}
+    .wait-dots span:nth-child(2){animation-delay:.2s;}
+    .wait-dots span:nth-child(3){animation-delay:.4s;}
+    @keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+    /* ─── COUNTING PANEL ─────────────────────── */
+    .count-hero{
+      background:#0e0e1a;
+      border:1px solid rgba(103,58,183,.35);
+      border-radius:18px;padding:18px 16px;margin:0 0 14px;text-align:center;
+    }
+    .count-hero-lbl{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:4px;}
+    .count-hero-num{
+      font-size:76px;font-weight:900;line-height:1;color:#fff;
+      transition:transform .12s,color .12s;
+    }
+    .count-hero-num.bump{transform:scale(1.13);color:var(--cyan);}
+    .count-hero-meta{font-size:12px;color:var(--dim);margin-top:6px;}
+    .count-hero-meta strong{color:#fff;}
+
+    .last-ean-box{
+      background:#060e14;border:1px solid rgba(0,229,255,.18);
+      border-radius:12px;padding:10px 14px;margin-bottom:12px;
+      display:flex;align-items:center;gap:10px;min-height:44px;
+    }
+    .last-ean-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);white-space:nowrap;}
+    .last-ean-val{
+      font-family:'Courier New',monospace;font-size:19px;font-weight:700;
+      color:var(--cyan);letter-spacing:2px;flex:1;
+    }
+    .last-ean-val.flash{animation:eanFlash .45s ease-out;}
+    @keyframes eanFlash{
+      0%{color:#fff;text-shadow:0 0 18px var(--cyan),0 0 36px var(--cyan);}
+      100%{color:var(--cyan);text-shadow:none;}
+    }
+    .last-ean-badge{
+      font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;
+      background:rgba(76,175,80,.18);color:var(--success);
+      border:1px solid rgba(76,175,80,.35);white-space:nowrap;
+    }
+    .info-row{display:flex;gap:10px;margin-bottom:12px;}
+    .info-chip{background:#181818;border:1px solid #252525;border-radius:10px;padding:8px 12px;flex:1;font-size:12px;}
+    .info-chip .ic-lbl{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    .info-chip .ic-val{font-weight:700;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rt-bar{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--success);margin-bottom:10px;}
+    .rt-dot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    .rt-dot.warn{background:var(--warning);}
+    .rt-dot.err{background:var(--danger);animation:none;}
+
+    #queue-pill{display:none;background:#1a1000;border:1px solid var(--warning);border-radius:10px;padding:7px 14px;text-align:center;font-size:12px;color:var(--warning);margin-bottom:8px;}
+    #contagem-nao-bate{background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;}
+    #contagem-nao-bate h3{color:var(--danger);margin:0 0 10px;}
+    .diff-pos{color:var(--warning);}
+    .diff-neg{color:var(--danger);}
+
+    /* ─── SCANNER ────────────────────────────── */
+    #scanner-overlay{
+      position:fixed;inset:0;background:#000;z-index:1000;
+      display:none;flex-direction:column;
+    }
+    #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
+
+    /* Esconde UI padrão do html5-qrcode (botões, selects, textos) */
+    #h5-reader{width:100%;height:100%;}
+    #h5-reader>div:first-child{width:100%!important;height:100%!important;}
+    #h5-reader video{width:100%!important;height:100%!important;object-fit:cover;}
+    #h5-reader img{display:none!important;}
+    #h5-reader button,#h5-reader select,
+    #h5-reader span,#h5-reader a{display:none!important;}
+    /* Caixa de scan do html5-qrcode — deixa ela aparecer */
+    #h5-reader__scan_region{
+      position:absolute!important;inset:0!important;
+      display:flex!important;align-items:center!important;justify-content:center!important;
+    }
+    #h5-reader__scan_region>img{display:none!important;}
+
+    /* flash de leitura */
+    #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
+    #scan-flash.blink{animation:sfBlink .18s ease-out;}
+    @keyframes sfBlink{0%{opacity:1}100%{opacity:0}}
+
+    /* popup EAN lido */
+    #scan-ean-popup{
+      position:absolute;top:42%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,.88);
+      border:1px solid var(--cyan);border-radius:14px;
+      padding:12px 22px;
+      font-family:'Courier New',monospace;font-size:24px;font-weight:700;
+      color:var(--cyan);letter-spacing:3px;text-align:center;
+      opacity:0;pointer-events:none;white-space:nowrap;
+    }
+    #scan-ean-popup.ok{animation:popOk .85s ease-out forwards;}
+    #scan-ean-popup.inv{border-color:var(--danger);color:var(--danger);animation:popInv .7s ease-out forwards;}
+    @keyframes popOk{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.88);}
+      55%{opacity:1;transform:translate(-50%,-50%) scale(1.04);}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(1.08);}
+    }
+    @keyframes popInv{
+      0%{opacity:1;transform:translate(calc(-50% + 0px),-50%);}
+      15%{transform:translate(calc(-50% + 7px),-50%);}
+      30%{transform:translate(calc(-50% - 7px),-50%);}
+      45%{transform:translate(calc(-50% + 4px),-50%);}
+      60%{opacity:1;transform:translate(-50%,-50%);}
+      100%{opacity:0;}
+    }
+
+    /* HUD inferior no scanner */
+    .scan-hud{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:14px 18px 24px;
+      background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
+    }
+    .scan-hud-cnt{font-size:56px;font-weight:900;color:#fff;line-height:1;}
+    .scan-hud-sub{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.45);}
+    .scan-hud-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+    .scan-hud-pnd{font-size:11px;color:var(--warning);min-height:16px;margin-top:2px;}
+
+    /* botão fechar scanner */
+    #btn-close-scan{
+      position:absolute;top:14px;right:14px;
+      width:42px;height:42px;background:rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.18);border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;z-index:5;font-size:17px;color:#fff;
+    }
+
+    .loading-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:lspin 1s linear infinite;}
+    @keyframes lspin{to{transform:rotate(360deg)}}
+    .mini-btn{padding:6px 10px!important;font-size:10px!important;border-radius:8px!important;line-height:1!important;gap:6px!important;margin-top:0!important;white-space:nowrap;width:auto!important;}
+    .mini-btn.s{background:#2d2d2d;}
+    .mini-btn.d{background:var(--danger);}
+    .hint{font-size:12px;color:var(--dim);text-align:center;margin:-8px 0 14px;}
+
+    /* Grupo card */
+    .grupo-card{
+      background:#121212;border:1px solid #2a2a2a;border-radius:12px;
+      padding:12px 14px;margin-bottom:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      cursor:pointer;transition:border-color .2s,background .2s;
+    }
+    .grupo-card:hover{border-color:var(--primary);background:#1a1a2e;}
+    .grupo-card-nome{font-weight:700;font-size:14px;}
+    .grupo-card-meta{font-size:11px;color:var(--dim);margin-top:2px;}
+    .grupo-card-badge{
+      background:rgba(76,175,80,.15);color:var(--success);
+      border:1px solid rgba(76,175,80,.3);border-radius:8px;
+      padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;
+    }
+    .grupo-empty{text-align:center;color:var(--dim);font-size:13px;padding:12px 0;}
+  </style>
+</head>
+<body>
+
+<!-- MENU PRINCIPAL -->
+<div class="container" id="main-menu">
+  <h2>HS INVENTÁRIO PRO</h2>
+  <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
+  <div class="home-grid">
+    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão e monitoramento em tempo real.</p></div></div>
+    <button id="btn-open-conf" class="hidden"></button>
+    <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
+    <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Continuar Última Contagem</h3><p id="continuar-desc"></p></div></div>
+    <div class="home-card" id="card-limpar" onclick="limparSessao()" style="display:none;"><i class="fas fa-trash"></i><div><h3>Limpar Sessão</h3><p>Apaga a última contagem salva deste dispositivo.</p></div></div>
+  </div>
+</div>
+
+<!-- MASTER LOGIN -->
+<div class="container hidden" id="master-login">
+  <h2>ACESSO MASTER</h2>
+  <div class="form-group"><label>Senha</label><input type="password" id="master-pass" placeholder="Senha master"/></div>
+  <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
+</div>
+
+<!-- MASTER PANEL -->
+<div class="container hidden" id="master-panel" style="max-width:800px;">
+  <div class="live-indicator"><div class="dot"></div>Monitoramento em Tempo Real</div>
+  <h2>PAINEL DO LEONARDO</h2>
+  <div class="stats-grid">
+    <div class="stat-box"><span id="stat-total">0</span><label>Consolidado</label></div>
+    <div class="stat-box"><span id="stat-aberto">0</span><label>Em Aberto</label></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
+    <button style="flex:1;background:#2a2a2a" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
+  </div>
+  <div id="aguardando-box" style="display:none;background:#1a1200;border:2px solid var(--warning);border-radius:15px;padding:15px;margin-bottom:20px;">
+    <h3 style="font-size:15px;margin:0 0 8px;color:var(--warning);"><i class="fas fa-hourglass-half"></i> Aguardando Meta</h3>
+    <div class="hint" style="margin:0 0 10px;">Estas pessoas estão esperando você definir a meta.</div>
+    <div id="list-aguardando"></div>
+  </div>
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;margin-bottom:20px;">
+    <h3 style="font-size:16px;margin-top:0;color:var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto</h3>
+    <div id="list-usuarios"></div>
+  </div>
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;">
+    <h3 style="font-size:16px;margin-top:0;"><i class="fas fa-list-check"></i> Inventários</h3>
+    <div id="list-inventarios"></div>
+  </div>
+  <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
+</div>
+
+<!-- CRIAR INVENTÁRIO -->
+<div class="container hidden" id="create-inv-screen">
+  <h2>NOVO INVENTÁRIO</h2>
+  <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
+  <div class="form-group"><label>Senha para Conferentes</label><input type="text" id="inv-pass" placeholder="Crie uma senha"/></div>
+  <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
+  <button class="btn-sec" onclick="showScreen('master-panel')">CANCELAR</button>
+</div>
+
+<!-- LOGIN CONFERENTE -->
+<div class="container hidden" id="conferente-login">
+  <h2>CONFERENTE</h2>
+  <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
+  <div class="form-group"><label>Inventário</label><select id="inv-select" onchange="onInvSelectChange()"></select></div>
+  <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass"/></div>
+  <button id="btn-conf-login" onclick="doConferenteLogin()">AVANÇAR</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
+</div>
+
+<!-- ESCOLHA DE GRUPO -->
+<div class="container hidden" id="grupo-select-panel">
+  <h2>ESCOLHER GRUPO</h2>
+  <p id="debug-inv-id" style="text-align:center;color:var(--dim);font-size:11px;margin-bottom:16px;"></p>
+
+  <!-- Grupos disponíveis -->
+  <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px;font-weight:700;">Grupos disponíveis</div>
+    <div id="lista-grupos-disponiveis"></div>
+  </div>
+
+  <!-- Criar novo grupo manual -->
+  <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo (sem meta pré-definida)</div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
+    </div>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E AGUARDAR META</button>
+  </div>
+
+  <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
+</div>
+
+<!-- WAITING PANEL -->
+<div class="container hidden" id="waiting-panel">
+  <div style="text-align:center;">
+    <div class="wait-icon">⏳</div>
+    <div class="wait-title">Aguardando liberação</div>
+    <div class="wait-sub">O administrador vai contar fisicamente e definir a meta.<br>Você será liberado automaticamente.</div>
+    <div class="wait-grupo-box"><div class="lbl">Grupo</div><div class="val" id="wait-grupo-nome"></div></div>
+    <div class="wait-dots"><span></span><span></span><span></span></div>
+    <p style="font-size:11px;color:var(--dim);margin-top:16px;">Verificando a cada 5 segundos...</p>
+  </div>
+  <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
+</div>
+
+<!-- COUNTING PANEL -->
+<div class="container hidden" id="counting-panel">
+  <h2 id="active-inv-title" style="font-size:15px;margin-bottom:12px;">...</h2>
+
+  <!-- Status em tempo real -->
+  <div class="rt-bar">
+    <div class="rt-dot" id="rt-dot"></div>
+    <span id="rt-lbl">Sincronizado</span>
+    <span id="colab-badge" style="display:none;align-items:center;gap:5px;margin-left:10px;background:rgba(255,171,64,.15);border:1px solid rgba(255,171,64,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--warning);">👥 COLABORATIVO</span>
+  </div>
+
+  <!-- Contador principal -->
+  <div class="count-hero">
+    <div class="count-hero-lbl">Peças bipadas</div>
+    <div class="count-hero-num" id="user-count">0</div>
+  </div>
+
+  <!-- Último EAN -->
+  <div class="last-ean-box">
+    <span class="last-ean-lbl">Último EAN</span>
+    <span class="last-ean-val" id="last-ean-val">—</span>
+    <span class="last-ean-badge" id="last-ean-badge" style="display:none">✓ EAN-13</span>
+  </div>
+
+  <!-- Info -->
+  <div class="info-row">
+    <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
+    <div class="info-chip"><div class="ic-lbl">Grupo</div><div class="ic-val" id="display-section">—</div></div>
+  </div>
+
+  <div id="queue-pill"></div>
+
+  <div id="contagem-nao-bate" style="background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;">
+    <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+    <h3 style="color:var(--danger);margin:0 0 10px;font-size:18px;">Contagem divergente</h3>
+    <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
+  </div>
+
+  <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
+  <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
+  <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
+</div>
+
+<!-- SCANNER OVERLAY -->
+<div id="scanner-overlay">
+  <div id="video-wrap">
+
+    <!-- html5-qrcode renderiza aqui -->
+    <div id="h5-reader" style="width:100%;height:100%;"></div>
+
+    <div id="scan-flash"></div>
+    <div id="scan-ean-popup"></div>
+
+    <div class="scan-hud">
+      <div class="scan-hud-sub">Peças bipadas</div>
+      <div class="scan-hud-cnt" id="scanner-count-val">0</div>
+      <div class="scan-hud-grp" id="scanner-grp-lbl"></div>
+      <div id="scanner-colab-lbl" style="display:none;font-size:11px;color:var(--warning);font-weight:700;margin-top:2px;">👥 Grupo colaborativo</div>
+      <div class="scan-hud-pnd" id="scanner-pnd-lbl"></div>
+    </div>
+
+    <div id="btn-close-scan" onclick="stopScanner()">✕</div>
+  </div>
+</div>
+
+<script>
+const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
+let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
+let refreshInterval=null,waitingTimer=null,flushTimer=null,rtTimer=null;
+const LS_KEY="HS_INV_SESSAO_03";
+
+// ── FILA OTIMISTA ──────────────────────────────────────────────────────────
+let queue=[],localCount=0,bankCount=0,isFlushing=false;
+
+function enqueue(ean){
+  queue.push(ean);localCount++;
+  updateCounterUI(ean);updateQueueUI();scheduleFlush();
+}
+function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,600);}
+async function flushQueue(){
+  if(isFlushing||queue.length===0)return;
+  isFlushing=true;
+  const batch=queue.slice();
+  try{
+    const res=await callGAS({api:'registrarBipeLote',eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
+    if(res&&res.success){
+      queue=queue.slice(batch.length);bankCount=res.count;
+      if(localCount!==bankCount)localCount=bankCount;
+      setRT('ok');
+    }else{
+      setRT('err');
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);queue=[];localCount=bankCount;try{localStorage.removeItem(LS_KEY);}catch(_){}stopScanner();showScreen('main-menu');atualizarCardsSessao();}
+      else if(res&&res.code==='SECAO_FECHADA'){queue=[];localCount=bankCount;forcarNovaSecao(res.message);}
+      else setTimeout(flushQueue,3000);
+    }
+  }catch(e){setRT('err');setTimeout(flushQueue,3000);}
+  isFlushing=false;updateCounterUI();updateQueueUI();
+}
+
+function setRT(s){
+  const d=document.getElementById('rt-dot'),l=document.getElementById('rt-lbl');
+  if(!d)return;
+  d.className='rt-dot'+(s==='err'?' err':s==='warn'?' warn':'');
+  l.textContent=s==='err'?'Reconectando...':s==='warn'?'Sincronizando...':'Sincronizado';
+}
+
+function updateCounterUI(newEan){
+  const v=String(localCount);
+  document.getElementById('user-count').textContent=v;
+  document.getElementById('scanner-count-val').textContent=v;
+  if(newEan){
+    const n=document.getElementById('user-count');
+    n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');
+    setTimeout(()=>n.classList.remove('bump'),220);
+    const ev=document.getElementById('last-ean-val');
+    const eb=document.getElementById('last-ean-badge');
+    if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
+    if(eb)eb.style.display='inline-block';
   }
 }
-
-function responderJSONP_(e, obj) {
-  const cb = e.parameter.callback, json = JSON.stringify(obj);
-  if (cb) return ContentService.createTextOutput(cb + '(' + json + ')').setMimeType(ContentService.MimeType.JAVASCRIPT);
-  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+function updateQueueUI(){
+  const pnd=queue.length;
+  const pill=document.getElementById('queue-pill'),pndl=document.getElementById('scanner-pnd-lbl');
+  if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;if(pill){pill.textContent=t;pill.style.display='block';}if(pndl)pndl.textContent=t;setRT('warn');}
+  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!isFlushing)setRT('ok');}
 }
 
-function getSS_() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
+// ── TEMPO REAL — pool de contagem ─────────────────────────────────────────
+function startRT(){
+  stopRT();
+  rtTimer=setInterval(async()=>{
+    if(!currentInvId||!currentUser)return;
+    // Se há fila pendente, ainda verifica status mas não atualiza contagem
+    try{
+      const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+      if(!r||!r.success)return;
 
-function garantirAba(nome, headers) {
-  const ss = getSS_(); let sh = ss.getSheetByName(nome);
-  if (!sh) {
-    sh = ss.insertSheet(nome);
-    sh.appendRow(headers);
-    sh.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#eeeeee');
-    sh.setFrozenRows(1);
-  }
-  return sh;
+      // Admin finalizou a seção deste conferente
+      if(r.status==='SECAO_BLOQUEADA'){
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(LS_KEY);}catch(_){}
+        atualizarCardsSessao();
+        showScreen('main-menu');
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        setTimeout(()=>alert(msg),100);
+        return;
+      }
+
+      // Admin encerrou o inventário inteiro
+      if(r.status==='INVENTARIO_ENCERRADO'){
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(LS_KEY);}catch(_){}
+        atualizarCardsSessao();
+        showScreen('main-menu');
+        setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
+        return;
+      }
+
+      // Atualiza contagem normalmente (só se fila vazia)
+      if(queue.length===0&&r.count!==undefined&&r.count!==bankCount){
+        const prev=bankCount;
+        bankCount=r.count;localCount=r.count;
+        updateCounterUI();
+        if(r.count<prev){
+          const n=document.getElementById('user-count');
+          if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
+        }
+      }
+      setRT('ok');
+    }catch(_){setRT('err');}
+  },5000);
+}
+function stopRT(){if(rtTimer){clearInterval(rtTimer);rtTimer=null;}}
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let actx=null;
+function bip(ok=true){
+  try{
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=ok?'square':'sawtooth';
+    o.frequency.value=ok?1046:280;
+    const t=actx.currentTime,dur=ok?.08:.11;
+    g.gain.setValueAtTime(ok?.07:.04,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start();o.stop(t+dur);
+  }catch(_){}
 }
 
-function garantirColunas_(sh, headers) {
-  const lc = sh.getLastColumn(); if (lc === 0) return sh;
-  const row = sh.getRange(1, 1, 1, lc).getValues()[0]; let changed = false;
-  headers.forEach(h => {
-    if (row.indexOf(h) === -1) { sh.getRange(1, sh.getLastColumn() + 1).setValue(h).setFontWeight('bold').setBackground('#eeeeee'); changed = true; }
+// ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
+function showScreen(id){
+  _pegandoGrupo=false; // reseta flag de grupo em qualquer troca de tela
+  document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='master-panel')startRealTime();else stopRealTime();
+  if(id==='counting-panel')startRT();else stopRT();
+  if(id!=='waiting-panel')pararEspera();
+}
+function startRealTime(){loadDashboard();if(!refreshInterval)refreshInterval=setInterval(loadDashboard,10000);}
+function stopRealTime(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
+function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
+
+// ── CALL GAS ───────────────────────────────────────────────────────────────
+function callGAS(params,retries=2){
+  return new Promise((resolve,reject)=>{
+    let attempt=0;
+    function go(){
+      const cb='jsonp_'+Math.round(1e7*Math.random());
+      window[cb]=d=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){}resolve(d);};
+      const sc=document.createElement('script');
+      let url=WEB_APP_URL+'?callback='+cb;
+      for(const k in params)url+='&'+k+'='+encodeURIComponent(params[k]);
+      sc.src=url;
+      sc.onerror=()=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Erro de conexao.");};
+      document.body.appendChild(sc);
+      setTimeout(()=>{if(window[cb]){delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Timeout");}},22000);
+    }
+    go();
   });
-  if (changed) sh.setFrozenRows(1); return sh;
 }
 
-function sanitizarNomeAba_(n) {
-  n = String(n || '').trim().replace(/[\\\/\?\*\[\]]/g, '-').replace(/\s+/g, ' ');
-  return (n.length > 100 ? n.slice(0, 100) : n) || 'INVENTARIO';
-}
-function sanitizarUserKey_(t) {
-  t = String(t || '').toUpperCase().trim().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_');
-  return (t.length > 60 ? t.slice(0, 60) : t) || 'ANONIMO';
-}
-function nomeAbaUser_(id, u) { return 'USER_' + String(id).trim() + '__' + sanitizarUserKey_(u); }
+// ── SESSÃO ─────────────────────────────────────────────────────────────────
+function salvarSessao(){try{localStorage.setItem(LS_KEY,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarCardsSessao();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
+function limparSessao(){if(!confirm("Apagar sessao salva?"))return;try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();alert("Sessao apagada.");}
+function atualizarCardsSessao(){const s=lerSessao();document.getElementById("card-continuar").style.display=s?"flex":"none";document.getElementById("card-limpar").style.display=s?"flex":"none";if(s)document.getElementById("continuar-desc").textContent=`${s.invName} · ${s.user} · ${s.section}`;}
 
-function obterInventarioPorId_(id) {
-  const sh = getSS_().getSheetByName(SHEET_INVENTARIOS); if (!sh) return null;
-  garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id))
-      return { id: data[i][0], nome: data[i][1], senha: data[i][2], status: data[i][3], msgBloqueio: data[i][5] || '' };
-  }
-  return null;
-}
+function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
 
-function chaveSecao_(id, u)       { return 'SECAOLOCK__' + String(id).trim() + '__' + sanitizarUserKey_(u); }
-function bloquearSecao_(id, u)    { PropertiesService.getScriptProperties().setProperty(chaveSecao_(id, u), '1'); }
-function desbloquearSecao_(id, u) { PropertiesService.getScriptProperties().deleteProperty(chaveSecao_(id, u)); }
-function estaBloqueada_(id, u)    { return PropertiesService.getScriptProperties().getProperty(chaveSecao_(id, u)) === '1'; }
-
-// Grava quem fechou o grupo para avisar outros membros
-function chaveQuemFechou_(id, nomeGrupo) { return 'FECHOU__' + String(id).trim() + '__' + sanitizarUserKey_(nomeGrupo); }
-function gravarQuemFechou_(id, nomeGrupo, usuario) {
-  PropertiesService.getScriptProperties().setProperty(chaveQuemFechou_(id, nomeGrupo), String(usuario));
-}
-function lerQuemFechou_(id, nomeGrupo) {
-  return PropertiesService.getScriptProperties().getProperty(chaveQuemFechou_(id, nomeGrupo)) || '';
-}
-function limparQuemFechou_(id, nomeGrupo) {
-  PropertiesService.getScriptProperties().deleteProperty(chaveQuemFechou_(id, nomeGrupo));
-}
-
-function limparLocksInventario_(id) {
-  const props = PropertiesService.getScriptProperties().getProperties();
-  const prefixes = ['SECAOLOCK__' + String(id).trim() + '__', 'FECHOU__' + String(id).trim() + '__'];
-  Object.keys(props).filter(k => prefixes.some(p => k.indexOf(p) === 0))
-    .forEach(k => { try { PropertiesService.getScriptProperties().deleteProperty(k); } catch (_) {} });
-}
-
-function garantirAbaMetas_() { return garantirAba(SHEET_METAS, ['ID_INVENTARIO', 'USUARIO', 'NOME_GRUPO', 'META', 'STATUS', 'DATA']); }
-
-// CONFIG_GRUPOS colunas: ID_GRUPO | ID_INVENTARIO | NOME_GRUPO | META | STATUS | USUARIO_RESERVA | DATA_CRIACAO | COLABORATIVO | VAGAS | MEMBROS
-function garantirAbaGrupos_() {
-  return garantirAba(SHEET_GRUPOS, ['ID_GRUPO', 'ID_INVENTARIO', 'NOME_GRUPO', 'META', 'STATUS', 'USUARIO_RESERVA', 'DATA_CRIACAO', 'COLABORATIVO', 'VAGAS', 'MEMBROS']);
-}
-
-function obterMeta_(idInv, usuario) {
-  const sh = garantirAbaMetas_(), data = sh.getDataRange().getValues(), uKey = sanitizarUserKey_(usuario);
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(idInv) && sanitizarUserKey_(data[i][1]) === uKey)
-      return { rowIndex: i + 1, usuario: data[i][1], grupo: data[i][2], meta: data[i][3], status: data[i][4] };
-  }
-  return null;
-}
-
-function obterGrupoPorId_(idGrupo, idInventario) {
-  const sh = getSS_().getSheetByName(SHEET_GRUPOS); if (!sh) return null;
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(idGrupo) && String(data[i][1]) === String(idInventario)) {
-      return {
-        rowIndex: i + 1,
-        id: data[i][0], idInventario: data[i][1], nome: data[i][2],
-        meta: data[i][3], status: data[i][4], usuarioReserva: data[i][5],
-        colaborativo: data[i][7] === true || String(data[i][7]).toUpperCase() === 'SIM',
-        vagas: parseInt(data[i][8] || '1', 10) || 1,
-        membros: String(data[i][9] || '')
-      };
-    }
-  }
-  return null;
-}
-
-// Retorna lista de membros de um grupo colaborativo
-function obterMembrosGrupo_(idGrupo, idInventario) {
-  const g = obterGrupoPorId_(idGrupo, idInventario);
-  if (!g || !g.membros) return [];
-  return g.membros.split(',').map(m => m.trim()).filter(m => m);
-}
-
-// Adiciona membro ao grupo na planilha
-function adicionarMembroGrupo_(idGrupo, idInventario, usuario) {
-  const sh = getSS_().getSheetByName(SHEET_GRUPOS); if (!sh) return;
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(idGrupo) && String(data[i][1]) === String(idInventario)) {
-      const atual = String(data[i][9] || '');
-      const membros = atual ? atual.split(',').map(m => m.trim()).filter(m => m) : [];
-      if (!membros.includes(usuario)) membros.push(usuario);
-      sh.getRange(i + 1, 10).setValue(membros.join(','));
+// ── ESPERA ─────────────────────────────────────────────────────────────────
+let _verif=false;
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();waitingTimer=setInterval(verificarLiberacao,5000);verificarLiberacao();}
+function pararEspera(){if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}_verif=false;}
+async function verificarLiberacao(){
+  if(_verif)return;_verif=true;
+  try{
+    const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+    if(!res||!res.success){_verif=false;return;}
+    if(res.status==='LIBERADO'){
+      pararEspera();currentMeta=res.meta||null;
+      ativarContagem(res.count||0,res.colaborativo||false);
       return;
     }
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();return;}
+    if(res.status==='SECAO_BLOQUEADA'){
+      pararEspera();
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
+      showScreen('main-menu');atualizarCardsSessao();
+      setTimeout(()=>alert(msg),100);
+      return;
+    }
+  }catch(_){}
+  _verif=false;
+}
+let currentColaborativo=false;
+function ativarContagem(count,colaborativo){
+  currentColaborativo=!!colaborativo;
+  document.getElementById('display-name').textContent=currentUser;
+  document.getElementById('display-section').textContent=currentSection;
+  document.getElementById('active-inv-title').textContent=currentInvName;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('contagem-nao-bate').style.display='none';
+  document.getElementById('last-ean-val').textContent='—';
+  document.getElementById('last-ean-badge').style.display='none';
+  // Badge colaborativo
+  const badge=document.getElementById('colab-badge');
+  if(badge)badge.style.display=currentColaborativo?'flex':'none';
+  bankCount=count;localCount=count;updateCounterUI();updateQueueUI();
+  showScreen('counting-panel');salvarSessao();
+}
+
+// ── MASTER ─────────────────────────────────────────────────────────────────
+async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
+let invNameById={};
+async function loadDashboard(){
+  try{
+    const res=await callGAS({api:'getDashboardData'});if(!res.success)return;
+    document.getElementById('stat-total').textContent=res.totalConsolidado;
+    document.getElementById('stat-aberto').textContent=res.totalEmAberto;
+    invNameById={};(res.inventarios||[]).forEach(i=>{invNameById[String(i.id)]=i.nome;});
+    const ag=res.aguardando||[],boxAg=document.getElementById('aguardando-box');
+    if(ag.length>0){
+      boxAg.style.display='block';
+      const su=s=>String(s||'').replace(/'/g,"\\'");
+      document.getElementById('list-aguardando').innerHTML=ag.map(a=>`<div class="list-item" style="border-left-color:var(--warning);"><span style="flex:1;"><i class="fas fa-user" style="color:var(--warning)"></i> <strong>${a.usuario}</strong><small style="color:var(--dim);display:block;font-size:11px;">${invNameById[String(a.idInventario)]||a.idInventario} · Grupo: <strong style="color:#fff">${a.grupo}</strong></small></span><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-espera">AGUARDANDO</span><button class="mini-btn" onclick="promptMeta('${su(a.usuario)}','${su(a.idInventario)}','${su(a.grupo)}')"><i class="fas fa-lock-open"></i> Definir Meta</button></div></div>`).join('');
+    }else boxAg.style.display='none';
+    const ativos=(res.usuariosAtivos||[]).filter(u=>u.status!=='AGUARDANDO_META');
+    const su=s=>String(s||'').replace(/'/g,"\\'");
+    document.getElementById('list-usuarios').innerHTML=ativos.length?ativos.map(u=>`<div class="list-item"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1;font-size:13px;"><i class="fas fa-user"></i> <strong>${u.nome}</strong> <small style="color:var(--dim);font-size:11px;">(${invNameById[String(u.idInventario)]||u.idInventario})</small>${u.grupo?`<small style="color:var(--dim);">[${u.grupo}]</small>`:''}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="badge">${u.bipes} bipes</span><button class="mini-btn" onclick="masterConcluirUsuario('${su(u.nome)}','${su(u.idInventario)}')">Finalizar</button><button class="mini-btn s" onclick="masterAddManual('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}')">Manual</button></div></div>`).join(''):'<p style="font-size:12px;color:gray;text-align:center">Nenhum bipe em aberto.</p>';
+    document.getElementById('list-inventarios').innerHTML=(res.inventarios||[]).map(i=>`<div class="list-item" style="border-left-color:${i.status==='ABERTO'?'var(--success)':'#555'}"><div><strong>${i.nome}</strong><br><small>${i.status} · ID: ${i.id}</small></div><div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>`:''}<button class="mini-btn d" onclick="excluirInv('${i.id}')">X</button></div></div>`).join('')||'<p style="font-size:12px;color:gray;text-align:center">Nenhum inventario.</p>';
+  }catch(e){console.error(e);}
+}
+async function promptMeta(u,id,g){const m=prompt(`Meta para "${u}" (Grupo: ${g}):`);if(!m)return;const r=await callGAS({api:'definirMeta',idInventario:id,usuario:u,meta:m});if(r&&r.success){alert(`Meta de ${r.meta} pecas definida! ${u} foi liberado.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterConcluirUsuario(u,id){if(!confirm(`Finalizar secao de "${u}"?`))return;const r=await callGAS({api:'masterConcluirSecao',usuario:u,idInventario:id});if(r&&r.success){alert(`Finalizado! ${r.count||0} itens.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterAddManual(u,id,g){const ean=prompt(`EAN manual para "${u}":`);if(!ean)return;const r=await callGAS({api:'masterAddManualCode',usuario:u,idInventario:id,ean,secao:g||'MANUAL'});if(r&&r.success){alert("Incluido! Total: "+(r.newCount||'?'));loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function finalizarInv(id){if(!confirm("Fechar este inventario?"))return;const r=await callGAS({api:'finalizarInventario',id});if(r&&r.success)alert(`${r.message}\nItens: ${r.itensMovidos||0}`);else alert((r&&r.message)||"Erro.");loadDashboard();}
+async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;const r=await callGAS({api:'excluirInventario',id});alert(r&&r.success?"Excluido.":((r&&r.message)||"Erro."));loadDashboard();}
+async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
+
+// ── CONFERENTE ─────────────────────────────────────────────────────────────
+let _confInvId='', _confInvNome='';
+
+function onInvSelectChange(){ /* placeholder para eventos futuros */ }
+
+async function showConferentePanel(){
+  setBtnLoading('btn-open-conf',true);
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    setBtnLoading('btn-open-conf',false,'');
+    if(!list||!list.length)return alert("Nenhum inventario aberto.");
+    document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
+    const s=lerSessao();
+    if(s&&list.some(i=>String(i.id)===String(s.invId))){
+      document.getElementById('inv-select').value=s.invId;
+      document.getElementById('conf-name').value=s.user||"";
+    }
+    showScreen('conferente-login');
+  }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
+}
+
+// Passo 1: valida acesso e vai para tela de seleção de grupo
+async function doConferenteLogin(){
+  const name=document.getElementById('conf-name').value.trim();
+  const invId=document.getElementById('inv-select').value;
+  const invPass=document.getElementById('conf-inv-pass').value;
+  if(!name||!invPass)return alert("Preencha nome e senha.");
+  setBtnLoading('btn-conf-login',true);
+  try{
+    const res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
+    if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'AVANÇAR');return;}
+    if(res&&res.success){
+      currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
+      _confInvId=invId;_confInvNome=res.nomeInventario;
+
+      // Verifica se já tem seção ativa antes de mostrar lista de grupos
+      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(sr&&sr.success){
+        if(sr.status==='LIBERADO'){
+          // Já tem grupo ativo e liberado — vai direto para contagem
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          currentMeta=sr.meta||null;
+          queue=[];bankCount=sr.count||0;localCount=bankCount;
+          updateCounterUI();updateQueueUI();
+          ativarContagem(bankCount,sr.colaborativo||false);
+          return;
+        }
+        if(sr.status==='AGUARDANDO_META'){
+          // Tem grupo ativo aguardando meta — avisa e manda para espera
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação.\nAguarde o administrador definir a meta.`);
+          currentSection=sr.grupo||'';
+          iniciarEspera();
+          return;
+        }
+        if(sr.status==='SECAO_BLOQUEADA'){
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo}".`:`Seu grupo foi finalizado. Você pode iniciar um novo.`;
+          alert(msg);
+          // Seção bloqueada = pode criar novo grupo normalmente
+        }
+      }
+
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+      await mostrarSelecaoGrupo();
+    }else{
+      alert(res&&res.message?res.message:"Senha incorreta.");
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
+}
+
+// Passo 2: mostra grupos disponíveis
+async function mostrarSelecaoGrupo(){
+  _pegandoGrupo=false;
+  showScreen('grupo-select-panel');
+  // Garante que a lista está clicável
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+  const elLista=document.getElementById('lista-grupos-disponiveis');
+  elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
+
+  // Mostra o ID do inventário sendo consultado para debug
+  document.getElementById('debug-inv-id').textContent='Inventário: '+_confInvId+' ('+_confInvNome+')';
+
+  try{
+    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_confInvId});
+
+    if(!r){
+      elLista.innerHTML='<div class="grupo-empty" style="color:var(--danger)">Sem resposta do servidor.</div>';
+      return;
+    }
+    if(!r.success){
+      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro: ${r.message||'?'}</div>`;
+      return;
+    }
+
+    // Mostra info de debug embaixo do ID do inventário
+    document.getElementById('debug-inv-id').textContent=
+      `Inv: ${_confInvId} · ${r.debug_total||0} grupos no total · ${(r.grupos||[]).length} disponíveis para este inv`;
+
+    const grupos=r.grupos||[];
+    if(!grupos.length){
+      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo pré-criado disponível para este inventário.</div>';
+    }else{
+      elLista.innerHTML=grupos.map(g=>`
+        <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
+          <div>
+            <div class="grupo-card-nome">${g.nome}</div>
+            ${g.colaborativo?`<div style="font-size:10px;color:var(--warning);margin-top:3px;font-weight:700;">👥 COLABORATIVO · ${g.vagasRestantes} vaga${g.vagasRestantes!==1?'s':''} restante${g.vagasRestantes!==1?'s':''}</div>`:''}
+          </div>
+          <span class="grupo-card-badge">${g.colaborativo?'ENTRAR ›':'DISPONÍVEL ›'}</span>
+        </div>`).join('');
+    }
+  }catch(e){
+    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão: ${e}</div>`;
   }
 }
 
-// ── GRUPOS ──────────────────────────────────────────────────────────────────
+// Pegou um grupo pré-criado
+let _pegandoGrupo=false;
+async function doUsarGrupo(idGrupo, nomeGrupo, meta){
+  if(_pegandoGrupo)return;
+  _pegandoGrupo=true;
 
-/**
- * Cria grupo. Aceita colaborativo e vagas opcionais.
- */
-function criarGrupo(p) {
-  try {
-    const idInventario = p.idInventario, nomeGrupo = p.nomeGrupo, meta = p.meta;
-    const colaborativo = p.colaborativo === 'true' || p.colaborativo === true;
-    const vagas = parseInt(p.vagas || '1', 10) || 1;
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
 
-    const metaNum = parseInt(meta, 10);
-    if (!idInventario || !nomeGrupo) return { success: false, message: 'Preencha todos os campos.' };
-    if (isNaN(metaNum) || metaNum <= 0) return { success: false, message: 'Meta deve ser numero positivo.' };
-    const inv = obterInventarioPorId_(idInventario);
-    if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-
-    const sh = garantirAbaGrupos_();
-    const id = Utilities.getUuid().substring(0, 8);
-    const nome = String(nomeGrupo).trim().toUpperCase();
-
-    // Se colaborativo, já cria a aba compartilhada vazia
-    if (colaborativo) {
-      garantirAba(nomeAbaGrupo_(idInventario, nome), ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
+  try{
+    const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
+    if(r&&r.success){
+      // Restaura ANTES de mudar de tela
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      currentSection=r.nomeGrupo||nomeGrupo;
+      currentMeta=r.meta||meta;
+      queue=[];bankCount=0;localCount=0;updateCounterUI();updateQueueUI();
+      ativarContagem(0,r&&r.colaborativo||false);
+      salvarSessao();
+    }else{
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      alert(r&&r.message?r.message:"Erro ao reservar grupo.");
+      await mostrarSelecaoGrupo();
     }
-
-    sh.appendRow([id, idInventario, nome, metaNum, 'DISPONIVEL', '', new Date(), colaborativo ? 'SIM' : 'NAO', vagas, '']);
-    return { success: true, id, nomeGrupo: nome, meta: metaNum, colaborativo, vagas };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-/**
- * Lista grupos disponíveis — inclui colaborativos com vagas sobrando.
- */
-function listarGruposDisponiveis(idInventario) {
-  try {
-    if (!idInventario) return { success: false, message: 'ID do inventario nao informado.' };
-    const sh = getSS_().getSheetByName(SHEET_GRUPOS);
-    if (!sh || sh.getLastRow() < 2) return { success: true, grupos: [] };
-    const data = sh.getDataRange().getValues().slice(1);
-    const grupos = [];
-    data.forEach(r => {
-      if (String(r[1]) !== String(idInventario)) return;
-      const status = String(r[4]);
-      const colaborativo = r[7] === true || String(r[7]).toUpperCase() === 'SIM';
-      const vagas = parseInt(r[8] || '1', 10) || 1;
-      const membros = String(r[9] || '').split(',').filter(m => m.trim());
-      const vagasOcupadas = membros.length;
-
-      // Disponível: status DISPONIVEL, ou colaborativo com vagas sobrando
-      if (status === 'DISPONIVEL' || (colaborativo && status === 'RESERVADO' && vagasOcupadas < vagas)) {
-        grupos.push({
-          id: r[0], nome: r[2], meta: r[3],
-          colaborativo, vagas, vagasOcupadas,
-          vagasRestantes: vagas - vagasOcupadas
-        });
-      }
-    });
-    return { success: true, grupos };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-/**
- * Conferente pega um grupo.
- * Se colaborativo: entra na aba GRP_ compartilhada.
- * Se normal: comportamento original.
- */
-function pegarGrupo(idInventario, usuario, idGrupo) {
-  const lock = LockService.getScriptLock();
-  try { lock.waitLock(10000); } catch(_) { return { success: false, message: 'Servidor ocupado. Tente novamente.' }; }
-  try {
-    const inv = obterInventarioPorId_(idInventario);
-    if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-
-    const shG = getSS_().getSheetByName(SHEET_GRUPOS);
-    if (!shG) return { success: false, message: 'Nenhum grupo cadastrado.' };
-    const data = shG.getDataRange().getValues();
-    let grupoRow = -1, grupoNome = '', grupoMeta = 0, grupoStatus = '', colaborativo = false, vagas = 1, membros = [];
-
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === String(idGrupo) && String(data[i][1]) === String(idInventario)) {
-        grupoRow = i + 1;
-        grupoNome = data[i][2];
-        grupoMeta = parseInt(data[i][3], 10);
-        grupoStatus = data[i][4];
-        colaborativo = data[i][7] === true || String(data[i][7]).toUpperCase() === 'SIM';
-        vagas = parseInt(data[i][8] || '1', 10) || 1;
-        membros = String(data[i][9] || '').split(',').map(m => m.trim()).filter(m => m);
-
-        // Já é membro — double-click
-        if (membros.map(sanitizarUserKey_).includes(sanitizarUserKey_(usuario))) {
-          return { success: true, nomeGrupo: grupoNome, meta: grupoMeta, colaborativo, jaReservado: true };
-        }
-
-        if (!colaborativo) {
-          // Grupo normal: só um, verificação original
-          if (grupoStatus === 'RESERVADO' && sanitizarUserKey_(String(data[i][5])) === sanitizarUserKey_(usuario)) {
-            return { success: true, nomeGrupo: grupoNome, meta: grupoMeta, colaborativo: false, jaReservado: true };
-          }
-          if (grupoStatus !== 'DISPONIVEL') {
-            return { success: false, message: 'Este grupo ja foi reservado por outra pessoa.' };
-          }
-        } else {
-          // Colaborativo: verifica vagas
-          if (membros.length >= vagas) {
-            return { success: false, message: 'Todas as vagas deste grupo colaborativo ja foram preenchidas.' };
-          }
-        }
-        break;
-      }
-    }
-    if (grupoRow === -1) return { success: false, message: 'Grupo nao encontrado.' };
-
-    // Adiciona membro e atualiza status
-    membros.push(usuario);
-    shG.getRange(grupoRow, 5).setValue('RESERVADO');
-    shG.getRange(grupoRow, 6).setValue(membros[0]); // primeiro que entrou
-    shG.getRange(grupoRow, 10).setValue(membros.join(','));
-
-    // Cria/garante aba adequada
-    if (colaborativo) {
-      // Aba compartilhada do grupo
-      garantirAba(nomeAbaGrupo_(idInventario, grupoNome), ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
-    } else {
-      // Aba individual normal
-      garantirAba(nomeAbaUser_(idInventario, usuario), ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
-    }
-
-    // Cria/atualiza entrada em CONFIG_METAS como LIBERADO
-    const shM = garantirAbaMetas_();
-    const ex = obterMeta_(idInventario, usuario);
-    if (ex) {
-      shM.getRange(ex.rowIndex, 3).setValue(grupoNome);
-      shM.getRange(ex.rowIndex, 4).setValue(grupoMeta);
-      shM.getRange(ex.rowIndex, 5).setValue('LIBERADO');
-      shM.getRange(ex.rowIndex, 6).setValue(new Date());
-    } else {
-      shM.appendRow([idInventario, usuario, grupoNome, grupoMeta, 'LIBERADO', new Date()]);
-    }
-
-    desbloquearSecao_(idInventario, usuario);
-    return { success: true, nomeGrupo: grupoNome, meta: grupoMeta, colaborativo, vagas, vagasRestantes: vagas - membros.length };
-  } catch (e) { return { success: false, message: e.toString() }; }
-  finally { try { lock.releaseLock(); } catch(_) {} }
-}
-
-/**
- * Torna um grupo existente colaborativo.
- * Migra aba USER_ do(s) membro(s) para GRP_.
- */
-function tornarColaborativo(idInventario, idGrupo, vagas) {
-  const lock = LockService.getScriptLock();
-  try { lock.waitLock(15000); } catch(_) { return { success: false, message: 'Servidor ocupado.' }; }
-  try {
-    const vagasNum = parseInt(vagas || '2', 10);
-    const g = obterGrupoPorId_(idGrupo, idInventario);
-    if (!g) return { success: false, message: 'Grupo nao encontrado.' };
-    if (g.colaborativo) return { success: false, message: 'Grupo ja e colaborativo.' };
-
-    const ss = getSS_();
-    const nomeGrpAba = nomeAbaGrupo_(idInventario, g.nome);
-
-    // Cria aba do grupo colaborativo
-    const shGrp = garantirAba(nomeGrpAba, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
-
-    // Migra bipes do(s) membro(s) atual(is) para aba do grupo
-    const membros = g.membros ? g.membros.split(',').map(m => m.trim()).filter(m => m) : [];
-    let totalMigrado = 0;
-    membros.forEach(usuario => {
-      const shUser = ss.getSheetByName(nomeAbaUser_(idInventario, usuario));
-      if (!shUser || shUser.getLastRow() < 2) return;
-      const rows = shUser.getRange(2, 1, shUser.getLastRow() - 1, 5).getValues();
-      if (rows.length > 0) {
-        shGrp.getRange(shGrp.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
-        totalMigrado += rows.length;
-      }
-      // Apaga aba individual
-      try { ss.deleteSheet(shUser); } catch(_) {}
-    });
-
-    // Atualiza CONFIG_GRUPOS
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    shG.getRange(g.rowIndex, 8).setValue('SIM');
-    shG.getRange(g.rowIndex, 9).setValue(vagasNum);
-
-    return { success: true, nomeGrupo: g.nome, bipesMigrados: totalMigrado, vagas: vagasNum };
-  } catch (e) { return { success: false, message: e.toString() }; }
-  finally { try { lock.releaseLock(); } catch(_) {} }
-}
-
-/**
- * Exclui grupo (só DISPONIVEL).
- */
-function excluirGrupo(idInventario, idGrupo) {
-  try {
-    const sh = getSS_().getSheetByName(SHEET_GRUPOS); if (!sh) return { success: false, message: 'Aba nao encontrada.' };
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === String(idGrupo) && String(data[i][1]) === String(idInventario)) {
-        sh.deleteRow(i + 1);
-        return { success: true };
-      }
-    }
-    return { success: false, message: 'Grupo nao encontrado.' };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-// ── AUTH ─────────────────────────────────────────────────────────────────────
-
-function definirMeta(idInventario, usuario, meta) {
-  try {
-    const metaNum = parseInt(meta, 10);
-    if (isNaN(metaNum) || metaNum <= 0) return { success: false, message: 'Meta deve ser numero inteiro positivo.' };
-    const ex = obterMeta_(idInventario, usuario);
-    if (!ex) return { success: false, message: 'Usuario nao iniciou contagem ainda.' };
-    const sh = garantirAbaMetas_();
-    sh.getRange(ex.rowIndex, 4).setValue(metaNum);
-    sh.getRange(ex.rowIndex, 5).setValue('LIBERADO');
-    return { success: true, usuario: ex.usuario, meta: metaNum, grupo: ex.grupo };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function masterLogin(senha) {
-  return senha === '1' ? { success: true, user: 'LEONARDO' } : { success: false, message: 'Senha incorreta.' };
-}
-
-function criarNovoInventario(nome, senha) {
-  try {
-    const sh = garantirAba(SHEET_INVENTARIOS, ['ID', 'Nome Inventario', 'Senha', 'Status', 'Data Criacao']);
-    garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
-    const id = Utilities.getUuid().substring(0, 8);
-    sh.appendRow([id, nome, senha, 'ABERTO', new Date(), '', '']);
-    garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-    garantirAbaMetas_();
-    garantirAbaGrupos_();
-    return { success: true, id };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function listarInventariosAbertos() {
-  try {
-    const sh = getSS_().getSheetByName(SHEET_INVENTARIOS); if (!sh) return [];
-    return sh.getDataRange().getValues().slice(1).filter(r => r[3] === 'ABERTO').map(r => ({ id: r[0], nome: r[1] }));
-  } catch (e) { return []; }
-}
-
-function validarAcessoInventario(idInventario, senhaDigitada) {
-  try {
-    const inv = obterInventarioPorId_(idInventario); if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.', nomeInventario: inv.nome };
-    if (String(inv.senha) === String(senhaDigitada)) return { success: true, nomeInventario: inv.nome };
-    return { success: false, message: 'Senha incorreta.' };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function iniciarSecao(usuario, idInventario, secao) {
-  try {
-    const inv = obterInventarioPorId_(idInventario);
-    if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-    const sh = garantirAbaMetas_();
-    const ex = obterMeta_(idInventario, usuario);
-    if (ex) {
-      sh.getRange(ex.rowIndex, 3).setValue(secao);
-      sh.getRange(ex.rowIndex, 6).setValue(new Date());
-      if (ex.status !== 'LIBERADO') {
-        sh.getRange(ex.rowIndex, 4).setValue('');
-        sh.getRange(ex.rowIndex, 5).setValue('AGUARDANDO_META');
-      }
-    } else {
-      sh.appendRow([idInventario, usuario, secao, '', 'AGUARDANDO_META', new Date()]);
-    }
-    desbloquearSecao_(idInventario, usuario);
-    return { success: true };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-/**
- * Inicia seção NOVA — sempre reseta para AGUARDANDO_META,
- * independente do status anterior. Usado quando conferente
- * cria um grupo manual novo.
- * Também cria entrada no CONFIG_GRUPOS para o admin poder
- * tornar o grupo colaborativo.
- */
-function iniciarSecaoNova(usuario, idInventario, secao) {
-  try {
-    const ss = getSS_();
-    const inv = obterInventarioPorId_(idInventario);
-    if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-
-    const sh = garantirAbaMetas_();
-    const ex = obterMeta_(idInventario, usuario);
-    if (ex) {
-      sh.getRange(ex.rowIndex, 3).setValue(secao);
-      sh.getRange(ex.rowIndex, 4).setValue('');
-      sh.getRange(ex.rowIndex, 5).setValue('AGUARDANDO_META');
-      sh.getRange(ex.rowIndex, 6).setValue(new Date());
-    } else {
-      sh.appendRow([idInventario, usuario, secao, '', 'AGUARDANDO_META', new Date()]);
-    }
-
-    // Cria entrada no CONFIG_GRUPOS se ainda não existir para este usuário/grupo
-    // Isso permite que o admin veja e possa tornar colaborativo
-    const shG = garantirAbaGrupos_();
-    const gData = shG.getDataRange().getValues();
-    const jaExiste = gData.slice(1).some(r =>
-      String(r[1]) === String(idInventario) &&
-      sanitizarUserKey_(r[2]) === sanitizarUserKey_(secao) &&
-      r[4] !== 'CONCLUIDO'
-    );
-    if (!jaExiste) {
-      const novoId = Utilities.getUuid().substring(0, 8);
-      // Meta vazia por enquanto (0), será definida pelo admin depois
-      shG.appendRow([novoId, idInventario, String(secao).trim().toUpperCase(), 0, 'RESERVADO', usuario, new Date(), 'NAO', 1, usuario]);
-    }
-
-    // Limpa aba USER_ antiga para o contador começar do zero
-    const shUser = ss.getSheetByName(nomeAbaUser_(idInventario, usuario));
-    if (shUser && shUser.getLastRow() > 1) {
-      const lock2 = LockService.getScriptLock();
-      try { lock2.waitLock(8000); shUser.deleteRows(2, shUser.getLastRow() - 1); } catch(_) {}
-      finally { try { lock2.releaseLock(); } catch(_) {} }
-    }
-
-    desbloquearSecao_(idInventario, usuario);
-    return { success: true };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-/**
- * Retorna status da seção.
- * Para grupos colaborativos, retorna contagem da aba GRP_ compartilhada.
- * Inclui quem fechou o grupo (para avisar outros membros).
- */
-function getStatusSecao(idInventario, usuario) {
-  try {
-    const inv = obterInventarioPorId_(idInventario);
-    if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: true, status: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-    if (estaBloqueada_(idInventario, usuario)) {
-      const meta = obterMeta_(idInventario, usuario);
-      const quemFechou = meta ? lerQuemFechou_(idInventario, meta.grupo) : '';
-      return { success: true, status: 'SECAO_BLOQUEADA', quemFechou };
-    }
-    const meta = obterMeta_(idInventario, usuario);
-    if (!meta) return { success: true, status: 'AGUARDANDO_META' };
-
-    // Verifica se é grupo colaborativo
-    const ss = getSS_();
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    let colaborativo = false, vagas = 1, membros = [], vagasRestantes = 0;
-    if (shG && shG.getLastRow() >= 2) {
-      const gData = shG.getDataRange().getValues().slice(1);
-      const gRow = gData.find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(meta.grupo));
-      if (gRow) {
-        colaborativo = gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM';
-        vagas = parseInt(gRow[8] || '1', 10) || 1;
-        membros = String(gRow[9] || '').split(',').map(m => m.trim()).filter(m => m);
-        vagasRestantes = Math.max(0, vagas - membros.length);
-      }
-    }
-
-    // Contagem: aba GRP_ se colaborativo, aba USER_ se normal
-    let count = 0;
-    if (colaborativo) {
-      const shGrp = ss.getSheetByName(nomeAbaGrupo_(idInventario, meta.grupo));
-      count = shGrp ? Math.max(0, shGrp.getLastRow() - 1) : 0;
-    } else {
-      const shU = ss.getSheetByName(nomeAbaUser_(idInventario, usuario));
-      count = shU ? Math.max(0, shU.getLastRow() - 1) : 0;
-    }
-
-    return {
-      success: true, status: meta.status, grupo: meta.grupo,
-      meta: meta.meta || null, count,
-      colaborativo, vagas, membros, vagasRestantes
-    };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-/**
- * Registra lote de bipes.
- * Se colaborativo: grava na aba GRP_ compartilhada.
- */
-function registrarBipeLote(data) {
-  try {
-    const usuario = String(data.usuario || 'Anonimo').trim(), secao = String(data.secao || 'Geral').trim();
-    const nomeInv = String(data.nomeInventario || '').trim(), idInv = String(data.idInventario || '').trim();
-    let eans; try { eans = JSON.parse(data.eans || '[]'); } catch (_) { return { success: false, message: 'Formato de lote invalido.' }; }
-    if (!Array.isArray(eans) || eans.length === 0) return { success: false, message: 'Lote vazio.' };
-    if (!idInv) return { success: false, message: 'ID de inventario ausente.' };
-    const inv = obterInventarioPorId_(idInv); if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-    if (estaBloqueada_(idInv, usuario)) return { success: false, code: 'SECAO_FECHADA', message: 'Secao finalizada.' };
-    const mr = obterMeta_(idInv, usuario); if (!mr || mr.status === 'AGUARDANDO_META') return { success: false, code: 'AGUARDANDO_META', message: 'Aguardando meta.' };
-
-    // Detecta se colaborativo
-    const ss = getSS_();
-    let nomeAba = nomeAbaUser_(idInv, usuario);
-    let colaborativo = false;
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2) {
-      const gData = shG.getDataRange().getValues().slice(1);
-      const gRow = gData.find(r => String(r[1]) === String(idInv) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) {
-        colaborativo = true;
-        nomeAba = nomeAbaGrupo_(idInv, mr.grupo);
-      }
-    }
-
-    const sh = garantirAba(nomeAba, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
-    const lock = LockService.getScriptLock(); let ok = false;
-    for (let t = 0; t < 3; t++) { try { lock.waitLock(12000); ok = true; break; } catch (_) { Utilities.sleep(400); } }
-    if (!ok) return { success: false, code: 'SERVIDOR_OCUPADO', message: 'Servidor ocupado.' };
-    try {
-      const now = new Date(), rows = eans.map(e => [String(e).trim(), usuario, secao, nomeInv, now]);
-      sh.getRange(sh.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
-      return { success: true, count: Math.max(0, sh.getLastRow() - 1), gravados: rows.length, colaborativo };
-    } finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function getUserOpenCount(idInventario, usuario) {
-  try {
-    const mr = obterMeta_(idInventario, usuario);
-    if (!mr) { const sh = getSS_().getSheetByName(nomeAbaUser_(idInventario, usuario)); return { success: true, count: sh ? Math.max(0, sh.getLastRow() - 1) : 0 }; }
-    // Se colaborativo, conta da aba GRP_
-    const ss = getSS_();
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2) {
-      const gData = shG.getDataRange().getValues().slice(1);
-      const gRow = gData.find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) {
-        const shGrp = ss.getSheetByName(nomeAbaGrupo_(idInventario, mr.grupo));
-        return { success: true, count: shGrp ? Math.max(0, shGrp.getLastRow() - 1) : 0 };
-      }
-    }
-    const sh = ss.getSheetByName(nomeAbaUser_(idInventario, usuario));
-    return { success: true, count: sh ? Math.max(0, sh.getLastRow() - 1) : 0 };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-// ── MOVER / CONCLUIR ─────────────────────────────────────────────────────────
-
-function moverParaConsolidado_(ss, shOrig, idInventario, usuario) {
-  const dataOrig = shOrig.getDataRange().getValues();
-  if (dataOrig.length < 2) return 0;
-  const shDest = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-  const lock = LockService.getScriptLock(); let ok = false;
-  for (let t = 0; t < 3; t++) { try { lock.waitLock(15000); ok = true; break; } catch (_) { Utilities.sleep(500); } }
-  if (!ok) return -1;
-  try {
-    const now = new Date(), toMove = dataOrig.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4], now]);
-    if (toMove.length > 0) {
-      shDest.getRange(shDest.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
-      const lr = shOrig.getLastRow(); if (lr > 1) shOrig.deleteRows(2, lr - 1);
-    }
-    const mr = obterMeta_(idInventario, usuario);
-    if (mr) ss.getSheetByName(SHEET_METAS).deleteRow(mr.rowIndex);
-    marcarGrupoConcluido_(idInventario, usuario);
-    return toMove.length;
-  } finally { try { lock.releaseLock(); } catch (_) {} }
-}
-
-function marcarGrupoConcluido_(idInventario, usuario) {
-  try {
-    const sh = getSS_().getSheetByName(SHEET_GRUPOS); if (!sh) return;
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      const membros = String(data[i][9] || '').split(',').map(m => m.trim());
-      if (String(data[i][1]) === String(idInventario) && membros.map(sanitizarUserKey_).includes(sanitizarUserKey_(usuario)) && data[i][4] === 'RESERVADO') {
-        sh.getRange(i + 1, 5).setValue('CONCLUIDO'); return;
-      }
-    }
-  } catch (_) {}
-}
-
-/**
- * Bloqueia todos os membros de um grupo colaborativo e grava quem fechou.
- */
-function bloquearTodosDoGrupo_(idInventario, nomeGrupo, usuarioQueFechou) {
-  const shG = getSS_().getSheetByName(SHEET_GRUPOS); if (!shG) return [];
-  const data = shG.getDataRange().getValues();
-  const bloqueados = [];
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][1]) === String(idInventario) && sanitizarUserKey_(data[i][2]) === sanitizarUserKey_(nomeGrupo)) {
-      const membros = String(data[i][9] || '').split(',').map(m => m.trim()).filter(m => m);
-      membros.forEach(m => { bloquearSecao_(idInventario, m); bloqueados.push(m); });
-      // Limpa entradas de metas de todos os membros
-      const shM = getSS_().getSheetByName(SHEET_METAS);
-      if (shM && shM.getLastRow() >= 2) {
-        const metaData = shM.getDataRange().getValues();
-        for (let m = metaData.length - 1; m >= 1; m--) {
-          if (String(metaData[m][0]) === String(idInventario) && membros.map(sanitizarUserKey_).includes(sanitizarUserKey_(metaData[m][1]))) {
-            shM.deleteRow(m + 1);
-          }
-        }
-      }
-      break;
-    }
+  }catch(e){
+    if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+    alert("Erro: "+e);
   }
-  // Grava quem fechou para o poll dos outros membros
-  gravarQuemFechou_(idInventario, nomeGrupo, usuarioQueFechou);
-  return bloqueados;
+  _pegandoGrupo=false;
+}
+
+// Criou grupo manual (sem meta pré-definida — SEMPRE vai para espera)
+async function doIniciarNovoGrupo(){
+  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
+  if(!nome)return alert("Digite o nome do grupo.");
+  setBtnLoading('btn-novo-grupo',true);
+  try{
+    // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
+    // já tivesse um grupo liberado anteriormente
+    const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_confInvId,secao:nome});
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
+    currentSection=nome;currentMeta=null;
+    queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
+    iniciarEspera();
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
 }
 
 /**
- * Conclui seção — verifica divergência, move dados, bloqueia membros do grupo.
+ * BUGFIX: "Continuar Última Contagem" vai direto ao banco sem passar pelo login.
  */
-function concluirSecao(usuario, idInventario) {
-  try {
-    const inv = obterInventarioPorId_(idInventario); if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    const ss = getSS_();
-    const mr = obterMeta_(idInventario, usuario);
-
-    // Detecta colaborativo
-    let colaborativo = false, nomeGrupo = mr ? mr.grupo : '';
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2 && mr) {
-      const gData = shG.getDataRange().getValues().slice(1);
-      const gRow = gData.find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) colaborativo = true;
+async function continuarUltimaContagem(){
+  const s=lerSessao();
+  if(!s)return alert("Nao existe sessao salva.");
+  const card=document.getElementById('card-continuar');
+  const orig=card.innerHTML;
+  card.innerHTML='<i class="fas fa-spinner fa-spin"></i><div><h3>Verificando...</h3></div>';
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    if(!list||!list.some(i=>String(i.id)===String(s.invId))){
+      card.innerHTML=orig;
+      try{localStorage.removeItem(LS_KEY);}catch(_){}
+      atualizarCardsSessao();
+      return alert("O inventario desta sessao foi encerrado.");
     }
-
-    const nomeAba = colaborativo ? nomeAbaGrupo_(idInventario, nomeGrupo) : nomeAbaUser_(idInventario, usuario);
-    const shOrig = ss.getSheetByName(nomeAba);
-    if (!shOrig) return { success: false, message: 'Nenhum dado encontrado.' };
-    const dataOrig = shOrig.getDataRange().getValues(); if (dataOrig.length < 2) return { success: false, message: 'Aba vazia.' };
-
-    // Verifica divergência
-    if (mr && mr.status === 'LIBERADO' && mr.meta) {
-      const meta = parseInt(mr.meta, 10), count = dataOrig.length - 1;
-      if (count !== meta) return { success: false, code: 'CONTAGEM_NAO_BATE', message: 'Contagem divergente.' };
+    currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
+    _confInvId=s.invId;_confInvNome=s.invName;
+    const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+    card.innerHTML=orig;
+    if(!sr||!sr.success){return alert("Erro ao verificar status.");}
+    if(sr.status==='LIBERADO'){
+      queue=[];bankCount=sr.count||0;localCount=bankCount;currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();ativarContagem(bankCount,sr&&sr.colaborativo||false);return;
     }
-
-    const shDest = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-    const lock = LockService.getScriptLock(); let ok = false;
-    for (let t = 0; t < 3; t++) { try { lock.waitLock(15000); ok = true; break; } catch (_) { Utilities.sleep(500); } }
-    if (!ok) return { success: false, message: 'Servidor ocupado.' };
-    try {
-      const now = new Date(), toMove = dataOrig.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4], now]);
-      if (toMove.length > 0) {
-        shDest.getRange(shDest.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
-        const lr = shOrig.getLastRow(); if (lr > 1) shOrig.deleteRows(2, lr - 1);
-      }
-      // Bloqueia todos os membros se colaborativo, só o usuário se normal
-      if (colaborativo) {
-        bloquearTodosDoGrupo_(idInventario, nomeGrupo, usuario);
-        marcarGrupoConcluido_(idInventario, usuario);
-      } else {
-        const mr2 = obterMeta_(idInventario, usuario); if (mr2) ss.getSheetByName(SHEET_METAS).deleteRow(mr2.rowIndex);
-        marcarGrupoConcluido_(idInventario, usuario);
-      }
-      return { success: true, count: toMove.length, colaborativo };
-    } finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
+    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert(sr.message||"Inventario encerrado.");}
+    if(sr.status==='SECAO_BLOQUEADA'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert("Sua secao foi bloqueada.");}
+    if(sr.status==='AGUARDANDO_META'){queue=[];localCount=0;bankCount=0;currentMeta=null;updateCounterUI();updateQueueUI();iniciarEspera();return;}
+    await showConferentePanel();
+  }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
 }
 
-function concluirSecaoForcado(usuario, idInventario, senha) {
-  try {
-    if (String(senha) !== SENHA_FORCA) return { success: false, code: 'SENHA_INCORRETA', message: 'Senha incorreta.' };
-    const inv = obterInventarioPorId_(idInventario); if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    const ss = getSS_();
-    const mr = obterMeta_(idInventario, usuario);
-    let colaborativo = false, nomeGrupo = mr ? mr.grupo : '';
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2 && mr) {
-      const gData = shG.getDataRange().getValues().slice(1);
-      const gRow = gData.find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) colaborativo = true;
-    }
-    const nomeAba = colaborativo ? nomeAbaGrupo_(idInventario, nomeGrupo) : nomeAbaUser_(idInventario, usuario);
-    const shOrig = ss.getSheetByName(nomeAba);
-    if (!shOrig) return { success: false, message: 'Nenhum dado encontrado.' };
-    const dataOrig = shOrig.getDataRange().getValues(); if (dataOrig.length < 2) return { success: false, message: 'Aba vazia.' };
-    const moved = moverParaConsolidado_(ss, shOrig, idInventario, usuario);
-    if (moved === -1) return { success: false, message: 'Servidor ocupado.' };
-    if (colaborativo) bloquearTodosDoGrupo_(idInventario, nomeGrupo, usuario);
-    return { success: true, count: moved, forcado: true };
-  } catch (e) { return { success: false, message: e.toString() }; }
+// ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
+function validarEAN13(code){
+  if(!/^\d{13}$/.test(code))return false;
+  let s=0;
+  for(let i=0;i<12;i++)s+=parseInt(code[i])*(i%2===0?1:3);
+  return (10-(s%10))%10===parseInt(code[12]);
 }
 
-function excluirItemUsuario(idInventario, usuario, rowIndex) {
-  try {
-    // Tenta aba colaborativa primeiro, depois individual
-    const mr = obterMeta_(idInventario, usuario);
-    let sh = null;
-    if (mr) {
-      const ss = getSS_(), shG = ss.getSheetByName(SHEET_GRUPOS);
-      if (shG && shG.getLastRow() >= 2) {
-        const gRow = shG.getDataRange().getValues().slice(1).find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-        if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) {
-          sh = ss.getSheetByName(nomeAbaGrupo_(idInventario, mr.grupo));
+// ── SCANNER html5-qrcode ───────────────────────────────────────────────────
+// Lógica simples e robusta:
+// Scanner — lógica simples com timestamp
+// Cada código aceito fica bloqueado por LOCK_MS
+// Só libera depois que a câmera fica IDLE_MS sem ver nenhum código
+let h5scanner=null;
+let _lastAccepted='', _lastAcceptedAt=0, _lastSeenAt=0;
+const LOCK_MS=1500;  // ms que o mesmo código fica bloqueado após ser aceito
+const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
+
+function startScanner(){
+  document.getElementById('scanner-overlay').style.display='flex';
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  const sc=document.getElementById('scanner-colab-lbl');
+  if(sc)sc.style.display=currentColaborativo?'block':'none';
+
+  if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
+  _lastAccepted='';_lastAcceptedAt=0;_lastSeenAt=0;
+
+  // Limpa div
+  const rd=document.getElementById('h5-reader');
+  if(rd)rd.innerHTML='';
+
+  h5scanner=new Html5Qrcode('h5-reader');
+  h5scanner.start(
+    {facingMode:'environment'},
+    {
+      fps:10,
+      qrbox:{width:280,height:100},
+      formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+      experimentalFeatures:{useBarCodeDetectorIfSupported:true},
+    },
+    (decodedText)=>{
+      const raw=(decodedText||'').trim();
+      const now=Date.now();
+      if(raw.length!==13)return;
+
+      // Atualiza o timestamp de "última vez que viu um código"
+      _lastSeenAt=now;
+
+      // Prefixo GS1 Brasil — REMOVIDO (confiar apenas no checksum)
+
+      // Checksum EAN-13
+      if(!validarEAN13(raw)){
+        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
+          showEANPopup(raw,false);bip(false);
+          if(navigator.vibrate)navigator.vibrate([40,20,40]);
         }
+        return;
       }
+
+      // Mesmo código dentro do período de lock — ignora silenciosamente
+      if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
+
+      // Código diferente mas câmera ainda "viu" o anterior recentemente
+      // (câmera se moveu mas ainda está na mesma área) — verifica idle
+      if(_lastAccepted&&raw!==_lastAccepted&&now-_lastSeenAt<IDLE_MS) return;
+
+      // ACEITA
+      _lastAccepted=raw;
+      _lastAcceptedAt=now;
+
+      showEANPopup(raw,true);
+      doFlash();
+      bip(true);
+      if(navigator.vibrate)navigator.vibrate(55);
+      enqueue(raw);
+    },
+    ()=>{
+      // Frame sem código — reseta o "último visto" para contar idle
+      // Não faz nada com _lastAccepted, o LOCK_MS cuida disso
     }
-    if (!sh) sh = getSS_().getSheetByName(nomeAbaUser_(idInventario, usuario));
-    if (!sh) return { success: false, message: 'Aba nao encontrada.' };
-    const ri = parseInt(rowIndex, 10); if (isNaN(ri) || ri < 2 || ri > sh.getLastRow()) return { success: false, message: 'Linha invalida.' };
-    const lock = LockService.getScriptLock(); lock.waitLock(8000);
-    try { sh.deleteRow(ri); return { success: true, newCount: Math.max(0, sh.getLastRow() - 1) }; }
-    finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
+  );
 }
 
-function zerarContagemUsuario(idInventario, usuario) {
-  try {
-    const mr = obterMeta_(idInventario, usuario);
-    let sh = null;
-    if (mr) {
-      const ss = getSS_(), shG = ss.getSheetByName(SHEET_GRUPOS);
-      if (shG && shG.getLastRow() >= 2) {
-        const gRow = shG.getDataRange().getValues().slice(1).find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-        if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) {
-          sh = getSS_().getSheetByName(nomeAbaGrupo_(idInventario, mr.grupo));
-        }
-      }
-    }
-    if (!sh) sh = getSS_().getSheetByName(nomeAbaUser_(idInventario, usuario));
-    if (!sh) return { success: false, message: 'Aba nao encontrada.' };
-    const lock = LockService.getScriptLock(); lock.waitLock(8000);
-    try { const lr = sh.getLastRow(); if (lr > 1) sh.deleteRows(2, lr - 1); return { success: true }; }
-    finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function masterConcluirSecao(usuario, idInventario, senha) {
-  try {
-    const ss = getSS_();
-    const mr = obterMeta_(idInventario, usuario);
-    let colaborativo = false, nomeGrupo = mr ? mr.grupo : '';
-    const shG = ss.getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2 && mr) {
-      const gRow = shG.getDataRange().getValues().slice(1).find(r => String(r[1]) === String(idInventario) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) colaborativo = true;
-    }
-    const nomeAba = colaborativo ? nomeAbaGrupo_(idInventario, nomeGrupo) : nomeAbaUser_(idInventario, usuario);
-    const shOrig = ss.getSheetByName(nomeAba);
-    if (!shOrig) return { success: false, message: 'Nenhum dado.' };
-    const dataOrig = shOrig.getDataRange().getValues(); if (dataOrig.length < 2) return { success: false, message: 'Aba vazia.' };
-
-    if (mr && mr.meta) {
-      const meta = parseInt(mr.meta, 10), count = dataOrig.length - 1;
-      if (count !== meta && String(senha) !== SENHA_FORCA) {
-        return { success: false, code: 'CONTAGEM_NAO_BATE', message: 'Contagem divergente. Confirme com senha.' };
-      }
-    }
-
-    const shDest = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-    const lock = LockService.getScriptLock(); lock.waitLock(15000);
-    try {
-      const now = new Date(), toMove = dataOrig.slice(1).map(r => [r[0], r[1], r[2], r[3], r[4], now]);
-      if (toMove.length > 0) {
-        shDest.getRange(shDest.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
-        const lr = shOrig.getLastRow(); if (lr > 1) shOrig.deleteRows(2, lr - 1);
-      }
-      if (colaborativo) {
-        bloquearTodosDoGrupo_(idInventario, nomeGrupo, 'Administrador');
-        marcarGrupoConcluido_(idInventario, usuario);
-      } else {
-        bloquearSecao_(idInventario, usuario);
-        const mr2 = obterMeta_(idInventario, usuario); if (mr2) ss.getSheetByName(SHEET_METAS).deleteRow(mr2.rowIndex);
-        marcarGrupoConcluido_(idInventario, usuario);
-      }
-      return { success: true, count: toMove.length, secaoBloqueada: true };
-    } finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function masterAddManualCode(p) {
-  try {
-    const ean = String(p.ean || '').trim(), usuario = String(p.usuario || '').trim(), idInv = String(p.idInventario || '').trim();
-    if (!ean || !usuario || !idInv) return { success: false, message: 'Parametros ausentes.' };
-    const inv = obterInventarioPorId_(idInv); if (!inv) return { success: false, message: 'Inventario nao encontrado.' };
-    if (String(inv.status) !== 'ABERTO') return { success: false, code: 'INVENTARIO_ENCERRADO', message: inv.msgBloqueio || 'Inventario encerrado.' };
-
-    // Detecta aba correta (colaborativo ou individual)
-    const mr = obterMeta_(idInv, usuario);
-    let nomeAba = nomeAbaUser_(idInv, usuario);
-    const shG = getSS_().getSheetByName(SHEET_GRUPOS);
-    if (shG && shG.getLastRow() >= 2 && mr) {
-      const gRow = shG.getDataRange().getValues().slice(1).find(r => String(r[1]) === String(idInv) && sanitizarUserKey_(r[2]) === sanitizarUserKey_(mr.grupo));
-      if (gRow && (gRow[7] === true || String(gRow[7]).toUpperCase() === 'SIM')) nomeAba = nomeAbaGrupo_(idInv, mr.grupo);
-    }
-
-    const sh = garantirAba(nomeAba, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora']);
-    const lock = LockService.getScriptLock(); lock.waitLock(10000);
-    try { sh.appendRow([ean, usuario, String(p.secao || 'MANUAL'), inv.nome, new Date()]); return { success: true, newCount: Math.max(0, sh.getLastRow() - 1) }; }
-    finally { try { lock.releaseLock(); } catch (_) {} }
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-// ── FINALIZAR INVENTÁRIO ──────────────────────────────────────────────────────
-
-function obterOuCriarAbaInventario_(nome, dataFinalizacao) {
-  const ss = getSS_();
-  const sufixo = dataFinalizacao ? ' - ' + Utilities.formatDate(dataFinalizacao, Session.getScriptTimeZone(), 'dd-MM-yyyy') : '';
-  let nomeAba = sanitizarNomeAba_(nome + sufixo);
-  if (ss.getSheetByName(nomeAba)) nomeAba = sanitizarNomeAba_(nome + sufixo + ' ' + Utilities.formatDate(dataFinalizacao || new Date(), Session.getScriptTimeZone(), 'HHmm'));
-  const sh = ss.insertSheet(nomeAba);
-  sh.appendRow(['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-  sh.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#1a3a1a').setFontColor('#ffffff');
-  sh.setFrozenRows(1);
-  return sh;
-}
-
-function moverDoConsolidadoParaAbaDoInventario_(nomeInv, dataFin) {
-  const ss = getSS_();
-  const shCons = ss.getSheetByName(SHEET_CONSOLIDADO);
-  if (!shCons || shCons.getLastRow() < 2) return { moved: 0, sheetName: null };
-  const values = shCons.getDataRange().getValues();
-  const data = values.slice(1);
-  const norm = s => String(s || '').trim().toLowerCase();
-  const nomeNorm = norm(nomeInv);
-  const mover = data.filter(r => norm(r[3]) === nomeNorm);
-  const manter = data.filter(r => norm(r[3]) !== nomeNorm);
-  let sheetName = null;
-  if (mover.length > 0) {
-    const shInv = obterOuCriarAbaInventario_(nomeInv, dataFin);
-    shInv.getRange(shInv.getLastRow() + 1, 1, mover.length, 6).setValues(mover);
-    sheetName = shInv.getName();
+function stopScanner(){
+  if(h5scanner){
+    h5scanner.stop().catch(()=>{});
+    h5scanner=null;
   }
-  shCons.clearContents();
-  shCons.getRange(1, 1, 1, 6).setValues([['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']]).setFontWeight('bold').setBackground('#eeeeee');
-  shCons.setFrozenRows(1);
-  if (manter.length > 0) shCons.getRange(2, 1, manter.length, 6).setValues(manter);
-  return { moved: mover.length, sheetName };
+  document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
+  const r=document.getElementById('h5-reader');
+  if(r)r.innerHTML='';
 }
 
-function apagarAbasUsersDoInventario_(id) {
-  const ss = getSS_();
-  const prefixes = ['USER_' + String(id) + '__', 'GRP_' + String(id) + '__'];
-  const del = ss.getSheets().filter(s => prefixes.some(p => s.getName().indexOf(p) === 0));
-  let n = 0;
-  del.forEach(s => { try { ss.deleteSheet(s); n++; } catch (_) {} });
-  return n;
+function doFlash(){
+  const f=document.getElementById('scan-flash');
+  f.classList.remove('blink');void f.offsetWidth;f.classList.add('blink');
 }
 
-function limparGruposDoInventario_(id) {
-  try {
-    const sh = getSS_().getSheetByName(SHEET_GRUPOS); if (!sh || sh.getLastRow() < 2) return;
-    const data = sh.getDataRange().getValues();
-    for (let i = data.length - 1; i >= 1; i--) { if (String(data[i][1]) === String(id)) sh.deleteRow(i + 1); }
-  } catch (_) {}
+function showEANPopup(text,ok){
+  const el=document.getElementById('scan-ean-popup');
+  el.textContent=ok?text:'✕ '+text;
+  el.className='';void el.offsetWidth;
+  el.className=ok?'ok':'inv';
 }
 
-function finalizarInventario(id) {
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
-  try {
-    const ss = getSS_();
-    const sh = ss.getSheetByName(SHEET_INVENTARIOS); if (!sh) return { success: false, message: 'Aba nao encontrada.' };
-    garantirColunas_(sh, ['MSG_BLOQUEIO', 'DATA_FINALIZACAO']);
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) !== String(id)) continue;
-      const nome = data[i][1], agora = new Date();
-      sh.getRange(i+1, 4).setValue('FINALIZADO');
-      sh.getRange(i+1, 6).setValue('O administrador encerrou o inventario.');
-      sh.getRange(i+1, 7).setValue(agora);
+function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao foi finalizada. Inicie uma nova.");showConferentePanel();}
 
-      // Move bipes pendentes de abas USER_ e GRP_ para o consolidado
-      const prefixes = ['USER_' + String(id) + '__', 'GRP_' + String(id) + '__'];
-      const abasUser = ss.getSheets().filter(s => prefixes.some(p => s.getName().indexOf(p) === 0));
-      let bipesPendentes = 0;
-      const shCons = garantirAba(SHEET_CONSOLIDADO, ['EAN13', 'Usuario', 'Secao', 'Inventario', 'Data/Hora', 'Data Conclusao']);
-      abasUser.forEach(shUser => {
-        const lr = shUser.getLastRow(); if (lr < 2) return;
-        const rows = shUser.getRange(2, 1, lr - 1, 5).getValues();
-        const toMove = rows.map(r => [r[0], r[1], r[2], r[3], r[4], agora]);
-        shCons.getRange(shCons.getLastRow() + 1, 1, toMove.length, 6).setValues(toMove);
-        bipesPendentes += toMove.length;
-      });
-
-      const mv = moverDoConsolidadoParaAbaDoInventario_(nome, agora);
-      const ru = apagarAbasUsersDoInventario_(id);
-      const shMetas = ss.getSheetByName(SHEET_METAS);
-      if (shMetas && shMetas.getLastRow() >= 2) {
-        const metaData = shMetas.getDataRange().getValues();
-        for (let m = metaData.length - 1; m >= 1; m--) { if (String(metaData[m][0]) === String(id)) shMetas.deleteRow(m + 1); }
-      }
-      limparGruposDoInventario_(id);
-      limparLocksInventario_(id);
-      return { success: true, message: 'Inventario finalizado.', inventario: nome, abaCriada: mv.sheetName || sanitizarNomeAba_(nome), itensMovidos: mv.moved || 0, bipesPendentesIncluidos: bipesPendentes, abasUsersApagadas: ru };
-    }
-    return { success: false, message: 'Inventario nao encontrado.' };
-  } catch (e) { return { success: false, message: e.toString() }; }
-  finally { try { lock.releaseLock(); } catch (_) {} }
+// ── CONCLUIR ───────────────────────────────────────────────────────────────
+async function doConcluirSecao(){
+  if(queue.length>0){
+    if(!confirm(`Ainda ha ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir?`))return;
+    if(flushTimer){clearTimeout(flushTimer);flushTimer=null;}
+    await flushQueue();
+    if(queue.length>0){alert("Nao foi possivel enviar todos os bipes. Tente novamente.");return;}
+  }
+  if(!confirm("Concluir contagem do grupo?"))return;
+  setBtnLoading('btn-concluir',true);
+  const res=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId});
+  if(res&&res.success){
+    document.getElementById('contagem-nao-bate').style.display='none';
+    alert(`Concluido! ${res.count} itens.`);
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    atualizarCardsSessao();
+    showScreen('main-menu');
+  } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
+    document.getElementById('contagem-nao-bate').style.display='block';
+    document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
+  } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
+    alert(res.message);
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    atualizarCardsSessao();
+    showScreen('main-menu');
+  } else {
+    alert(res&&res.message?res.message:"Erro ao concluir.");
+  }
+  setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
 }
 
-function excluirInventario(id) {
-  try {
-    const sh = getSS_().getSheetByName(SHEET_INVENTARIOS); if (!sh) return { success: false, message: 'Aba nao encontrada.' };
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) { if (String(data[i][0]) === String(id)) { sh.deleteRow(i+1); limparLocksInventario_(id); return { success: true }; } }
-    return { success: false, message: 'Nao encontrado.' };
-  } catch (e) { return { success: false, message: e.toString() }; }
-}
-
-function getDashboardData() {
-  try {
-    const ss=getSS_(),shInv=ss.getSheetByName(SHEET_INVENTARIOS),shCons=ss.getSheetByName(SHEET_CONSOLIDADO),shMetas=ss.getSheetByName(SHEET_METAS);
-    const consolidado=shCons?shCons.getDataRange().getValues().slice(1):[];
-    let inventarios=[];
-    if(shInv){garantirColunas_(shInv,['MSG_BLOQUEIO','DATA_FINALIZACAO']);shInv.getDataRange().getValues().slice(1).forEach(r=>inventarios.push({id:r[0],nome:r[1],status:r[3]}));}
-    const metasData=shMetas?shMetas.getDataRange().getValues().slice(1):[];
-    const aguardando=metasData.filter(r=>r[4]==='AGUARDANDO_META').map(r=>({idInventario:r[0],usuario:r[1],grupo:r[2]}));
-    const usuariosAtivos=[];let bipesEmAberto=0;
-    const shG2=ss.getSheetByName(SHEET_GRUPOS);
-    const gruposDataDash=shG2&&shG2.getLastRow()>=2?shG2.getDataRange().getValues().slice(1):[];
-    ss.getSheets().forEach(s=>{
-      const name=s.getName();
-      const isUser=name.indexOf('USER_')===0, isGrp=name.indexOf('GRP_')===0;
-      if(!isUser&&!isGrp)return;
-      const parts=name.split('__');
-      const invId=parts[0].replace('USER_','').replace('GRP_','');
-      const chave=(parts[1]||'').replace(/_/g,' ');
-      const count=Math.max(0,s.getLastRow()-1);
-      if(isUser){
-        const mr=metasData.find(r=>String(r[0])===String(invId)&&sanitizarUserKey_(r[1])===parts[1]);
-        if(count>0||mr){usuariosAtivos.push({nome:chave,bipes:count,idInventario:invId,bloqueado:estaBloqueada_(invId,chave),grupo:mr?mr[2]:'',meta:mr&&mr[3]?mr[3]:null,status:mr?mr[4]:null,colaborativo:false});bipesEmAberto+=count;}
-      } else if(isGrp){
-        // Grupo colaborativo — mostra como um card único com todos os membros
-        const gRow=gruposDataDash.find(r=>String(r[1])===String(invId)&&sanitizarUserKey_(r[2])===parts[1]);
-        if(!gRow)return;
-        const membros=String(gRow[9]||'').split(',').map(m=>m.trim()).filter(m=>m);
-        const meta=gRow[3]||null;
-        // Pega status da meta pelo primeiro membro
-        let statusMeta=null;
-        if(membros.length>0){
-          const mrColab=metasData.find(r=>String(r[0])===String(invId)&&sanitizarUserKey_(r[1])===sanitizarUserKey_(membros[0]));
-          if(mrColab)statusMeta=mrColab[4];
-        }
-        if(count>0||membros.length>0){
-          usuariosAtivos.push({
-            nome:'[GRUPO] '+chave,
-            bipes:count,idInventario:invId,
-            bloqueado:false,
-            grupo:chave,
-            meta:meta&&meta>0?meta:null,
-            status:statusMeta,
-            colaborativo:true,
-            membros:membros.join(', ')
-          });
-          bipesEmAberto+=count;
-        }
-      }
-    });
-    // Adiciona usuários aguardando meta que ainda não têm aba (ou têm grupo diferente do ativo)
-    aguardando.forEach(a=>{
-      const jaEsta=usuariosAtivos.some(u=>
-        String(u.idInventario)===String(a.idInventario)&&
-        sanitizarUserKey_(u.nome)===sanitizarUserKey_(a.usuario)&&
-        sanitizarUserKey_(u.grupo)===sanitizarUserKey_(a.grupo)
-      );
-      if(!jaEsta)usuariosAtivos.push({
-        nome:a.usuario,bipes:0,idInventario:a.idInventario,
-        bloqueado:false,grupo:a.grupo,meta:null,
-        status:'AGUARDANDO_META',colaborativo:false
-      });
-    });
-    const shG=ss.getSheetByName(SHEET_GRUPOS);
-    const grupos=shG&&shG.getLastRow()>=2?shG.getDataRange().getValues().slice(1).map(r=>({id:r[0],idInventario:r[1],nome:r[2],meta:r[3],status:r[4],usuario:r[5],colaborativo:r[7]===true||String(r[7]).toUpperCase()==='SIM',vagas:r[8]||1,membros:String(r[9]||'')})):[];
-    return {success:true,totalConsolidado:consolidado.length,totalEmAberto:bipesEmAberto,usuariosAtivos,inventarios,aguardando,grupos};
-  } catch(e){return{success:false,message:e.toString()};}
-}
-
-function getSheetsData() {
-  try {
-    const ss=getSS_(),shInv=ss.getSheetByName(SHEET_INVENTARIOS),shCons=ss.getSheetByName(SHEET_CONSOLIDADO),shMetas=ss.getSheetByName(SHEET_METAS);
-    const consolidado=shCons?shCons.getDataRange().getValues().slice(1):[];
-    let inventarios=[];
-    if(shInv){garantirColunas_(shInv,['MSG_BLOQUEIO','DATA_FINALIZACAO']);shInv.getDataRange().getValues().slice(1).forEach(r=>inventarios.push({id:r[0],nome:r[1],status:r[3]}));}
-    const metasData=shMetas?shMetas.getDataRange().getValues().slice(1):[];
-    const metas=metasData.map(r=>({idInventario:r[0],usuario:r[1],grupo:r[2],meta:r[3],status:r[4]}));
-    const usuarios=[];
-    // Carrega grupos para lookup de membros e colaborativo
-    const shG=ss.getSheetByName(SHEET_GRUPOS);
-    const gruposData=shG&&shG.getLastRow()>=2?shG.getDataRange().getValues().slice(1):[];
-
-    ss.getSheets().forEach(s=>{
-      const name=s.getName();
-      if(name.indexOf('USER_')!==0&&name.indexOf('GRP_')!==0)return;
-      const isGrp=name.indexOf('GRP_')===0;
-      const parts=name.split('__'),invId=parts[0].replace('USER_','').replace('GRP_',''),userKey=parts[1]||'',userName=userKey.replace(/_/g,' ');
-      const lastRow=s.getLastRow();
-      const mr=metasData.find(r=>String(r[0])===String(invId)&&(isGrp?sanitizarUserKey_(r[2])===userKey:sanitizarUserKey_(r[1])===userKey));
-      const items=lastRow>=2?s.getRange(2,1,lastRow-1,5).getValues().map((r,i)=>({rowIndex:i+2,ean:r[0],secao:r[2],dataHora:r[4]?String(r[4]):''})):[];
-
-      // Busca membros do grupo em CONFIG_GRUPOS
-      let membros='', primeiroMembro='';
-      if(isGrp){
-        const gRow=gruposData.find(r=>String(r[1])===String(invId)&&sanitizarUserKey_(r[2])===userKey);
-        if(gRow){
-          membros=String(gRow[9]||'');
-          const arr=membros.split(',').map(m=>m.trim()).filter(m=>m);
-          primeiroMembro=arr[0]||userName;
-        }
-      }
-
-      if(items.length>0||mr)usuarios.push({
-        nome: isGrp?'[GRUPO] '+userName:userName,
-        nomeReal: isGrp?(primeiroMembro||userName):userName,
-        isGrp,
-        idInventario:invId,
-        grupo:mr?mr[2]:userName,
-        bipes:items.length,
-        meta:mr&&mr[3]?mr[3]:null,
-        status:mr?mr[4]:null,
-        bloqueado:isGrp?false:estaBloqueada_(invId,userName),
-        membros,
-        items
-      });
-    });
-    metasData.filter(r=>r[4]==='AGUARDANDO_META').forEach(r=>{
-      const uKey=sanitizarUserKey_(r[1]);
-      const gKey=sanitizarUserKey_(r[2]);
-      // Só pula se já existe um card com o MESMO usuário E MESMO grupo
-      const jaEsta=usuarios.some(u=>
-        String(u.idInventario)===String(r[0])&&
-        sanitizarUserKey_(u.nome)===uKey&&
-        sanitizarUserKey_(u.grupo||u.nome)===gKey
-      );
-      if(!jaEsta)usuarios.push({
-        nome:r[1],nomeReal:r[1],isGrp:false,
-        idInventario:r[0],grupo:r[2],bipes:0,
-        meta:null,status:'AGUARDANDO_META',
-        bloqueado:false,membros:'',items:[]
-      });
-    });
-    const grupos=gruposData.map(r=>({id:r[0],idInventario:r[1],nome:r[2],meta:r[3],status:r[4],usuario:r[5],colaborativo:r[7]===true||String(r[7]).toUpperCase()==='SIM',vagas:parseInt(r[8]||'1',10)||1,membros:String(r[9]||'')}));
-    return {success:true,inventarios,metas,usuarios,totalConsolidado:consolidado.length,grupos};
-  } catch(e){return{success:false,message:e.toString()};}
-}
-
-function abrirModal() {
-  const html = HtmlService.createHtmlOutputFromFile('Sidebar').setWidth(900).setHeight(700);
-  SpreadsheetApp.getUi().showModalDialog(html, 'HS Inventario — Painel Admin');
-}
-function onOpen() {
-  SpreadsheetApp.getUi().createMenu('HS Inventario').addItem('Abrir Painel Admin', 'abrirModal').addToUi();
-}
+(function boot(){atualizarCardsSessao();})();
+</script>
+</body>
+</html>
