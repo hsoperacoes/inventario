@@ -438,17 +438,19 @@ function updateQueueUI(){
 }
 
 // ── TEMPO REAL — pool de contagem ─────────────────────────────────────────
+let _rtRedirecionando=false;
 function startRT(){
   stopRT();
+  _rtRedirecionando=false;
   rtTimer=setInterval(async()=>{
-    if(!currentInvId||!currentUser)return;
-    // Se há fila pendente, ainda verifica status mas não atualiza contagem
+    if(!currentInvId||!currentUser||_rtRedirecionando)return;
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
       if(!r||!r.success)return;
 
-      // Admin finalizou a seção deste conferente
       if(r.status==='SECAO_BLOQUEADA'){
+        if(_rtRedirecionando)return;
+        _rtRedirecionando=true;
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
@@ -459,8 +461,9 @@ function startRT(){
         return;
       }
 
-      // Admin encerrou o inventário inteiro
       if(r.status==='INVENTARIO_ENCERRADO'){
+        if(_rtRedirecionando)return;
+        _rtRedirecionando=true;
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
@@ -470,7 +473,6 @@ function startRT(){
         return;
       }
 
-      // Atualiza contagem normalmente (só se fila vazia)
       if(queue.length===0&&r.count!==undefined&&r.count!==bankCount){
         const prev=bankCount;
         bankCount=r.count;localCount=r.count;
