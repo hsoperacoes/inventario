@@ -505,6 +505,7 @@ function bip(ok=true){
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
 function showScreen(id){
+  _pegandoGrupo=false; // reseta flag de grupo em qualquer troca de tela
   document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   if(id==='master-panel')startRealTime();else stopRealTime();
@@ -642,6 +643,7 @@ async function doConferenteLogin(){
 
 // Passo 2: mostra grupos disponíveis
 async function mostrarSelecaoGrupo(){
+  _pegandoGrupo=false; // reseta sempre que abre a tela de grupos
   showScreen('grupo-select-panel');
   const elLista=document.getElementById('lista-grupos-disponiveis');
   elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
