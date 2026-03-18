@@ -504,13 +504,19 @@ function bip(ok=true){
 }
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
+let _gruposInterval=null;
 function showScreen(id){
-  _pegandoGrupo=false; // reseta flag de grupo em qualquer troca de tela
+  _pegandoGrupo=false;
   document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   if(id==='master-panel')startRealTime();else stopRealTime();
   if(id==='counting-panel')startRT();else stopRT();
   if(id!=='waiting-panel')pararEspera();
+  // Auto-refresh da lista de grupos enquanto na tela de seleção
+  if(_gruposInterval){clearInterval(_gruposInterval);_gruposInterval=null;}
+  if(id==='grupo-select-panel'){
+    _gruposInterval=setInterval(()=>carregarGruposDisponiveis(),15000);
+  }
 }
 function startRealTime(){loadDashboard();if(!refreshInterval)refreshInterval=setInterval(loadDashboard,10000);}
 function stopRealTime(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
@@ -693,34 +699,28 @@ async function doConferenteLogin(){
 async function mostrarSelecaoGrupo(){
   _pegandoGrupo=false;
   showScreen('grupo-select-panel');
-  // Garante que a lista está clicável
   const lista=document.getElementById('lista-grupos-disponiveis');
   if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
-  const elLista=document.getElementById('lista-grupos-disponiveis');
-  elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
-
-  // Mostra o ID do inventário sendo consultado para debug
   document.getElementById('debug-inv-id').textContent='Inventário: '+_confInvId+' ('+_confInvNome+')';
+  await carregarGruposDisponiveis();
+}
 
+async function carregarGruposDisponiveis(){
+  if(!_confInvId)return;
+  const elLista=document.getElementById('lista-grupos-disponiveis');
+  if(!elLista)return;
+  // Só mostra "carregando" se estiver vazio
+  if(!elLista.querySelector('.grupo-card'))
+    elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
   try{
     const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_confInvId});
-
-    if(!r){
-      elLista.innerHTML='<div class="grupo-empty" style="color:var(--danger)">Sem resposta do servidor.</div>';
+    if(!r||!r.success){
+      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro ao carregar grupos.</div>`;
       return;
     }
-    if(!r.success){
-      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro: ${r.message||'?'}</div>`;
-      return;
-    }
-
-    // Mostra info de debug embaixo do ID do inventário
-    document.getElementById('debug-inv-id').textContent=
-      `Inv: ${_confInvId} · ${r.debug_total||0} grupos no total · ${(r.grupos||[]).length} disponíveis para este inv`;
-
     const grupos=r.grupos||[];
     if(!grupos.length){
-      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo pré-criado disponível para este inventário.</div>';
+      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo disponível.</div>';
     }else{
       elLista.innerHTML=grupos.map(g=>`
         <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
@@ -732,7 +732,7 @@ async function mostrarSelecaoGrupo(){
         </div>`).join('');
     }
   }catch(e){
-    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão: ${e}</div>`;
+    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão.</div>`;
   }
 }
 
@@ -950,6 +950,8 @@ async function doConcluirSecao(){
     try{localStorage.removeItem(LS_KEY);}catch(_){}
     atualizarCardsSessao();
     showScreen('main-menu');
+  } else if(res&&res.code==='SEM_META'){
+    alert('Aguarde o administrador definir a meta antes de concluir.');
   } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
     document.getElementById('contagem-nao-bate').style.display='block';
     document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
