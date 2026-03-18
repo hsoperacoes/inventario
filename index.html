@@ -646,31 +646,36 @@ async function doConferenteLogin(){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
       _confInvId=invId;_confInvNome=res.nomeInventario;
 
-      // Verifica se já tem seção ativa antes de mostrar lista de grupos
+      // Verifica se já tem seção ativa
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
       if(sr&&sr.success){
-        if(sr.status==='LIBERADO'){
-          // Já tem grupo ativo e liberado — vai direto para contagem
+        if(sr.status==='LIBERADO'&&sr.count>0){
+          // Tem grupo ativo COM bipes — avisa e pergunta se quer continuar
+          const continuar=confirm(
+            `Você já tem o grupo "${sr.grupo}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
+          );
+          if(continuar){
+            setBtnLoading('btn-conf-login',false,'AVANÇAR');
+            currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+            queue=[];bankCount=sr.count||0;localCount=bankCount;
+            updateCounterUI();updateQueueUI();
+            ativarContagem(bankCount,sr.colaborativo||false);
+            return;
+          }
+          // Se não quer continuar, mostra lista de grupos normalmente
+        } else if(sr.status==='LIBERADO'&&(sr.count===0||sr.count===undefined)){
+          // Liberado mas sem bipes — deixa escolher novo grupo normalmente
+        } else if(sr.status==='AGUARDANDO_META'){
+          // Tem grupo aguardando meta do admin — avisa e manda para espera
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          currentMeta=sr.meta||null;
-          queue=[];bankCount=sr.count||0;localCount=bankCount;
-          updateCounterUI();updateQueueUI();
-          ativarContagem(bankCount,sr.colaborativo||false);
-          return;
-        }
-        if(sr.status==='AGUARDANDO_META'){
-          // Tem grupo ativo aguardando meta — avisa e manda para espera
-          setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação.\nAguarde o administrador definir a meta.`);
+          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
           currentSection=sr.grupo||'';
           iniciarEspera();
           return;
-        }
-        if(sr.status==='SECAO_BLOQUEADA'){
-          setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo}".`:`Seu grupo foi finalizado. Você pode iniciar um novo.`;
-          alert(msg);
-          // Seção bloqueada = pode criar novo grupo normalmente
+        } else if(sr.status==='SECAO_BLOQUEADA'){
+          // Grupo foi finalizado — pode criar novo, só avisa
+          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo}".`:'Seu grupo anterior foi finalizado.';
+          alert(msg+'\nVocê pode iniciar um novo grupo.');
         }
       }
 
