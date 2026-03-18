@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -440,20 +441,24 @@ function startRT(){
   stopRT();
   rtTimer=setInterval(async()=>{
     if(!currentInvId||!currentUser)return;
+    // Se há fila pendente, ainda verifica status mas não atualiza contagem
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
       if(!r||!r.success)return;
 
+      // Admin finalizou a seção deste conferente
       if(r.status==='SECAO_BLOQUEADA'){
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
         atualizarCardsSessao();
         showScreen('main-menu');
+        // Alert depois do redirect para não bloquear
         setTimeout(()=>alert('O administrador finalizou sua contagem.'),100);
         return;
       }
 
+      // Admin encerrou o inventário inteiro
       if(r.status==='INVENTARIO_ENCERRADO'){
         stopRT();
         try{stopScanner();}catch(_){}
@@ -464,6 +469,7 @@ function startRT(){
         return;
       }
 
+      // Atualiza contagem normalmente (só se fila vazia)
       if(queue.length===0&&r.count!==undefined&&r.count!==bankCount){
         const prev=bankCount;
         bankCount=r.count;localCount=r.count;
@@ -496,7 +502,7 @@ function bip(ok=true){
 
 // ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
 function showScreen(id){
-  _pegandoGrupo=false;
+  _pegandoGrupo=false; // reseta flag de grupo em qualquer troca de tela
   document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   if(id==='master-panel')startRealTime();else stopRealTime();
@@ -610,6 +616,7 @@ async function showConferentePanel(){
   }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
 }
 
+// Passo 1: valida acesso e vai para tela de seleção de grupo
 async function doConferenteLogin(){
   const name=document.getElementById('conf-name').value.trim();
   const invId=document.getElementById('inv-select').value;
@@ -631,14 +638,17 @@ async function doConferenteLogin(){
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
 }
 
+// Passo 2: mostra grupos disponíveis
 async function mostrarSelecaoGrupo(){
   _pegandoGrupo=false;
   showScreen('grupo-select-panel');
+  // Garante que a lista está clicável
   const lista=document.getElementById('lista-grupos-disponiveis');
   if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
   const elLista=document.getElementById('lista-grupos-disponiveis');
   elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
 
+  // Mostra o ID do inventário sendo consultado para debug
   document.getElementById('debug-inv-id').textContent='Inventário: '+_confInvId+' ('+_confInvNome+')';
 
   try{
@@ -653,6 +663,7 @@ async function mostrarSelecaoGrupo(){
       return;
     }
 
+    // Mostra info de debug embaixo do ID do inventário
     document.getElementById('debug-inv-id').textContent=
       `Inv: ${_confInvId} · ${r.debug_total||0} grupos no total · ${(r.grupos||[]).length} disponíveis para este inv`;
 
@@ -673,6 +684,7 @@ async function mostrarSelecaoGrupo(){
   }
 }
 
+// Pegou um grupo pré-criado
 let _pegandoGrupo=false;
 async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   if(_pegandoGrupo)return;
@@ -684,6 +696,7 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   try{
     const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
     if(r&&r.success){
+      // Restaura ANTES de mudar de tela
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
@@ -702,21 +715,27 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   _pegandoGrupo=false;
 }
 
+// Criou grupo manual (sem meta pré-definida — vai para espera)
 async function doIniciarNovoGrupo(){
   const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
   if(!nome)return alert("Digite o nome do grupo.");
   setBtnLoading('btn-novo-grupo',true);
   try{
     const r2=await callGAS({api:'iniciarSecao',usuario:currentUser,idInventario:_confInvId,secao:nome});
-    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');return;}
     currentSection=nome;currentMeta=null;
     queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
-    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
-    // Sempre vai para espera — admin precisa definir a meta antes de liberar
-    iniciarEspera();
-  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
+    // Verifica se já estava liberado
+    const sr=await callGAS({api:'getStatusSecao',idInventario:_confInvId,usuario:currentUser});
+    if(sr&&sr.success&&sr.status==='LIBERADO'){currentMeta=sr.meta||null;ativarContagem(sr.count||0);}
+    else iniciarEspera();
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
 }
 
+/**
+ * BUGFIX: "Continuar Última Contagem" vai direto ao banco sem passar pelo login.
+ */
 async function continuarUltimaContagem(){
   const s=lerSessao();
   if(!s)return alert("Nao existe sessao salva.");
@@ -756,21 +775,23 @@ function validarEAN13(code){
 }
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
-// CORREÇÃO: lógica simplificada — apenas LOCK_MS por código.
-// O código anterior usava _lastSeenAt + IDLE_MS que bloqueava
-// qualquer código diferente enquanto a câmera "via" algo,
-// causando travamento ao tentar ler produtos distintos em sequência.
+// Lógica simples e robusta:
+// Scanner — lógica simples com timestamp
+// Cada código aceito fica bloqueado por LOCK_MS
+// Só libera depois que a câmera fica IDLE_MS sem ver nenhum código
 let h5scanner=null;
-let _lastAccepted='', _lastAcceptedAt=0;
-const LOCK_MS=1500; // ms que o MESMO código fica bloqueado após ser aceito
+let _lastAccepted='', _lastAcceptedAt=0, _lastSeenAt=0;
+const LOCK_MS=1500;  // ms que o mesmo código fica bloqueado após ser aceito
+const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  _lastAccepted='';_lastAcceptedAt=0;
+  _lastAccepted='';_lastAcceptedAt=0;_lastSeenAt=0;
 
+  // Limpa div
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
 
@@ -788,17 +809,28 @@ function startScanner(){
       const now=Date.now();
       if(raw.length!==13)return;
 
+      // Atualiza o timestamp de "última vez que viu um código"
+      _lastSeenAt=now;
+
+      // Prefixo GS1 Brasil — REMOVIDO (confiar apenas no checksum)
+
       // Checksum EAN-13
       if(!validarEAN13(raw)){
-        showEANPopup(raw,false);bip(false);
-        if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
+          showEANPopup(raw,false);bip(false);
+          if(navigator.vibrate)navigator.vibrate([40,20,40]);
+        }
         return;
       }
 
       // Mesmo código dentro do período de lock — ignora silenciosamente
-      if(raw===_lastAccepted && now-_lastAcceptedAt<LOCK_MS) return;
+      if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
 
-      // ACEITA — qualquer código válido diferente entra imediatamente
+      // Código diferente mas câmera ainda "viu" o anterior recentemente
+      // (câmera se moveu mas ainda está na mesma área) — verifica idle
+      if(_lastAccepted&&raw!==_lastAccepted&&now-_lastSeenAt<IDLE_MS) return;
+
+      // ACEITA
       _lastAccepted=raw;
       _lastAcceptedAt=now;
 
@@ -808,7 +840,10 @@ function startScanner(){
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
     },
-    ()=>{}
+    ()=>{
+      // Frame sem código — reseta o "último visto" para contar idle
+      // Não faz nada com _lastAccepted, o LOCK_MS cuida disso
+    }
   );
 }
 
@@ -818,6 +853,7 @@ function stopScanner(){
     h5scanner=null;
   }
   document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
   const r=document.getElementById('h5-reader');
   if(r)r.innerHTML='';
 }
