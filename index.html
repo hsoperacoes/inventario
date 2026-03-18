@@ -663,6 +663,10 @@ async function doConferenteLogin(){
             ativarContagem(bankCount,sr.colaborativo||false);
             return;
           }
+          // Não quer continuar — zera estado para não contaminar próximo grupo
+          currentSection='';currentMeta=null;
+          queue=[];bankCount=0;localCount=0;
+          updateCounterUI();updateQueueUI();
         } else if(sr.status==='AGUARDANDO_META'&&sr.grupo){
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
           alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
@@ -887,14 +891,7 @@ function startScanner(){
       // Mesmo código dentro do período de lock — ignora silenciosamente
       if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
 
-      // Atualiza _lastSeenAt APENAS para códigos diferentes do bloqueado
-      // Isso evita que o código antigo bloqueie a leitura do novo
-      if(raw!==_lastAccepted) _lastSeenAt=now;
-
-      // Código diferente mas câmera ainda instável — aguarda idle
-      if(_lastAccepted&&raw!==_lastAccepted&&now-_lastSeenAt<IDLE_MS) return;
-
-      // ACEITA
+      // ACEITA — código diferente ou lock expirado
       _lastAccepted=raw;
       _lastAcceptedAt=now;
 
