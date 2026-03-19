@@ -214,8 +214,7 @@
     <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão e monitoramento em tempo real.</p></div></div>
     <button id="btn-open-conf" class="hidden"></button>
     <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
-    <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Continuar Última Contagem</h3><p id="continuar-desc"></p></div></div>
-    <div class="home-card" id="card-limpar" onclick="limparSessao()" style="display:none;"><i class="fas fa-trash"></i><div><h3>Limpar Sessão</h3><p>Apaga a última contagem salva deste dispositivo.</p></div></div>
+    <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Retomar Grupo Ativo</h3><p id="continuar-desc"></p></div></div>
   </div>
 </div>
 
@@ -573,8 +572,11 @@ function callGAS(params,retries=2){
 // ── SESSÃO ─────────────────────────────────────────────────────────────────
 function salvarSessao(){try{localStorage.setItem(LS_KEY,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarCardsSessao();}catch(_){}}
 function lerSessao(){try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
-function limparSessao(){if(!confirm("Apagar sessao salva?"))return;try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();alert("Sessao apagada.");}
-function atualizarCardsSessao(){const s=lerSessao();document.getElementById("card-continuar").style.display=s?"flex":"none";document.getElementById("card-limpar").style.display=s?"flex":"none";if(s)document.getElementById("continuar-desc").textContent=`${s.invName} · ${s.user} · ${s.section}`;}
+function atualizarCardsSessao(){
+  const s=lerSessao();
+  document.getElementById('card-continuar').style.display=s?'flex':'none';
+  if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
+}
 
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
 
@@ -654,16 +656,46 @@ let _confInvId='', _confInvNome='';
 function onInvSelectChange(){ /* placeholder para eventos futuros */ }
 
 async function showConferentePanel(){
+  // Se tem sessão salva, verifica no servidor se o grupo ainda está ativo
+  const s=lerSessao();
+  if(s&&s.user&&s.invId){
+    setBtnLoading('btn-open-conf',true);
+    try{
+      const list=await callGAS({api:'listarInventariosAbertos'});
+      if(list&&list.some(i=>String(i.id)===String(s.invId))){
+        const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+        if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
+          // Grupo ainda ativo — restaura e vai direto
+          currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+          _confInvId=s.invId;_confInvNome=s.invName;
+          setBtnLoading('btn-open-conf',false,'');
+          if(sr.status==='LIBERADO'){
+            currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
+            queue=[];bankCount=sr.count||0;localCount=bankCount;
+            updateCounterUI();updateQueueUI();
+            ativarContagem(bankCount,sr.colaborativo||false);
+          } else {
+            currentSection=sr.grupo||s.section||'';
+            iniciarEspera();
+          }
+          return;
+        }
+      }
+    }catch(_){}
+    setBtnLoading('btn-open-conf',false,'');
+  }
+
+  // Sem grupo ativo — mostra tela de login normalmente
   setBtnLoading('btn-open-conf',true);
   try{
     const list=await callGAS({api:'listarInventariosAbertos'});
     setBtnLoading('btn-open-conf',false,'');
     if(!list||!list.length)return alert("Nenhum inventario aberto.");
     document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
-    const s=lerSessao();
-    if(s&&list.some(i=>String(i.id)===String(s.invId))){
-      document.getElementById('inv-select').value=s.invId;
-      document.getElementById('conf-name').value=s.user||"";
+    const sess=lerSessao();
+    if(sess&&list.some(i=>String(i.id)===String(sess.invId))){
+      document.getElementById('inv-select').value=sess.invId;
+      document.getElementById('conf-name').value=sess.user||'';
     }
     showScreen('conferente-login');
   }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
@@ -841,10 +873,13 @@ async function continuarUltimaContagem(){
     if(sr.status==='SECAO_BLOQUEADA'){
       try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();
       const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo.`:'Sua seção foi finalizada.';
-      return alert(msg);
+      alert(msg+'\nEscolha um novo grupo.');
+      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+      _confInvId=s.invId;_confInvNome=s.invName;
+      await mostrarSelecaoGrupo();
+      return;
     }
     if(sr.status==='AGUARDANDO_META'){
-      // Grupo existe mas aguarda meta — restaura currentSection da sessão salva
       currentSection=sr.grupo||s.section||'';
       queue=[];localCount=0;bankCount=0;currentMeta=null;
       updateCounterUI();updateQueueUI();
@@ -852,10 +887,11 @@ async function continuarUltimaContagem(){
       return;
     }
     if(sr.status==='SEM_GRUPO'){
-      // Usuário não tem grupo ativo — limpa sessão e mostra menu
-      try{localStorage.removeItem(LS_KEY);}catch(_){}
-      atualizarCardsSessao();
-      return alert("Sua sessão anterior não está mais ativa. Inicie uma nova contagem.");
+      try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();
+      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+      _confInvId=s.invId;_confInvNome=s.invName;
+      await mostrarSelecaoGrupo();
+      return;
     }
     await showConferentePanel();
   }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
