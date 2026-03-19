@@ -859,14 +859,25 @@ function validarEAN13(code){
 }
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
-// Lógica simples e robusta:
-// Scanner — lógica simples com timestamp
-// Cada código aceito fica bloqueado por LOCK_MS
-// Só libera depois que a câmera fica IDLE_MS sem ver nenhum código
 let h5scanner=null;
-let _lastAccepted='', _lastAcceptedAt=0, _lastSeenAt=0;
-const LOCK_MS=1500;  // ms que o mesmo código fica bloqueado após ser aceito
-const IDLE_MS=800;   // ms sem ver nada para liberar o código bloqueado
+const LOCK_MS=2000; // ms que qualquer código fica bloqueado após ser aceito
+
+// Map de código → timestamp da última aceitação
+// Usado para deduplicação robusta mesmo com callbacks concorrentes
+const _scanLocks=new Map();
+
+function _podeAceitar(raw){
+  const now=Date.now();
+  const ultimo=_scanLocks.get(raw)||0;
+  if(now-ultimo<LOCK_MS)return false;
+  _scanLocks.set(raw,now);
+  // Limpa entradas antigas do Map para não crescer indefinidamente
+  if(_scanLocks.size>20){
+    const cutoff=now-LOCK_MS*2;
+    _scanLocks.forEach((t,k)=>{if(t<cutoff)_scanLocks.delete(k);});
+  }
+  return true;
+}
 
 function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
@@ -875,11 +886,16 @@ function startScanner(){
   if(sc)sc.style.display=currentColaborativo?'block':'none';
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  _lastAccepted='';_lastAcceptedAt=0;_lastSeenAt=0;
+  _scanLocks.clear(); // limpa todos os locks ao abrir o scanner
 
-  // Limpa div
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
+
+  // Contador de confirmações — exige que o mesmo código apareça
+  // em N frames consecutivos antes de aceitar (evita leituras parciais)
+  const _confirmBuffer=new Map(); // código → contagem de frames consecutivos
+  const FRAMES_NEEDED=2; // precisa aparecer 2x seguidas para confirmar
+  let _lastFrameCode='';
 
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
@@ -892,25 +908,39 @@ function startScanner(){
     },
     (decodedText)=>{
       const raw=(decodedText||'').trim();
-      const now=Date.now();
       if(raw.length!==13)return;
 
       // Checksum EAN-13
       if(!validarEAN13(raw)){
-        if(!_lastAccepted||now-_lastAcceptedAt>LOCK_MS){
+        // Só mostra erro se não estiver bloqueado por leitura válida recente
+        if(_podeAceitar('__invalid__'+raw)){
           showEANPopup(raw,false);bip(false);
           if(navigator.vibrate)navigator.vibrate([40,20,40]);
         }
+        _lastFrameCode='';
+        _confirmBuffer.clear();
         return;
       }
 
-      // Mesmo código dentro do lock — ignora
-      if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
+      // Se o código mudou entre frames, reseta o buffer de confirmação
+      if(raw!==_lastFrameCode){
+        _confirmBuffer.clear();
+        _lastFrameCode=raw;
+      }
 
-      // ACEITA — atualiza estado ANTES de qualquer operação async
-      // Isso evita que frames simultâneos do mesmo código passem
-      _lastAccepted=raw;
-      _lastAcceptedAt=now;
+      // Incrementa contador de frames para este código
+      const count=(_confirmBuffer.get(raw)||0)+1;
+      _confirmBuffer.set(raw,count);
+
+      // Só aceita após FRAMES_NEEDED frames consecutivos do mesmo código
+      if(count<FRAMES_NEEDED)return;
+
+      // Verifica lock — evita duplicação mesmo com callbacks concorrentes
+      if(!_podeAceitar(raw))return;
+
+      // ACEITA
+      _confirmBuffer.clear();
+      _lastFrameCode='';
 
       showEANPopup(raw,true);
       doFlash();
@@ -919,8 +949,9 @@ function startScanner(){
       enqueue(raw);
     },
     ()=>{
-      // Frame sem código — reseta o "último visto" para contar idle
-      // Não faz nada com _lastAccepted, o LOCK_MS cuida disso
+      // Frame sem código — reseta buffer de confirmação
+      _lastFrameCode='';
+      _confirmBuffer.clear();
     }
   );
 }
