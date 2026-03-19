@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>HS INVENTÁRIO PRO</title>
+  <meta name="author" content="HS Sistemas"/>
+  <title>HS Inventário</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
@@ -208,7 +209,7 @@
 
 <!-- MENU PRINCIPAL -->
 <div class="container" id="main-menu">
-  <h2>HS INVENTÁRIO PRO</h2>
+  <h2>HS Inventário</h2>
   <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
   <div class="home-grid">
     <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão e monitoramento em tempo real.</p></div></div>
@@ -386,51 +387,51 @@
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
-let refreshInterval=null,waitingTimer=null,flushTimer=null,rtTimer=null;
-const LS_KEY="HS_INV_SESSAO_03";
+let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
+const CHAVE_LOCAL="HS_INV_SESSAO_03";
 
-// ── FILA OTIMISTA ──────────────────────────────────────────────────────────
-let queue=[],localCount=0,bankCount=0,isFlushing=false,_flushRetries=0;
-const MAX_FLUSH_RETRIES=5;
+// pendentes de envio
+let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
+const MAX_TENTATIVAS=5;
 
 function enqueue(ean){
-  queue.push(ean);localCount++;
+  queue.push(ean);totalLocal++;
   updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,300);}
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,300);}
 async function flushQueue(){
-  if(isFlushing||queue.length===0)return;
-  isFlushing=true;setRT('warn');
+  if(enviando||queue.length===0)return;
+  enviando=true;setRT('warn');
   const batch=queue.slice();
   try{
     const res=await callGAS({api:'registrarBipeLote',eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
     if(res&&res.success){
-      queue=queue.slice(batch.length);bankCount=res.count;
-      if(localCount!==bankCount)localCount=bankCount;
-      _flushRetries=0;setRT('ok');
+      queue=queue.slice(batch.length);totalServidor=res.count;
+      if(totalLocal!==totalServidor)totalLocal=totalServidor;
+      _tentativas=0;setRT('ok');
       if(queue.length>0)scheduleFlush();
     }else{
       setRT('err');
-      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];localCount=bankCount;try{localStorage.removeItem(LS_KEY);}catch(_){}stopScanner();showScreen('main-menu');atualizarCardsSessao();}
-      else if(res&&res.code==='SECAO_FECHADA'){queue=[];localCount=bankCount;forcarNovaSecao(res.message);}
-      else if(_flushRetries<MAX_FLUSH_RETRIES){
-        _flushRetries++;
-        const delay=1500*_flushRetries;
-        isFlushing=false;updateCounterUI();updateQueueUI();
-        flushTimer=setTimeout(flushQueue,delay);
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];totalLocal=totalServidor;try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}stopScanner();showScreen('main-menu');atualizarMenu();}
+      else if(res&&res.code==='SECAO_FECHADA'){queue=[];totalLocal=totalServidor;grupoEncerrado(res.message);}
+      else if(_tentativas<MAX_TENTATIVAS){
+        _tentativas++;
+        const delay=1500*_tentativas;
+        enviando=false;updateCounterUI();updateQueueUI();
+        timerEnvio=setTimeout(flushQueue,delay);
         return;
       }
     }
   }catch(e){
     setRT('err');
-    if(_flushRetries<MAX_FLUSH_RETRIES){
-      _flushRetries++;
-      isFlushing=false;updateCounterUI();updateQueueUI();
-      flushTimer=setTimeout(flushQueue,1500*_flushRetries);
+    if(_tentativas<MAX_TENTATIVAS){
+      _tentativas++;
+      enviando=false;updateCounterUI();updateQueueUI();
+      timerEnvio=setTimeout(flushQueue,1500*_tentativas);
       return;
     }
   }
-  isFlushing=false;updateCounterUI();updateQueueUI();
+  enviando=false;updateCounterUI();updateQueueUI();
 }
 
 function setRT(s){
@@ -441,7 +442,7 @@ function setRT(s){
 }
 
 function updateCounterUI(newEan){
-  const v=String(localCount);
+  const v=String(totalLocal);
   document.getElementById('user-count').textContent=v;
   document.getElementById('scanner-count-val').textContent=v;
   if(newEan){
@@ -458,52 +459,52 @@ function updateQueueUI(){
   const pnd=queue.length;
   const pill=document.getElementById('queue-pill'),pndl=document.getElementById('scanner-pnd-lbl');
   if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;if(pill){pill.textContent=t;pill.style.display='block';}if(pndl)pndl.textContent=t;setRT('warn');}
-  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!isFlushing)setRT('ok');}
+  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!enviando)setRT('ok');}
 }
 
-// ── TEMPO REAL — pool de contagem ─────────────────────────────────────────
-let _rtRedirecionando=false;
-let _rtSessionToken=0; // incrementado a cada nova contagem — invalida respostas antigas
+// atualização em tempo real
+let _redirecionando=false;
+let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
   stopRT();
-  _rtRedirecionando=false;
-  const myToken=++_rtSessionToken;
-  rtTimer=setInterval(async()=>{
-    if(!currentInvId||!currentUser||_rtRedirecionando)return;
+  _redirecionando=false;
+  const tkAtual=++_tokenSessao;
+  timerRT=setInterval(async()=>{
+    if(!currentInvId||!currentUser||_redirecionando)return;
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
-      if(myToken!==_rtSessionToken)return; // resposta de sessão anterior — descarta
+      if(tkAtual!==_tokenSessao)return; // resposta de sessão anterior — descarta
       if(!r||!r.success)return;
 
       if(r.status==='SECAO_BLOQUEADA'){
-        if(_rtRedirecionando)return;
-        _rtRedirecionando=true;
+        if(_redirecionando)return;
+        _redirecionando=true;
         stopRT();
         try{stopScanner();}catch(_){}
-        try{localStorage.removeItem(LS_KEY);}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
         const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
         setTimeout(()=>{
           alert(msg+'\nEscolha um novo grupo para continuar.');
-          mostrarSelecaoGrupo();
+          telaGrupos();
         },100);
         return;
       }
 
       if(r.status==='INVENTARIO_ENCERRADO'){
-        if(_rtRedirecionando)return;
-        _rtRedirecionando=true;
+        if(_redirecionando)return;
+        _redirecionando=true;
         stopRT();
         try{stopScanner();}catch(_){}
-        try{localStorage.removeItem(LS_KEY);}catch(_){}
-        atualizarCardsSessao();
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        atualizarMenu();
         showScreen('main-menu');
         setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
         return;
       }
 
-      if(queue.length===0&&r.count!==undefined&&r.count!==bankCount){
-        const prev=bankCount;
-        bankCount=r.count;localCount=r.count;
+      if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
+        const prev=totalServidor;
+        totalServidor=r.count;totalLocal=r.count;
         updateCounterUI();
         if(r.count<prev){
           const n=document.getElementById('user-count');
@@ -514,7 +515,7 @@ function startRT(){
     }catch(_){setRT('err');}
   },3000);
 }
-function stopRT(){if(rtTimer){clearInterval(rtTimer);rtTimer=null;}}
+function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
 
 // ── AUDIO ──────────────────────────────────────────────────────────────────
 let actx=null;
@@ -531,26 +532,26 @@ function bip(ok=true){
   }catch(_){}
 }
 
-// ── NAVEGAÇÃO ──────────────────────────────────────────────────────────────
-let _gruposInterval=null;
+// troca de telas
+let _timerGrupos=null;
 function showScreen(id){
-  _pegandoGrupo=false;
+  _entrando=false;
   document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
   if(id==='master-panel')startRealTime();else stopRealTime();
   if(id==='counting-panel')startRT();else stopRT();
   if(id!=='waiting-panel')pararEspera();
   // Auto-refresh da lista de grupos enquanto na tela de seleção
-  if(_gruposInterval){clearInterval(_gruposInterval);_gruposInterval=null;}
+  if(_timerGrupos){clearInterval(_timerGrupos);_timerGrupos=null;}
   if(id==='grupo-select-panel'){
-    _gruposInterval=setInterval(()=>carregarGruposDisponiveis(),15000);
+    _timerGrupos=setInterval(()=>listarGrupos(),15000);
   }
 }
-function startRealTime(){loadDashboard();if(!refreshInterval)refreshInterval=setInterval(loadDashboard,10000);}
-function stopRealTime(){if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}}
+function startRealTime(){loadDashboard();if(!timerDash)timerDash=setInterval(loadDashboard,10000);}
+function stopRealTime(){if(timerDash){clearInterval(timerDash);timerDash=null;}}
 function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
 
-// ── CALL GAS ───────────────────────────────────────────────────────────────
+// chamada para o backend
 function callGAS(params,retries=2){
   return new Promise((resolve,reject)=>{
     let attempt=0;
@@ -569,21 +570,21 @@ function callGAS(params,retries=2){
   });
 }
 
-// ── SESSÃO ─────────────────────────────────────────────────────────────────
-function salvarSessao(){try{localStorage.setItem(LS_KEY,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarCardsSessao();}catch(_){}}
-function lerSessao(){try{const r=localStorage.getItem(LS_KEY);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
-function atualizarCardsSessao(){
+// salva sessão local
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarMenu();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
+function atualizarMenu(){
   const s=lerSessao();
   document.getElementById('card-continuar').style.display=s?'flex':'none';
   if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
 }
 
-function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarCardsSessao();}
+function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
 
 // ── ESPERA ─────────────────────────────────────────────────────────────────
 let _verif=false;
-function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();waitingTimer=setInterval(verificarLiberacao,3000);verificarLiberacao();}
-function pararEspera(){if(waitingTimer){clearInterval(waitingTimer);waitingTimer=null;}_verif=false;}
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();timerEspera=setInterval(verificarLiberacao,3000);verificarLiberacao();}
+function pararEspera(){if(timerEspera){clearInterval(timerEspera);timerEspera=null;}_verif=false;}
 async function verificarLiberacao(){
   if(_verif)return;_verif=true;
   try{
@@ -591,23 +592,23 @@ async function verificarLiberacao(){
     if(!res||!res.success){_verif=false;return;}
     if(res.status==='LIBERADO'){
       pararEspera();currentMeta=res.meta||null;
-      ativarContagem(res.count||0,res.colaborativo||false);
+      iniciarTela(res.count||0,res.colaborativo||false);
       return;
     }
-    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(LS_KEY);}catch(_){}showScreen('main-menu');atualizarCardsSessao();return;}
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}showScreen('main-menu');atualizarMenu();return;}
     if(res.status==='SECAO_BLOQUEADA'){
       pararEspera();
       const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
-      showScreen('main-menu');atualizarCardsSessao();
+      showScreen('main-menu');atualizarMenu();
       setTimeout(()=>alert(msg),100);
       return;
     }
   }catch(_){}
   _verif=false;
 }
-let currentColaborativo=false;
-function ativarContagem(count,colaborativo){
-  currentColaborativo=!!colaborativo;
+let grupoColab=false;
+function iniciarTela(count,colaborativo){
+  grupoColab=!!colaborativo;
   document.getElementById('display-name').textContent=currentUser;
   document.getElementById('display-section').textContent=currentSection;
   document.getElementById('active-inv-title').textContent=currentInvName;
@@ -617,12 +618,12 @@ function ativarContagem(count,colaborativo){
   document.getElementById('last-ean-badge').style.display='none';
   // Badge colaborativo
   const badge=document.getElementById('colab-badge');
-  if(badge)badge.style.display=currentColaborativo?'flex':'none';
-  bankCount=count;localCount=count;updateCounterUI();updateQueueUI();
+  if(badge)badge.style.display=grupoColab?'flex':'none';
+  totalServidor=count;totalLocal=count;updateCounterUI();updateQueueUI();
   showScreen('counting-panel');salvarSessao();
 }
 
-// ── MASTER ─────────────────────────────────────────────────────────────────
+// painel master
 async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
 let invNameById={};
 async function loadDashboard(){
@@ -651,7 +652,7 @@ async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;con
 async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
 
 // ── CONFERENTE ─────────────────────────────────────────────────────────────
-let _confInvId='', _confInvNome='';
+let _invAtual='', _invNome='';
 
 function onInvSelectChange(){ /* placeholder para eventos futuros */ }
 
@@ -667,13 +668,13 @@ async function showConferentePanel(){
         if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
           // Grupo ainda ativo — restaura e vai direto
           currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
-          _confInvId=s.invId;_confInvNome=s.invName;
+          _invAtual=s.invId;_invNome=s.invName;
           setBtnLoading('btn-open-conf',false,'');
           if(sr.status==='LIBERADO'){
             currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
-            queue=[];bankCount=sr.count||0;localCount=bankCount;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
             updateCounterUI();updateQueueUI();
-            ativarContagem(bankCount,sr.colaborativo||false);
+            iniciarTela(totalServidor,sr.colaborativo||false);
           } else {
             currentSection=sr.grupo||s.section||'';
             iniciarEspera();
@@ -701,7 +702,7 @@ async function showConferentePanel(){
   }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
 }
 
-// Passo 1: valida acesso e vai para tela de seleção de grupo
+
 async function doConferenteLogin(){
   const name=document.getElementById('conf-name').value.trim();
   const invId=document.getElementById('inv-select').value;
@@ -713,7 +714,7 @@ async function doConferenteLogin(){
     if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'AVANÇAR');return;}
     if(res&&res.success){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
-      _confInvId=invId;_confInvNome=res.nomeInventario;
+      _invAtual=invId;_invNome=res.nomeInventario;
 
       // Verifica se já tem seção ativa
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
@@ -725,13 +726,13 @@ async function doConferenteLogin(){
           if(continuar){
             setBtnLoading('btn-conf-login',false,'AVANÇAR');
             currentSection=sr.grupo||'';currentMeta=sr.meta||null;
-            queue=[];bankCount=sr.count||0;localCount=bankCount;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
             updateCounterUI();updateQueueUI();
-            ativarContagem(bankCount,sr.colaborativo||false);
+            iniciarTela(totalServidor,sr.colaborativo||false);
             return;
           }
           currentSection='';currentMeta=null;
-          queue=[];bankCount=0;localCount=0;
+          queue=[];totalServidor=0;totalLocal=0;
           updateCounterUI();updateQueueUI();
         } else if(sr.status==='AGUARDANDO_META'&&sr.grupo){
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
@@ -746,7 +747,7 @@ async function doConferenteLogin(){
       }
 
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
-      await mostrarSelecaoGrupo();
+      await telaGrupos();
     }else{
       alert(res&&res.message?res.message:"Senha incorreta.");
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
@@ -754,25 +755,25 @@ async function doConferenteLogin(){
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
 }
 
-// Passo 2: mostra grupos disponíveis
-async function mostrarSelecaoGrupo(){
-  _pegandoGrupo=false;
+
+async function telaGrupos(){
+  _entrando=false;
   showScreen('grupo-select-panel');
   const lista=document.getElementById('lista-grupos-disponiveis');
   if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
-  document.getElementById('debug-inv-id').textContent='Inventário: '+_confInvId+' ('+_confInvNome+')';
-  await carregarGruposDisponiveis();
+  document.getElementById('debug-inv-id').textContent='Inventário: '+_invAtual+' ('+_invNome+')';
+  await listarGrupos();
 }
 
-async function carregarGruposDisponiveis(){
-  if(!_confInvId)return;
+async function listarGrupos(){
+  if(!_invAtual)return;
   const elLista=document.getElementById('lista-grupos-disponiveis');
   if(!elLista)return;
-  // Só mostra "carregando" se estiver vazio
+  
   if(!elLista.querySelector('.grupo-card'))
     elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
   try{
-    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_confInvId});
+    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_invAtual});
     if(!r||!r.success){
       elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro ao carregar grupos.</div>`;
       return;
@@ -795,38 +796,38 @@ async function carregarGruposDisponiveis(){
   }
 }
 
-// Pegou um grupo pré-criado
-let _pegandoGrupo=false;
+
+let _entrando=false;
 async function doUsarGrupo(idGrupo, nomeGrupo, meta){
-  if(_pegandoGrupo)return;
-  _pegandoGrupo=true;
+  if(_entrando)return;
+  _entrando=true;
 
   const lista=document.getElementById('lista-grupos-disponiveis');
   if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
 
   try{
-    const r=await callGAS({api:'pegarGrupo',idInventario:_confInvId,usuario:currentUser,idGrupo});
+    const r=await callGAS({api:'pegarGrupo',idInventario:_invAtual,usuario:currentUser,idGrupo});
     if(r&&r.success){
       // Restaura ANTES de mudar de tela
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
-      queue=[];bankCount=0;localCount=0;updateCounterUI();updateQueueUI();
-      ativarContagem(0,r&&r.colaborativo||false);
+      queue=[];totalServidor=0;totalLocal=0;updateCounterUI();updateQueueUI();
+      iniciarTela(0,r&&r.colaborativo||false);
       salvarSessao();
     }else{
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       alert(r&&r.message?r.message:"Erro ao reservar grupo.");
-      await mostrarSelecaoGrupo();
+      await telaGrupos();
     }
   }catch(e){
     if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
     alert("Erro: "+e);
   }
-  _pegandoGrupo=false;
+  _entrando=false;
 }
 
-// Criou grupo manual (sem meta pré-definida — SEMPRE vai para espera)
+
 async function doIniciarNovoGrupo(){
   const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
   if(!nome)return alert("Digite o nome do grupo.");
@@ -834,18 +835,16 @@ async function doIniciarNovoGrupo(){
   try{
     // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
     // já tivesse um grupo liberado anteriormente
-    const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_confInvId,secao:nome});
+    const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
     if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
     currentSection=nome;currentMeta=null;
-    queue=[];localCount=0;bankCount=0;updateCounterUI();updateQueueUI();
+    queue=[];totalLocal=0;totalServidor=0;updateCounterUI();updateQueueUI();
     setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
     iniciarEspera();
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
 }
 
-/**
- * BUGFIX: "Continuar Última Contagem" vai direto ao banco sem passar pelo login.
- */
+
 async function continuarUltimaContagem(){
   const s=lerSessao();
   if(!s)return alert("Nao existe sessao salva.");
@@ -856,48 +855,48 @@ async function continuarUltimaContagem(){
     const list=await callGAS({api:'listarInventariosAbertos'});
     if(!list||!list.some(i=>String(i.id)===String(s.invId))){
       card.innerHTML=orig;
-      try{localStorage.removeItem(LS_KEY);}catch(_){}
-      atualizarCardsSessao();
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      atualizarMenu();
       return alert("O inventario desta sessao foi encerrado.");
     }
     currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
-    _confInvId=s.invId;_confInvNome=s.invName;
+    _invAtual=s.invId;_invNome=s.invName;
     const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
     card.innerHTML=orig;
     if(!sr||!sr.success){return alert("Erro ao verificar status.");}
     if(sr.status==='LIBERADO'){
-      queue=[];bankCount=sr.count||0;localCount=bankCount;currentMeta=sr.meta||null;
-      updateCounterUI();updateQueueUI();ativarContagem(bankCount,sr&&sr.colaborativo||false);return;
+      queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();iniciarTela(totalServidor,sr&&sr.colaborativo||false);return;
     }
-    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();return alert(sr.message||"Inventario encerrado.");}
+    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();return alert(sr.message||"Inventario encerrado.");}
     if(sr.status==='SECAO_BLOQUEADA'){
-      try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
       const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo.`:'Sua seção foi finalizada.';
       alert(msg+'\nEscolha um novo grupo.');
       currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
-      _confInvId=s.invId;_confInvNome=s.invName;
-      await mostrarSelecaoGrupo();
+      _invAtual=s.invId;_invNome=s.invName;
+      await telaGrupos();
       return;
     }
     if(sr.status==='AGUARDANDO_META'){
       currentSection=sr.grupo||s.section||'';
-      queue=[];localCount=0;bankCount=0;currentMeta=null;
+      queue=[];totalLocal=0;totalServidor=0;currentMeta=null;
       updateCounterUI();updateQueueUI();
       iniciarEspera();
       return;
     }
     if(sr.status==='SEM_GRUPO'){
-      try{localStorage.removeItem(LS_KEY);}catch(_){}atualizarCardsSessao();
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
       currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
-      _confInvId=s.invId;_confInvNome=s.invName;
-      await mostrarSelecaoGrupo();
+      _invAtual=s.invId;_invNome=s.invName;
+      await telaGrupos();
       return;
     }
     await showConferentePanel();
   }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
 }
 
-// ── EAN-13 VALIDAÇÃO ────────────────────────────────────────────────────────
+// valida código de barras
 function validarEAN13(code){
   if(!/^\d{13}$/.test(code))return false;
   let s=0;
@@ -905,16 +904,16 @@ function validarEAN13(code){
   return (10-(s%10))%10===parseInt(code[12]);
 }
 
-// ── SCANNER html5-qrcode ───────────────────────────────────────────────────
+// leitor de código de barras
 let h5scanner=null;
-let _scannerPaused=false;
+let _scannerTravado=false;
 const LOCK_MS=1500;
-const _scanLocks=new Map();
+const _travas=new Map();
 function _podeAceitar(raw){
   const now=Date.now();
-  if((now-(_scanLocks.get(raw)||0))<LOCK_MS)return false;
-  _scanLocks.set(raw,now);
-  if(_scanLocks.size>50){const c=now-LOCK_MS*3;_scanLocks.forEach((t,k)=>{if(t<c)_scanLocks.delete(k);});}
+  if((now-(_travas.get(raw)||0))<LOCK_MS)return false;
+  _travas.set(raw,now);
+  if(_travas.size>50){const c=now-LOCK_MS*3;_travas.forEach((t,k)=>{if(t<c)_travas.delete(k);});}
   return true;
 }
 
@@ -922,11 +921,11 @@ function startScanner(){
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
   const sc=document.getElementById('scanner-colab-lbl');
-  if(sc)sc.style.display=currentColaborativo?'block':'none';
+  if(sc)sc.style.display=grupoColab?'block':'none';
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  _scanLocks.clear();
-  _scannerPaused=false;
+  _travas.clear();
+  _scannerTravado=false;
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
 
@@ -935,7 +934,7 @@ function startScanner(){
     {facingMode:'environment'},
     {fps:15,qrbox:{width:260,height:80},formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}},
     (decodedText)=>{
-      if(_scannerPaused)return;
+      if(_scannerTravado)return;
       const raw=(decodedText||'').trim();
       if(raw.length!==13)return;
       if(!validarEAN13(raw)){
@@ -944,7 +943,7 @@ function startScanner(){
       }
       // Verifica prefixo — pausa scanner e mostra overlay se suspeito
       if(!raw.startsWith('7909')&&!raw.startsWith('7900')){
-        _scannerPaused=true;
+        _scannerTravado=true;
         document.getElementById('scan-prefixo-ean').textContent=raw;
         document.getElementById('scan-prefixo-alerta').style.display='flex';
         bip(false);
@@ -954,8 +953,8 @@ function startScanner(){
         return;
       }
       if(!_podeAceitar(raw))return;
-      _scannerPaused=true;
-      setTimeout(()=>{_scannerPaused=false;},LOCK_MS);
+      _scannerTravado=true;
+      setTimeout(()=>{_scannerTravado=false;},LOCK_MS);
       showEANPopup(raw,true);doFlash();bip(true);
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
@@ -989,22 +988,22 @@ function showEANPopup(text,ok){
 
 function fecharAlertaPrefixo(){
   document.getElementById('scan-prefixo-alerta').style.display='none';
-  _scanLocks.clear(); // limpa locks para próximo código ser aceito imediatamente
-  _scannerPaused=false;
+  _travas.clear(); // limpa locks para próximo código ser aceito imediatamente
+  _scannerTravado=false;
 }
 
-function forcarNovaSecao(msg){
+function grupoEncerrado(msg){
   try{stopScanner();}catch(_){}
   alert(msg||"Sua seção foi finalizada. Escolha um novo grupo.");
-  mostrarSelecaoGrupo();
+  telaGrupos();
 }
 
-// ── CONCLUIR ───────────────────────────────────────────────────────────────
+// finalizar contagem
 async function doConcluirSecao(){
   // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
-    if(flushTimer){clearTimeout(flushTimer);flushTimer=null;}
+    if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
     // Tenta flush até 3 vezes com 2s de espera entre tentativas
     for(let t=0;t<3;t++){
       await flushQueue();
@@ -1019,9 +1018,9 @@ async function doConcluirSecao(){
   if(res&&res.success){
     document.getElementById('contagem-nao-bate').style.display='none';
     alert(`Concluído! ${res.count} itens registrados.`);
-    try{localStorage.removeItem(LS_KEY);}catch(_){}
-    currentSection='';currentMeta=null;queue=[];bankCount=0;localCount=0;
-    mostrarSelecaoGrupo();
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    currentSection='';currentMeta=null;queue=[];totalServidor=0;totalLocal=0;
+    telaGrupos();
   } else if(res&&res.code==='SEM_META'){
     alert('Aguarde o administrador definir a meta antes de concluir.');
   } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
@@ -1029,8 +1028,8 @@ async function doConcluirSecao(){
     document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
   } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
     alert(res.message);
-    try{localStorage.removeItem(LS_KEY);}catch(_){}
-    atualizarCardsSessao();
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    atualizarMenu();
     showScreen('main-menu');
   } else {
     alert(res&&res.message?res.message:"Erro ao concluir.");
@@ -1038,7 +1037,7 @@ async function doConcluirSecao(){
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
 }
 
-(function boot(){atualizarCardsSessao();})();
+(function boot(){atualizarMenu();})();
 </script>
 </body>
 </html>
