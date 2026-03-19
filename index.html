@@ -860,6 +860,7 @@ function validarEAN13(code){
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
 let h5scanner=null;
+let _scannerPaused=false;
 const LOCK_MS=1500;
 const _scanLocks=new Map();
 function _podeAceitar(raw){
@@ -878,6 +879,7 @@ function startScanner(){
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
   _scanLocks.clear();
+  _scannerPaused=false;
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
 
@@ -886,6 +888,7 @@ function startScanner(){
     {facingMode:'environment'},
     {fps:15,qrbox:{width:260,height:80},formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}},
     (decodedText)=>{
+      if(_scannerPaused)return; // scanner congelado — ignora todos os frames
       const raw=(decodedText||'').trim();
       if(raw.length!==13)return;
       if(!validarEAN13(raw)){
@@ -893,6 +896,9 @@ function startScanner(){
         return;
       }
       if(!_podeAceitar(raw))return;
+      // ACEITA — congela o scanner por LOCK_MS
+      _scannerPaused=true;
+      setTimeout(()=>{_scannerPaused=false;},LOCK_MS);
       showEANPopup(raw,true);doFlash();bip(true);
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
