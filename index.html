@@ -886,16 +886,10 @@ function startScanner(){
   if(sc)sc.style.display=currentColaborativo?'block':'none';
 
   if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
-  _scanLocks.clear(); // limpa todos os locks ao abrir o scanner
+  _scanLocks.clear();
 
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
-
-  // Contador de confirmações — exige que o mesmo código apareça
-  // em N frames consecutivos antes de aceitar (evita leituras parciais)
-  const _confirmBuffer=new Map(); // código → contagem de frames consecutivos
-  const FRAMES_NEEDED=2; // precisa aparecer 2x seguidas para confirmar
-  let _lastFrameCode='';
 
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
@@ -910,37 +904,17 @@ function startScanner(){
       const raw=(decodedText||'').trim();
       if(raw.length!==13)return;
 
-      // Checksum EAN-13
       if(!validarEAN13(raw)){
-        // Só mostra erro se não estiver bloqueado por leitura válida recente
-        if(_podeAceitar('__invalid__'+raw)){
+        // Só mostra inválido se não há código bom travado agora
+        if(_scanLocks.size===0||!Array.from(_scanLocks.values()).some(t=>Date.now()-t<LOCK_MS)){
           showEANPopup(raw,false);bip(false);
           if(navigator.vibrate)navigator.vibrate([40,20,40]);
         }
-        _lastFrameCode='';
-        _confirmBuffer.clear();
         return;
       }
 
-      // Se o código mudou entre frames, reseta o buffer de confirmação
-      if(raw!==_lastFrameCode){
-        _confirmBuffer.clear();
-        _lastFrameCode=raw;
-      }
-
-      // Incrementa contador de frames para este código
-      const count=(_confirmBuffer.get(raw)||0)+1;
-      _confirmBuffer.set(raw,count);
-
-      // Só aceita após FRAMES_NEEDED frames consecutivos do mesmo código
-      if(count<FRAMES_NEEDED)return;
-
-      // Verifica lock — evita duplicação mesmo com callbacks concorrentes
+      // Aceita só se passar pelo lock
       if(!_podeAceitar(raw))return;
-
-      // ACEITA
-      _confirmBuffer.clear();
-      _lastFrameCode='';
 
       showEANPopup(raw,true);
       doFlash();
@@ -948,11 +922,7 @@ function startScanner(){
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
     },
-    ()=>{
-      // Frame sem código — reseta buffer de confirmação
-      _lastFrameCode='';
-      _confirmBuffer.clear();
-    }
+    ()=>{}
   );
 }
 
