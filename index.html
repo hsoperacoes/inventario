@@ -464,13 +464,16 @@ function updateQueueUI(){
 
 // ── TEMPO REAL — pool de contagem ─────────────────────────────────────────
 let _rtRedirecionando=false;
+let _rtSessionToken=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
   stopRT();
   _rtRedirecionando=false;
+  const myToken=++_rtSessionToken;
   rtTimer=setInterval(async()=>{
     if(!currentInvId||!currentUser||_rtRedirecionando)return;
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+      if(myToken!==_rtSessionToken)return; // resposta de sessão anterior — descarta
       if(!r||!r.success)return;
 
       if(r.status==='SECAO_BLOQUEADA'){
