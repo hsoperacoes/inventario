@@ -860,20 +860,16 @@ function validarEAN13(code){
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
 let h5scanner=null;
-const LOCK_MS=2000; // ms que qualquer código fica bloqueado após ser aceito
+const LOCK_MS=800; // ms de lock após aceitar um código
 
-// Map de código → timestamp da última aceitação
-// Usado para deduplicação robusta mesmo com callbacks concorrentes
 const _scanLocks=new Map();
-
 function _podeAceitar(raw){
   const now=Date.now();
   const ultimo=_scanLocks.get(raw)||0;
   if(now-ultimo<LOCK_MS)return false;
   _scanLocks.set(raw,now);
-  // Limpa entradas antigas do Map para não crescer indefinidamente
-  if(_scanLocks.size>20){
-    const cutoff=now-LOCK_MS*2;
+  if(_scanLocks.size>30){
+    const cutoff=now-LOCK_MS*3;
     _scanLocks.forEach((t,k)=>{if(t<cutoff)_scanLocks.delete(k);});
   }
   return true;
@@ -891,12 +887,17 @@ function startScanner(){
   const rd=document.getElementById('h5-reader');
   if(rd)rd.innerHTML='';
 
+  // Histórico dos últimos 3 frames para confirmar leitura
+  const _recent=[];
+  const HISTORY=3;   // quantos frames guardar
+  const CONFIRM=2;   // quantas vezes o código precisa aparecer nos últimos HISTORY frames
+
   h5scanner=new Html5Qrcode('h5-reader');
   h5scanner.start(
     {facingMode:'environment'},
     {
-      fps:10,
-      qrbox:{width:280,height:100},
+      fps:15,
+      qrbox:{width:260,height:80},
       formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
       experimentalFeatures:{useBarCodeDetectorIfSupported:true},
     },
@@ -905,24 +906,45 @@ function startScanner(){
       if(raw.length!==13)return;
 
       if(!validarEAN13(raw)){
-        // Só mostra inválido se não há código bom travado agora
-        if(_scanLocks.size===0||!Array.from(_scanLocks.values()).some(t=>Date.now()-t<LOCK_MS)){
+        // Só mostra inválido se não temos código bom travado
+        if(!Array.from(_scanLocks.values()).some(t=>Date.now()-t<LOCK_MS)){
           showEANPopup(raw,false);bip(false);
           if(navigator.vibrate)navigator.vibrate([40,20,40]);
         }
         return;
       }
 
-      // Aceita só se passar pelo lock
-      if(!_podeAceitar(raw))return;
+      // Já está no lock — ignora silenciosamente
+      if(!_podeAceitar(raw)){
+        // Mantém histórico atualizado mesmo bloqueado
+        _recent.push(raw);
+        if(_recent.length>HISTORY)_recent.shift();
+        return;
+      }
 
+      // Adiciona ao histórico
+      _recent.push(raw);
+      if(_recent.length>HISTORY)_recent.shift();
+
+      // Confirma: o código precisa aparecer CONFIRM vezes nos últimos HISTORY frames
+      const count=_recent.filter(r=>r===raw).length;
+      if(count<CONFIRM){
+        // Ainda não confirmado — remove o lock para tentar no próximo frame
+        _scanLocks.delete(raw);
+        return;
+      }
+
+      // ACEITA
       showEANPopup(raw,true);
       doFlash();
       bip(true);
       if(navigator.vibrate)navigator.vibrate(55);
       enqueue(raw);
     },
-    ()=>{}
+    ()=>{
+      // Frame sem código — limpa histórico parcialmente
+      if(_recent.length>0)_recent.shift();
+    }
   );
 }
 
