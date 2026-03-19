@@ -363,6 +363,15 @@
     <div id="scan-flash"></div>
     <div id="scan-ean-popup"></div>
 
+    <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
+    <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
+      <div style="font-size:40px;">⚠️</div>
+      <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
+      <div style="font-family:monospace;font-size:22px;font-weight:700;color:#fff;letter-spacing:2px;background:rgba(255,82,82,.15);border:1px solid rgba(255,82,82,.4);border-radius:10px;padding:10px 20px;" id="scan-prefixo-ean"></div>
+      <div style="color:#888;font-size:13px;line-height:1.6;">Este código não pertence ao prefixo esperado<br><span style="color:#aaa;">(7909 / 7900)</span>.<br>Verifique a peça e tente novamente.</div>
+      <button onclick="fecharAlertaPrefixo()" style="background:#ff5252;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:15px;font-weight:500;cursor:pointer;margin-top:8px;">OK — Entendido</button>
+    </div>
+
     <div class="scan-hud">
       <div class="scan-hud-sub">Peças bipadas</div>
       <div class="scan-hud-cnt" id="scanner-count-val">0</div>
@@ -888,15 +897,23 @@ function startScanner(){
     {facingMode:'environment'},
     {fps:15,qrbox:{width:260,height:80},formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}},
     (decodedText)=>{
-      if(_scannerPaused)return; // scanner congelado — ignora todos os frames
+      if(_scannerPaused)return;
       const raw=(decodedText||'').trim();
       if(raw.length!==13)return;
       if(!validarEAN13(raw)){
         if(_podeAceitar('__inv__')){showEANPopup(raw,false);bip(false);if(navigator.vibrate)navigator.vibrate([40,20,40]);}
         return;
       }
+      // Verifica prefixo — pausa scanner e mostra overlay se suspeito
+      if(!raw.startsWith('7909')&&!raw.startsWith('7900')){
+        _scannerPaused=true;
+        document.getElementById('scan-prefixo-ean').textContent=raw;
+        document.getElementById('scan-prefixo-alerta').style.display='flex';
+        bip(false);
+        if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+        return;
+      }
       if(!_podeAceitar(raw))return;
-      // ACEITA — congela o scanner por LOCK_MS
       _scannerPaused=true;
       setTimeout(()=>{_scannerPaused=false;},LOCK_MS);
       showEANPopup(raw,true);doFlash();bip(true);
@@ -928,6 +945,12 @@ function showEANPopup(text,ok){
   el.textContent=ok?text:'✕ '+text;
   el.className='';void el.offsetWidth;
   el.className=ok?'ok':'inv';
+}
+
+function fecharAlertaPrefixo(){
+  document.getElementById('scan-prefixo-alerta').style.display='none';
+  _scanLocks.clear(); // limpa locks para próximo código ser aceito imediatamente
+  _scannerPaused=false;
 }
 
 function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao foi finalizada. Inicie uma nova.");showConferentePanel();}
