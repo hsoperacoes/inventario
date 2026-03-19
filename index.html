@@ -382,7 +382,8 @@ let refreshInterval=null,waitingTimer=null,flushTimer=null,rtTimer=null;
 const LS_KEY="HS_INV_SESSAO_03";
 
 // ── FILA OTIMISTA ──────────────────────────────────────────────────────────
-let queue=[],localCount=0,bankCount=0,isFlushing=false;
+let queue=[],localCount=0,bankCount=0,isFlushing=false,_flushRetries=0;
+const MAX_FLUSH_RETRIES=5;
 
 function enqueue(ean){
   queue.push(ean);localCount++;
@@ -391,21 +392,36 @@ function enqueue(ean){
 function scheduleFlush(){if(flushTimer)clearTimeout(flushTimer);flushTimer=setTimeout(flushQueue,300);}
 async function flushQueue(){
   if(isFlushing||queue.length===0)return;
-  isFlushing=true;
+  isFlushing=true;setRT('warn');
   const batch=queue.slice();
   try{
     const res=await callGAS({api:'registrarBipeLote',eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
     if(res&&res.success){
       queue=queue.slice(batch.length);bankCount=res.count;
       if(localCount!==bankCount)localCount=bankCount;
-      setRT('ok');
+      _flushRetries=0;setRT('ok');
+      if(queue.length>0)scheduleFlush();
     }else{
       setRT('err');
-      if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);queue=[];localCount=bankCount;try{localStorage.removeItem(LS_KEY);}catch(_){}stopScanner();showScreen('main-menu');atualizarCardsSessao();}
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];localCount=bankCount;try{localStorage.removeItem(LS_KEY);}catch(_){}stopScanner();showScreen('main-menu');atualizarCardsSessao();}
       else if(res&&res.code==='SECAO_FECHADA'){queue=[];localCount=bankCount;forcarNovaSecao(res.message);}
-      else setTimeout(flushQueue,3000);
+      else if(_flushRetries<MAX_FLUSH_RETRIES){
+        _flushRetries++;
+        const delay=1500*_flushRetries;
+        isFlushing=false;updateCounterUI();updateQueueUI();
+        flushTimer=setTimeout(flushQueue,delay);
+        return;
+      }
     }
-  }catch(e){setRT('err');setTimeout(flushQueue,3000);}
+  }catch(e){
+    setRT('err');
+    if(_flushRetries<MAX_FLUSH_RETRIES){
+      _flushRetries++;
+      isFlushing=false;updateCounterUI();updateQueueUI();
+      flushTimer=setTimeout(flushQueue,1500*_flushRetries);
+      return;
+    }
+  }
   isFlushing=false;updateCounterUI();updateQueueUI();
 }
 
@@ -888,10 +904,11 @@ function startScanner(){
         return;
       }
 
-      // Mesmo código dentro do período de lock — ignora silenciosamente
+      // Mesmo código dentro do lock — ignora
       if(raw===_lastAccepted&&now-_lastAcceptedAt<LOCK_MS) return;
 
-      // ACEITA — código diferente ou lock expirado
+      // ACEITA — atualiza estado ANTES de qualquer operação async
+      // Isso evita que frames simultâneos do mesmo código passem
       _lastAccepted=raw;
       _lastAcceptedAt=now;
 
