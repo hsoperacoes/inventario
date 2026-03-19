@@ -860,7 +860,7 @@ function validarEAN13(code){
 
 // ── SCANNER html5-qrcode ───────────────────────────────────────────────────
 let h5scanner=null;
-const LOCK_MS=800;
+const LOCK_MS=1500;
 const _scanLocks=new Map();
 function _podeAceitar(raw){
   const now=Date.now();
