@@ -479,10 +479,11 @@ function startRT(){
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(LS_KEY);}catch(_){}
-        atualizarCardsSessao();
-        showScreen('main-menu');
         const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
-        setTimeout(()=>alert(msg),100);
+        setTimeout(()=>{
+          alert(msg+'\nEscolha um novo grupo para continuar.');
+          mostrarSelecaoGrupo();
+        },100);
         return;
       }
 
@@ -694,7 +695,6 @@ async function doConferenteLogin(){
             ativarContagem(bankCount,sr.colaborativo||false);
             return;
           }
-          // Não quer continuar — zera estado para não contaminar próximo grupo
           currentSection='';currentMeta=null;
           queue=[];bankCount=0;localCount=0;
           updateCounterUI();updateQueueUI();
@@ -705,10 +705,9 @@ async function doConferenteLogin(){
           iniciarEspera();
           return;
         } else if(sr.status==='SECAO_BLOQUEADA'){
-          const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo "${sr.grupo||''}".`:'Seu grupo anterior foi finalizado.';
-          alert(msg+'\nVocê pode iniciar um novo grupo.');
+          // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
         }
-        // SEM_GRUPO, LIBERADO sem bipes, ou qualquer outro → mostra lista de grupos
+        // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
       }
 
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
@@ -911,6 +910,8 @@ function startScanner(){
         document.getElementById('scan-prefixo-alerta').style.display='flex';
         bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+        // Notifica o admin mesmo sem registrar o bipe
+        callGAS({api:'registrarEanSuspeito',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId}).catch(()=>{});
         return;
       }
       if(!_podeAceitar(raw))return;
@@ -953,7 +954,11 @@ function fecharAlertaPrefixo(){
   _scannerPaused=false;
 }
 
-function forcarNovaSecao(msg){try{stopScanner();}catch(_){}alert(msg||"Sua secao foi finalizada. Inicie uma nova.");showConferentePanel();}
+function forcarNovaSecao(msg){
+  try{stopScanner();}catch(_){}
+  alert(msg||"Sua seção foi finalizada. Escolha um novo grupo.");
+  mostrarSelecaoGrupo();
+}
 
 // ── CONCLUIR ───────────────────────────────────────────────────────────────
 async function doConcluirSecao(){
@@ -976,8 +981,8 @@ async function doConcluirSecao(){
     document.getElementById('contagem-nao-bate').style.display='none';
     alert(`Concluído! ${res.count} itens registrados.`);
     try{localStorage.removeItem(LS_KEY);}catch(_){}
-    atualizarCardsSessao();
-    showScreen('main-menu');
+    currentSection='';currentMeta=null;queue=[];bankCount=0;localCount=0;
+    mostrarSelecaoGrupo();
   } else if(res&&res.code==='SEM_META'){
     alert('Aguarde o administrador definir a meta antes de concluir.');
   } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
