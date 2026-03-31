@@ -942,7 +942,7 @@ function startScanner(){
         return;
       }
       // Verifica prefixo — pausa scanner e mostra overlay se suspeito
-      if(!['7909','7900','7890','7891','7892','7894''7895'].some(p=>raw.startsWith(p))){
+      if(!['7909','7900','7890','7891','7892','7894','7895'].some(p=>raw.startsWith(p))){
         _scannerTravado=true;
         document.getElementById('scan-prefixo-ean').textContent=raw;
         document.getElementById('scan-prefixo-alerta').style.display='flex';
