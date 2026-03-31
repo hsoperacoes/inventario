@@ -368,7 +368,7 @@
       <div style="font-size:40px;">⚠️</div>
       <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
       <div style="font-family:monospace;font-size:22px;font-weight:700;color:#fff;letter-spacing:2px;background:rgba(255,82,82,.15);border:1px solid rgba(255,82,82,.4);border-radius:10px;padding:10px 20px;" id="scan-prefixo-ean"></div>
-      <div style="color:#888;font-size:13px;line-height:1.6;">Este código não pertence ao prefixo esperado<br><span style="color:#aaa;">(7909 / 7900 / 7890 / 7891 / 7892 / 7894)</span>.<br>Verifique a peça e tente novamente.</div>
+      <div style="color:#888;font-size:13px;line-height:1.6;">Este código não pertence ao prefixo esperado<br><span style="color:#aaa;">(7909 / 7900 / 7890 / 7891 / 7892 / 7894 / 7895)</span>.<br>Verifique a peça e tente novamente.</div>
       <button onclick="fecharAlertaPrefixo()" style="background:#ff5252;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:15px;font-weight:500;cursor:pointer;margin-top:8px;">OK — Entendido</button>
     </div>
 
@@ -942,7 +942,7 @@ function startScanner(){
         return;
       }
       // Verifica prefixo — pausa scanner e mostra overlay se suspeito
-      if(!['7909','7900','7890','7891','7892','7894'].some(p=>raw.startsWith(p))){
+      if(!['7909','7900','7890','7891','7892','7894''7895'].some(p=>raw.startsWith(p))){
         _scannerTravado=true;
         document.getElementById('scan-prefixo-ean').textContent=raw;
         document.getElementById('scan-prefixo-alerta').style.display='flex';
