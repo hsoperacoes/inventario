@@ -3,1047 +3,1048 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>HS Inventário Admin</title>
+  <meta name="author" content="HS Sistemas"/>
+  <title>HS Inventário</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    :root{--primary:#7c4dff;--pl:#b39ddb;--bg:#111318;--card:#1c1f26;--card2:#252830;--border:#2e3140;--text:#e8eaf0;--dim:#8b90a0;--ok:#43d98a;--err:#ff5252;--warn:#ffab40;--info:#40c4ff;--r:10px;}
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;padding:16px;min-height:100vh;}
-
-    .layout{display:grid;grid-template-columns:1fr 340px;gap:16px;height:calc(100vh - 120px);}
-    .col-main{overflow-y:auto;padding-right:4px;}
-    .col-side{overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
-
-    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
-    .header-title{font-size:16px;font-weight:800;color:var(--pl);}
-    .live-dot{width:8px;height:8px;background:var(--ok);border-radius:50%;animation:pulse 1.5s infinite;display:inline-block;margin-right:5px;}
-    .live-lbl{font-size:10px;color:var(--ok);font-weight:700;text-transform:uppercase;}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
-
-    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
-    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:10px 8px;text-align:center;}
-    .stat-val{font-size:22px;font-weight:900;color:var(--pl);line-height:1;}
-    .stat-lbl{font-size:9px;color:var(--dim);text-transform:uppercase;margin-top:3px;}
-
-    .section-title{font-size:11px;text-transform:uppercase;color:var(--dim);letter-spacing:.5px;margin-bottom:8px;font-weight:700;}
-
-    /* AGUARDANDO */
-    .ag-section{background:rgba(255,171,64,.07);border:1px solid rgba(255,171,64,.35);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;}
-    .ag-title{font-size:11px;text-transform:uppercase;color:var(--warn);letter-spacing:.5px;margin-bottom:8px;font-weight:700;}
-    .ag-card{background:var(--card2);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
-    .ag-card:last-child{margin-bottom:0;}
-    .ag-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
-    .ag-nome{font-weight:700;font-size:13px;}
-    .ag-grupo{font-size:11px;color:var(--warn);margin-top:2px;}
-    .ag-form{display:flex;gap:6px;}
-    .ag-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;}
-    .ag-input:focus{border-color:var(--warn);}
-    .ag-btn{padding:7px 14px;background:var(--warn);color:#000;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;}
-    .ag-btn:hover{background:#ffa000;}
-
-    /* USER CARD */
-    .user-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
-    .uch{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;gap:8px;}
-    .uch:hover{background:var(--card2);}
-    .u-avatar{width:34px;height:34px;background:linear-gradient(135deg,var(--primary),#3d1f8a);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0;}
-    .u-info{flex:1;min-width:0;}
-    .u-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .u-meta{font-size:10px;color:var(--dim);margin-top:2px;}
-    .u-badges{display:flex;gap:5px;align-items:center;flex-shrink:0;}
-    .badge{padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800;white-space:nowrap;}
-    .b-cnt{background:rgba(124,77,255,.25);color:var(--pl);border:1px solid rgba(124,77,255,.4);}
-    .b-ok{background:rgba(67,217,138,.15);color:var(--ok);border:1px solid rgba(67,217,138,.3);}
-    .b-warn{background:rgba(255,171,64,.15);color:var(--warn);border:1px solid rgba(255,171,64,.3);}
-    .b-err{background:rgba(255,82,82,.15);color:var(--err);border:1px solid rgba(255,82,82,.3);}
-
-    .prog-wrap{padding:0 12px 10px;border-top:1px solid var(--border);}
-    .prog-info{display:flex;justify-content:space-between;padding:8px 0 5px;font-size:11px;color:var(--dim);}
-    .prog-info strong{color:var(--text);}
-    .prog-bg{height:6px;background:#1e2030;border-radius:3px;overflow:hidden;}
-    .prog-fill{height:100%;border-radius:3px;transition:width .5s;}
-    .f-ok{background:linear-gradient(90deg,#43d98a,#00bfa5);}
-    .f-warn{background:linear-gradient(90deg,#ffab40,#ff6d00);}
-    .f-err{background:linear-gradient(90deg,#ff5252,#b71c1c);}
-
-    .u-actions{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 10px;border-top:1px solid var(--border);background:var(--card2);}
-
-    .items-panel{display:none;background:#0e1017;border-top:1px solid var(--border);max-height:220px;overflow-y:auto;}
-    .items-panel.open{display:block;}
-    .item-row{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #1a1d26;gap:8px;}
-    .item-row:hover{background:#13161f;}
-    .i-ean{font-family:'Courier New',monospace;font-size:12px;color:var(--info);}
-    .i-sec{font-size:10px;color:var(--dim);}
-    .i-time{font-size:9px;color:var(--dim);white-space:nowrap;}
-
-    /* BOTÕES */
-    .btn{padding:6px 10px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;}
-    .btn:disabled{opacity:.5;cursor:not-allowed;}
-    .btn-p{background:var(--primary);color:#fff;}
-    .btn-p:hover{background:#6a3fcc;}
-    .btn-d{background:rgba(255,82,82,.2);color:var(--err);border:1px solid rgba(255,82,82,.4);}
-    .btn-d:hover{background:rgba(255,82,82,.35);}
-    .btn-w{background:rgba(255,171,64,.2);color:var(--warn);border:1px solid rgba(255,171,64,.4);}
-    .btn-w:hover{background:rgba(255,171,64,.35);}
-    .btn-n{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--border);}
-    .btn-n:hover{background:rgba(255,255,255,.1);color:var(--text);}
-    .btn-sm{padding:4px 8px;font-size:10px;border-radius:5px;}
-
-    /* COLUNA LATERAL */
-    .side-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;}
-    .side-card h4{font-size:11px;text-transform:uppercase;color:var(--dim);letter-spacing:.5px;margin-bottom:10px;font-weight:700;}
-
-    .inv-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;}
-    .inv-row:last-child{border-bottom:none;}
-    .inv-nome{font-weight:700;font-size:12px;}
-    .inv-id{font-size:10px;color:var(--dim);}
-
-    /* GRUPOS */
-    .grupo-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);gap:8px;}
-    .grupo-row:last-child{border-bottom:none;}
-    .grupo-nome{font-weight:700;font-size:12px;}
-    .grupo-info{font-size:10px;color:var(--dim);margin-top:1px;}
-    .g-badge{padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;}
-    .g-disp{background:rgba(67,217,138,.15);color:var(--ok);border:1px solid rgba(67,217,138,.3);}
-    .g-res{background:rgba(255,171,64,.15);color:var(--warn);border:1px solid rgba(255,171,64,.3);}
-    .g-done{background:rgba(139,144,160,.15);color:var(--dim);border:1px solid var(--border);}
-
-    /* Form inline */
-    .inline-form{display:flex;gap:6px;margin-top:8px;}
-    .inline-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;}
-    .inline-input:focus{border-color:var(--primary);}
-    .inline-input-sm{width:80px;flex:none;}
-
-    /* Força senha modal */
-    .forca-box{background:rgba(255,82,82,.08);border:1px solid rgba(255,82,82,.3);border-radius:8px;padding:10px 12px;margin-top:6px;}
-    .forca-box p{font-size:11px;color:var(--err);margin-bottom:6px;}
-
-    .search-bar{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;margin-bottom:10px;}
-    .search-bar:focus{border-color:var(--primary);}
-    .empty{text-align:center;color:var(--dim);font-size:12px;padding:20px 0;}
-
-    #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#23263a;border:1px solid var(--border);color:var(--text);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9999;white-space:nowrap;}
-    #toast.show{opacity:1;}
-
-    .refresh-btn{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;}
-    .refresh-btn:hover{color:var(--text);background:var(--card2);}
-    .refresh-btn.spinning{animation:spin .7s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg)}}
-
-    ::-webkit-scrollbar{width:5px;}
-    ::-webkit-scrollbar-track{background:transparent;}
-    ::-webkit-scrollbar-thumb{background:#333;border-radius:3px;}
-
-    /* ALERTAS */
-    #alertas-box{background:rgba(255,82,82,.12);border:1.5px solid rgba(255,82,82,.5);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;display:none;}
-    .alerta-title{font-size:11px;font-weight:800;color:var(--err);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
-    .alerta-item{background:rgba(255,82,82,.08);border-radius:7px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
-    .alerta-item:last-child{margin-bottom:0;}
-    .alerta-info{font-size:11px;line-height:1.6;}
-    .alerta-ean{font-family:monospace;font-size:12px;font-weight:700;color:var(--err);}
-    .alerta-close{background:none;border:1px solid rgba(255,82,82,.4);color:var(--err);border-radius:5px;padding:2px 8px;font-size:10px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
-    .alerta-close:hover{background:rgba(255,82,82,.2);}
-
-    /* CONFRONTO ESTOQUE */
-    .btn-confronto{width:100%;padding:10px;background:rgba(124,77,255,.15);border:1px solid rgba(124,77,255,.4);color:#b39ddb;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px;}
-    .btn-confronto:hover{background:rgba(124,77,255,.25);}
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:stretch;justify-content:stretch;}
-    .modal-overlay.open{display:flex;}
-    .modal-box{background:#111318;border:none;border-radius:0;width:100%;height:100%;padding:28px 32px;display:flex;flex-direction:column;overflow:hidden;}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0;}
-    .modal-title{font-size:17px;font-weight:500;color:#e8eaf0;}
-    .modal-close{background:none;border:none;color:#8b90a0;font-size:22px;cursor:pointer;padding:0;line-height:1;}
-    .conf-section{margin-bottom:16px;}
-    .conf-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
-    .conf-item{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:12px;margin-bottom:8px;font-size:14px;}
-    .conf-label{font-family:monospace;font-weight:700;font-size:16px;}
-    .conf-qty{font-size:13px;color:#8b90a0;margin-top:3px;}
-    .conf-badge{border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;white-space:nowrap;}
-    .conf-bar{height:5px;border-radius:3px;margin-top:6px;background:#2e3140;}
-    .conf-bar-fill{height:5px;border-radius:3px;}
-    .conf-empty{text-align:center;color:#555;font-size:13px;padding:20px;}
-    .conf-stats{display:flex;gap:10px;margin-bottom:16px;flex-shrink:0;}
-    .conf-stat{flex:1;border-radius:12px;padding:20px 10px;text-align:center;cursor:pointer;border:2px solid transparent;transition:border-color .15s,transform .1s;}
-    .conf-stat:hover{transform:translateY(-1px);}
-    .conf-stat.ativo{border-color:#7c4dff;}
-    .conf-stat-val{font-size:32px;font-weight:500;line-height:1;}
-    .conf-stat-lbl{font-size:10px;color:#8b90a0;text-transform:uppercase;margin-top:4px;letter-spacing:.3px;}
-    .conf-scroll{flex:1;overflow-y:auto;padding-right:6px;}
-    .conf-scroll::-webkit-scrollbar{width:4px;}
-    .conf-scroll::-webkit-scrollbar-thumb{background:#333;border-radius:2px;}
-    .conf-filtro-clear{background:none;border:1px solid #444;color:#8b90a0;border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;margin-bottom:12px;flex-shrink:0;}
-    .conf-filtro-clear:hover{border-color:#aaa;color:#ccc;}
-
-    /* ETIQUETAS */
-    .etiq-grid{display:flex;flex-wrap:wrap;gap:10px;padding:6px;}
-    .etiq{width:152px;height:228px;border:1.5px solid #888;border-radius:3px;background:#fff;color:#000;
-          display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-          padding:10px 8px 8px;font-family:'Courier New',monospace;flex-shrink:0;}
-    .etiq-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
-    .etiq-refcor{font-size:12px;font-weight:900;color:#000;letter-spacing:.5px;text-align:center;font-family:Arial,sans-serif;}
-    .etiq-grade-box{border:2px solid #000;border-radius:3px;padding:4px 18px;margin-top:2px;}
-    .etiq-grade{font-size:32px;font-weight:900;color:#000;line-height:1;font-family:Arial,sans-serif;letter-spacing:1px;}
-    .etiq-barras{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;}
-    .etiq-ean-num{font-size:8px;letter-spacing:.5px;color:#000;font-family:'Courier New',monospace;}
-    @media print{
-      body>*{display:none!important;}
-      #print-area{display:flex!important;flex-wrap:wrap;gap:4mm;padding:4mm;}
-      #print-area .etiq-print{width:4cm;height:6cm;border:1px solid #000;break-inside:avoid;
-        display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-        padding:3mm 2mm 2mm;font-family:'Courier New',monospace;page-break-inside:avoid;background:#fff;}
-      #print-area .ep-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:2mm;}
-      #print-area .ep-refcor{font-size:8pt;font-weight:900;text-align:center;font-family:Arial,sans-serif;letter-spacing:.3px;}
-      #print-area .ep-grade-box{border:1.5px solid #000;border-radius:2px;padding:2mm 5mm;}
-      #print-area .ep-grade{font-size:22pt;font-weight:900;line-height:1;font-family:Arial,sans-serif;}
-      #print-area .ep-barras{width:100%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1mm;}
-      #print-area .ep-ean{font-size:5.5pt;letter-spacing:.3px;font-family:'Courier New',monospace;}
+    :root{
+      --primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;
+      --text:#fff;--dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;
+      --cyan:#00e5ff;
     }
-    /* DIALOG CUSTOMIZADO */
-    #hs-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px;}
-    #hs-dialog-overlay.show{display:flex;}
-    #hs-dialog-box{background:#1c1f26;border:1px solid #3a3f52;border-radius:14px;padding:24px 22px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.6);}
-    #hs-dialog-title{font-size:14px;font-weight:500;color:#e8eaf0;margin-bottom:8px;line-height:1.4;}
-    #hs-dialog-body{font-size:12px;color:#8b90a0;margin-bottom:18px;line-height:1.6;}
-    #hs-dialog-input{width:100%;background:#111318;border:1px solid #3a3f52;border-radius:8px;color:#e8eaf0;padding:9px 12px;font-size:13px;margin-bottom:16px;outline:none;}
-    #hs-dialog-input:focus{border-color:#7c4dff;}
-    #hs-dialog-btns{display:flex;gap:8px;justify-content:flex-end;}
-    .hs-dialog-btn{border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:500;cursor:pointer;}
-    .hs-dialog-btn.cancel{background:#252830;color:#8b90a0;}
-    .hs-dialog-btn.cancel:hover{background:#2e3140;}
-    .hs-dialog-btn.confirm{background:#7c4dff;color:#fff;}
-    .hs-dialog-btn.confirm:hover{background:#9c6dff;}
-    .hs-dialog-btn.danger{background:rgba(255,82,82,.2);color:var(--err);border:1px solid rgba(255,82,82,.3);}
-    .hs-dialog-btn.danger:hover{background:rgba(255,82,82,.3);}
+    *{box-sizing:border-box;}
+    body{font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+    .container{width:95%;max-width:600px;background:var(--card);padding:30px 20px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);margin:20px 10px;border:1px solid #333;}
+    h2{text-align:center;margin-top:0;color:var(--primary);font-weight:800;letter-spacing:1px;}
+    .home-grid{display:grid;gap:20px;margin-top:20px;}
+    .home-card{background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px;transition:transform .2s,border-color .2s,background .2s;}
+    .home-card:hover{transform:translateY(-5px);border-color:var(--primary);background:#2a2a2a;}
+    .home-card i{font-size:30px;color:var(--primary);}
+    .home-card div h3{margin:0;font-size:18px;}
+    .home-card div p{margin:5px 0 0;font-size:13px;color:var(--dim);}
+    .form-group{margin-bottom:15px;}
+    label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--dim);}
+    input,select{width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none;transition:border-color .2s;}
+    input:focus{border-color:var(--primary);}
+    select{appearance:none;}
+    button{background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;transition:background .2s,transform .1s;}
+    button:hover{background:var(--primary-dark);transform:scale(1.02);}
+    button:disabled{background:#444;cursor:not-allowed;opacity:.7;transform:none;}
+    .btn-sec{background:#333;margin-top:10px;}
+    .btn-danger{background:var(--danger);margin-top:10px;}
+    .hidden{display:none!important;}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;}
+    .stat-box{background:#121212;padding:15px;border-radius:12px;text-align:center;border:1px solid #333;}
+    .stat-box span{display:block;font-size:24px;font-weight:800;color:var(--primary);}
+    .stat-box label{font-size:11px;text-transform:uppercase;margin:0;}
+    .list-item{background:#121212;padding:12px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:14px;border-left:4px solid var(--primary);gap:10px;}
+    .badge{background:var(--warning);color:#000;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:bold;white-space:nowrap;}
+    .badge-espera{background:#333;color:var(--warning);border:1px solid var(--warning);}
+    .live-indicator{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--success);justify-content:center;margin-bottom:10px;text-transform:uppercase;font-weight:bold;}
+    .dot{width:8px;height:8px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .wait-icon{font-size:52px;margin:20px 0 10px;animation:wspin 3s linear infinite;display:inline-block;}
+    @keyframes wspin{to{transform:rotate(360deg)}}
+    .wait-title{font-size:20px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .wait-sub{font-size:14px;color:var(--dim);margin-bottom:24px;line-height:1.6;}
+    .wait-grupo-box{background:#111;border:1px solid #333;border-radius:12px;padding:16px;margin:16px 0;}
+    .wait-grupo-box .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;}
+    .wait-grupo-box .val{font-size:20px;font-weight:900;color:var(--primary);margin-top:4px;}
+    .wait-dots{display:inline-flex;gap:6px;margin-top:10px;}
+    .wait-dots span{width:8px;height:8px;background:var(--warning);border-radius:50%;animation:dp 1.4s infinite;}
+    .wait-dots span:nth-child(2){animation-delay:.2s;}
+    .wait-dots span:nth-child(3){animation-delay:.4s;}
+    @keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+    /* ─── COUNTING PANEL ─────────────────────── */
+    .count-hero{
+      background:#0e0e1a;
+      border:1px solid rgba(103,58,183,.35);
+      border-radius:18px;padding:18px 16px;margin:0 0 14px;text-align:center;
+    }
+    .count-hero-lbl{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:4px;}
+    .count-hero-num{
+      font-size:76px;font-weight:900;line-height:1;color:#fff;
+      transition:transform .12s,color .12s;
+    }
+    .count-hero-num.bump{transform:scale(1.13);color:var(--cyan);}
+    .count-hero-meta{font-size:12px;color:var(--dim);margin-top:6px;}
+    .count-hero-meta strong{color:#fff;}
+
+    .last-ean-box{
+      background:#060e14;border:1px solid rgba(0,229,255,.18);
+      border-radius:12px;padding:10px 14px;margin-bottom:12px;
+      display:flex;align-items:center;gap:10px;min-height:44px;
+    }
+    .last-ean-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);white-space:nowrap;}
+    .last-ean-val{
+      font-family:'Courier New',monospace;font-size:19px;font-weight:700;
+      color:var(--cyan);letter-spacing:2px;flex:1;
+    }
+    .last-ean-val.flash{animation:eanFlash .45s ease-out;}
+    @keyframes eanFlash{
+      0%{color:#fff;text-shadow:0 0 18px var(--cyan),0 0 36px var(--cyan);}
+      100%{color:var(--cyan);text-shadow:none;}
+    }
+    .last-ean-badge{
+      font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;
+      background:rgba(76,175,80,.18);color:var(--success);
+      border:1px solid rgba(76,175,80,.35);white-space:nowrap;
+    }
+    .info-row{display:flex;gap:10px;margin-bottom:12px;}
+    .info-chip{background:#181818;border:1px solid #252525;border-radius:10px;padding:8px 12px;flex:1;font-size:12px;}
+    .info-chip .ic-lbl{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    .info-chip .ic-val{font-weight:700;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rt-bar{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--success);margin-bottom:10px;}
+    .rt-dot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    .rt-dot.warn{background:var(--warning);}
+    .rt-dot.err{background:var(--danger);animation:none;}
+
+    #queue-pill{display:none;background:#1a1000;border:1px solid var(--warning);border-radius:10px;padding:7px 14px;text-align:center;font-size:12px;color:var(--warning);margin-bottom:8px;}
+    #contagem-nao-bate{background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;}
+    #contagem-nao-bate h3{color:var(--danger);margin:0 0 10px;}
+    .diff-pos{color:var(--warning);}
+    .diff-neg{color:var(--danger);}
+
+    /* ─── SCANNER ────────────────────────────── */
+    #scanner-overlay{
+      position:fixed;inset:0;background:#000;z-index:1000;
+      display:none;flex-direction:column;
+    }
+    #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
+
+    /* Esconde UI padrão do html5-qrcode (botões, selects, textos) */
+    #h5-reader{width:100%;height:100%;}
+    #h5-reader>div:first-child{width:100%!important;height:100%!important;}
+    #h5-reader video{width:100%!important;height:100%!important;object-fit:cover;}
+    #h5-reader img{display:none!important;}
+    #h5-reader button,#h5-reader select,
+    #h5-reader span,#h5-reader a{display:none!important;}
+    /* Caixa de scan do html5-qrcode — deixa ela aparecer */
+    #h5-reader__scan_region{
+      position:absolute!important;inset:0!important;
+      display:flex!important;align-items:center!important;justify-content:center!important;
+    }
+    #h5-reader__scan_region>img{display:none!important;}
+
+    /* flash de leitura */
+    #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
+    #scan-flash.blink{animation:sfBlink .18s ease-out;}
+    @keyframes sfBlink{0%{opacity:1}100%{opacity:0}}
+
+    /* popup EAN lido */
+    #scan-ean-popup{
+      position:absolute;top:42%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,.88);
+      border:1px solid var(--cyan);border-radius:14px;
+      padding:12px 22px;
+      font-family:'Courier New',monospace;font-size:24px;font-weight:700;
+      color:var(--cyan);letter-spacing:3px;text-align:center;
+      opacity:0;pointer-events:none;white-space:nowrap;
+    }
+    #scan-ean-popup.ok{animation:popOk .85s ease-out forwards;}
+    #scan-ean-popup.inv{border-color:var(--danger);color:var(--danger);animation:popInv .7s ease-out forwards;}
+    @keyframes popOk{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.88);}
+      55%{opacity:1;transform:translate(-50%,-50%) scale(1.04);}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(1.08);}
+    }
+    @keyframes popInv{
+      0%{opacity:1;transform:translate(calc(-50% + 0px),-50%);}
+      15%{transform:translate(calc(-50% + 7px),-50%);}
+      30%{transform:translate(calc(-50% - 7px),-50%);}
+      45%{transform:translate(calc(-50% + 4px),-50%);}
+      60%{opacity:1;transform:translate(-50%,-50%);}
+      100%{opacity:0;}
+    }
+
+    /* HUD inferior no scanner */
+    .scan-hud{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:14px 18px 24px;
+      background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
+    }
+    .scan-hud-cnt{font-size:56px;font-weight:900;color:#fff;line-height:1;}
+    .scan-hud-sub{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.45);}
+    .scan-hud-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+    .scan-hud-pnd{font-size:11px;color:var(--warning);min-height:16px;margin-top:2px;}
+
+    /* botão fechar scanner */
+    #btn-close-scan{
+      position:absolute;top:14px;right:14px;
+      width:42px;height:42px;background:rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.18);border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;z-index:5;font-size:17px;color:#fff;
+    }
+
+    .loading-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:lspin 1s linear infinite;}
+    @keyframes lspin{to{transform:rotate(360deg)}}
+    .mini-btn{padding:6px 10px!important;font-size:10px!important;border-radius:8px!important;line-height:1!important;gap:6px!important;margin-top:0!important;white-space:nowrap;width:auto!important;}
+    .mini-btn.s{background:#2d2d2d;}
+    .mini-btn.d{background:var(--danger);}
+    .hint{font-size:12px;color:var(--dim);text-align:center;margin:-8px 0 14px;}
+
+    /* Grupo card */
+    .grupo-card{
+      background:#121212;border:1px solid #2a2a2a;border-radius:12px;
+      padding:12px 14px;margin-bottom:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      cursor:pointer;transition:border-color .2s,background .2s;
+    }
+    .grupo-card:hover{border-color:var(--primary);background:#1a1a2e;}
+    .grupo-card-nome{font-weight:700;font-size:14px;}
+    .grupo-card-meta{font-size:11px;color:var(--dim);margin-top:2px;}
+    .grupo-card-badge{
+      background:rgba(76,175,80,.15);color:var(--success);
+      border:1px solid rgba(76,175,80,.3);border-radius:8px;
+      padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;
+    }
+    .grupo-empty{text-align:center;color:var(--dim);font-size:13px;padding:12px 0;}
   </style>
 </head>
 <body>
 
-<!-- DIALOG CUSTOMIZADO (substitui confirm/prompt nativos) -->
-<div id="hs-dialog-overlay">
-  <div id="hs-dialog-box">
-    <div id="hs-dialog-title"></div>
-    <div id="hs-dialog-body"></div>
-    <input id="hs-dialog-input" type="text" style="display:none;" autocomplete="off"/>
-    <div id="hs-dialog-btns"></div>
+<!-- MENU PRINCIPAL -->
+<div class="container" id="main-menu">
+  <h2>HS Inventário</h2>
+  <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
+  <div class="home-grid">
+    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão e monitoramento em tempo real.</p></div></div>
+    <button id="btn-open-conf" class="hidden"></button>
+    <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
+    <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Retomar Grupo Ativo</h3><p id="continuar-desc"></p></div></div>
   </div>
 </div>
 
-<div class="header">
-  <div><span class="live-dot"></span><span class="live-lbl">Ao vivo</span> <span class="header-title" style="margin-left:4px;">HS Inventário — Painel Admin</span></div>
-  <button class="refresh-btn" id="refresh-btn" onclick="loadData()" title="Atualizar">↻</button>
+<!-- MASTER LOGIN -->
+<div class="container hidden" id="master-login">
+  <h2>ACESSO MASTER</h2>
+  <div class="form-group"><label>Senha</label><input type="password" id="master-pass" placeholder="Senha master"/></div>
+  <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
 
-<!-- ALERTAS DE EAN SUSPEITO -->
-<div id="alertas-box">
-  <div class="alerta-title">⚠️ EANs com prefixo suspeito</div>
-  <div id="alertas-list"></div>
-</div>
-
-<!-- BOTÃO CONFRONTO -->
-<button class="btn-confronto" onclick="abrirConfronto()">
-  📊 Ver confronto com estoque
-</button>
-
-<!-- BOTÃO ETIQUETAS -->
-<button class="btn-confronto" style="background:rgba(0,188,212,.1);border-color:rgba(0,188,212,.4);color:#4dd0e1;margin-top:-8px;" onclick="abrirEtiquetas()">
-  🖨️ Imprimir etiquetas pendentes
-</button>
-
-<!-- MODAL ETIQUETAS -->
-<div class="modal-overlay" id="modal-etiquetas">
-  <div class="modal-box" style="max-width:800px;max-height:95vh;">
-    <div class="modal-header">
-      <span class="modal-title">🖨️ Etiquetas para impressão</span>
-      <button class="modal-close" onclick="fecharEtiquetas()">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;align-items:center;">
-      <span id="etiq-count" style="font-size:12px;color:#8b90a0;flex:1;"></span>
-      <button class="btn btn-sm" style="background:#4dd0e1;color:#000;font-weight:600;padding:8px 18px;" onclick="imprimirEtiquetas()">🖨️ Imprimir</button>
-      <button class="btn btn-sm btn-d" onclick="limparEtiquetasPendentes()">🗑️ Limpar lista</button>
-    </div>
-    <div class="conf-scroll" id="etiquetas-grid"></div>
+<!-- MASTER PANEL -->
+<div class="container hidden" id="master-panel" style="max-width:800px;">
+  <div class="live-indicator"><div class="dot"></div>Monitoramento em Tempo Real</div>
+  <h2>PAINEL DO LEONARDO</h2>
+  <div class="stats-grid">
+    <div class="stat-box"><span id="stat-total">0</span><label>Consolidado</label></div>
+    <div class="stat-box"><span id="stat-aberto">0</span><label>Em Aberto</label></div>
   </div>
-</div>
-
-<!-- MODAL CONFRONTO -->
-<div class="modal-overlay" id="modal-confronto">
-  <div class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title">📊 Confronto com estoque</span>
-      <button class="modal-close" onclick="fecharConfronto()">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <select id="confronto-inv" class="search-bar" style="flex:1;padding:7px 10px;"></select>
-      <button class="btn btn-p btn-sm" style="padding:7px 16px;white-space:nowrap;" onclick="rodarConfronto()">▶ Calcular</button>
-    </div>
-    <div id="conf-filtro-clear-wrap" style="display:none;flex-shrink:0;">
-      <button class="conf-filtro-clear" onclick="limparFiltroConfronto()">← Ver todos os grupos</button>
-    </div>
-    <div class="conf-scroll" id="confronto-resultado"></div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
+    <button style="flex:1;background:#2a2a2a" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
   </div>
-</div>
-
-<div class="stats-row">
-  <div class="stat"><div class="stat-val" id="s-users">-</div><div class="stat-lbl">Usuários</div></div>
-  <div class="stat"><div class="stat-val" id="s-bipes">-</div><div class="stat-lbl">Em Aberto</div></div>
-  <div class="stat"><div class="stat-val" id="s-consol">-</div><div class="stat-lbl">Consolidado</div></div>
-</div>
-
-<div class="layout">
-  <!-- COLUNA PRINCIPAL -->
-  <div class="col-main">
-    <div id="ag-section" class="ag-section" style="display:none;">
-      <div class="ag-title">⏳ Aguardando Meta</div>
-      <div id="list-ag"></div>
-    </div>
-    <div class="section-title">Usuários bipando</div>
-    <input class="search-bar" type="text" id="search-user" placeholder="🔍 Buscar usuário ou grupo..." oninput="renderUsuarios()"/>
+  <div id="aguardando-box" style="display:none;background:#1a1200;border:2px solid var(--warning);border-radius:15px;padding:15px;margin-bottom:20px;">
+    <h3 style="font-size:15px;margin:0 0 8px;color:var(--warning);"><i class="fas fa-hourglass-half"></i> Aguardando Meta</h3>
+    <div class="hint" style="margin:0 0 10px;">Estas pessoas estão esperando você definir a meta.</div>
+    <div id="list-aguardando"></div>
+  </div>
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;margin-bottom:20px;">
+    <h3 style="font-size:16px;margin-top:0;color:var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto</h3>
     <div id="list-usuarios"></div>
   </div>
-
-  <!-- COLUNA LATERAL -->
-  <div class="col-side">
-
-    <!-- CRIAR INVENTÁRIO -->
-    <div class="side-card">
-      <h4>Novo inventário</h4>
-      <div class="inline-form" style="margin-bottom:6px;">
-        <input class="inline-input" type="text" id="novo-inv-nome" placeholder="Nome do inventário..."/>
-      </div>
-      <div class="inline-form">
-        <input class="inline-input" type="text" id="novo-inv-senha" placeholder="Senha dos conferentes..."/>
-        <button class="btn btn-p btn-sm" onclick="criarInventario()">Criar</button>
-      </div>
-    </div>
-
-    <!-- INVENTÁRIOS -->
-    <div class="side-card">
-      <h4>Inventários</h4>
-      <div id="list-inventarios"></div>
-    </div>
-
-    <!-- GRUPOS PRÉ-CRIADOS -->
-    <div class="side-card">
-      <h4>Grupos pré-criados</h4>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:10px;color:var(--dim);margin-bottom:6px;">Inventário</div>
-        <select id="grupo-inv-select" class="search-bar" style="margin-bottom:6px;padding:7px 10px;"></select>
-        <div class="inline-form" style="margin-bottom:6px;">
-          <input class="inline-input" type="text" id="novo-grupo-nome" placeholder="Nome do grupo..." style="text-transform:uppercase;"/>
-          <input class="inline-input inline-input-sm" type="number" id="novo-grupo-meta" placeholder="Meta" min="1"/>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);cursor:pointer;">
-            <input type="checkbox" id="novo-grupo-colab" style="width:auto;padding:0;"/>
-            Colaborativo
-          </label>
-          <input class="inline-input" type="number" id="novo-grupo-vagas" placeholder="Vagas" min="2" max="10" value="2" style="width:70px;display:none;padding:5px 8px;font-size:11px;"/>
-        </div>
-        <button class="btn btn-p btn-sm" onclick="criarGrupo()" style="width:100%;">+ Criar grupo</button>
-      </div>
-      <div id="list-grupos"></div>
-    </div>
-
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;">
+    <h3 style="font-size:16px;margin-top:0;"><i class="fas fa-list-check"></i> Inventários</h3>
+    <div id="list-inventarios"></div>
   </div>
+  <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
 </div>
 
-<div id="toast"></div>
+<!-- CRIAR INVENTÁRIO -->
+<div class="container hidden" id="create-inv-screen">
+  <h2>NOVO INVENTÁRIO</h2>
+  <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
+  <div class="form-group"><label>Senha para Conferentes</label><input type="text" id="inv-pass" placeholder="Crie uma senha"/></div>
+  <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
+  <button class="btn-sec" onclick="showScreen('master-panel')">CANCELAR</button>
+</div>
+
+<!-- LOGIN CONFERENTE -->
+<div class="container hidden" id="conferente-login">
+  <h2>CONFERENTE</h2>
+  <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
+  <div class="form-group"><label>Inventário</label><select id="inv-select" onchange="onInvSelectChange()"></select></div>
+  <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass"/></div>
+  <button id="btn-conf-login" onclick="doConferenteLogin()">AVANÇAR</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
+</div>
+
+<!-- ESCOLHA DE GRUPO -->
+<div class="container hidden" id="grupo-select-panel">
+  <h2>ESCOLHER GRUPO</h2>
+  <p id="debug-inv-id" style="text-align:center;color:var(--dim);font-size:11px;margin-bottom:16px;"></p>
+
+  <!-- Grupos disponíveis -->
+  <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px;font-weight:700;">Grupos disponíveis</div>
+    <div id="lista-grupos-disponiveis"></div>
+  </div>
+
+  <!-- Criar novo grupo manual -->
+  <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo (sem meta pré-definida)</div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
+    </div>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E AGUARDAR META</button>
+  </div>
+
+  <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
+</div>
+
+<!-- WAITING PANEL -->
+<div class="container hidden" id="waiting-panel">
+  <div style="text-align:center;">
+    <div class="wait-icon">⏳</div>
+    <div class="wait-title">Aguardando liberação</div>
+    <div class="wait-sub">O administrador vai contar fisicamente e definir a meta.<br>Você será liberado automaticamente.</div>
+    <div class="wait-grupo-box"><div class="lbl">Grupo</div><div class="val" id="wait-grupo-nome"></div></div>
+    <div class="wait-dots"><span></span><span></span><span></span></div>
+    <p style="font-size:11px;color:var(--dim);margin-top:16px;">Verificando a cada 5 segundos...</p>
+  </div>
+  <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
+</div>
+
+<!-- COUNTING PANEL -->
+<div class="container hidden" id="counting-panel">
+  <h2 id="active-inv-title" style="font-size:15px;margin-bottom:12px;">...</h2>
+
+  <!-- Status em tempo real -->
+  <div class="rt-bar">
+    <div class="rt-dot" id="rt-dot"></div>
+    <span id="rt-lbl">Sincronizado</span>
+    <span id="colab-badge" style="display:none;align-items:center;gap:5px;margin-left:10px;background:rgba(255,171,64,.15);border:1px solid rgba(255,171,64,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--warning);">👥 COLABORATIVO</span>
+  </div>
+
+  <!-- Contador principal -->
+  <div class="count-hero">
+    <div class="count-hero-lbl">Peças bipadas</div>
+    <div class="count-hero-num" id="user-count">0</div>
+  </div>
+
+  <!-- Último EAN -->
+  <div class="last-ean-box">
+    <span class="last-ean-lbl">Último EAN</span>
+    <span class="last-ean-val" id="last-ean-val">—</span>
+    <span class="last-ean-badge" id="last-ean-badge" style="display:none">✓ EAN-13</span>
+  </div>
+
+  <!-- Info -->
+  <div class="info-row">
+    <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
+    <div class="info-chip"><div class="ic-lbl">Grupo</div><div class="ic-val" id="display-section">—</div></div>
+  </div>
+
+  <div id="queue-pill"></div>
+
+  <div id="contagem-nao-bate" style="background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;">
+    <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+    <h3 style="color:var(--danger);margin:0 0 10px;font-size:18px;">Contagem divergente</h3>
+    <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
+  </div>
+
+  <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
+  <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
+  <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
+</div>
+
+<!-- SCANNER OVERLAY -->
+<div id="scanner-overlay">
+  <div id="video-wrap">
+
+    <!-- html5-qrcode renderiza aqui -->
+    <div id="h5-reader" style="width:100%;height:100%;"></div>
+
+    <div id="scan-flash"></div>
+    <div id="scan-ean-popup"></div>
+
+    <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
+    <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
+      <div style="font-size:40px;">⚠️</div>
+      <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
+      <div style="font-family:monospace;font-size:22px;font-weight:700;color:#fff;letter-spacing:2px;background:rgba(255,82,82,.15);border:1px solid rgba(255,82,82,.4);border-radius:10px;padding:10px 20px;" id="scan-prefixo-ean"></div>
+      <div style="color:#888;font-size:13px;line-height:1.6;">Este código não pertence ao prefixo esperado<br><span style="color:#aaa;">(7909 / 7900 / 7890 / 7891 / 7892 / 7894 / 7895)</span>.<br>Verifique a peça e tente novamente.</div>
+      <button onclick="fecharAlertaPrefixo()" style="background:#ff5252;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:15px;font-weight:500;cursor:pointer;margin-top:8px;">OK — Entendido</button>
+    </div>
+
+    <div class="scan-hud">
+      <div class="scan-hud-sub">Peças bipadas</div>
+      <div class="scan-hud-cnt" id="scanner-count-val">0</div>
+      <div class="scan-hud-grp" id="scanner-grp-lbl"></div>
+      <div id="scanner-colab-lbl" style="display:none;font-size:11px;color:var(--warning);font-weight:700;margin-top:2px;">👥 Grupo colaborativo</div>
+      <div class="scan-hud-pnd" id="scanner-pnd-lbl"></div>
+    </div>
+
+    <div id="btn-close-scan" onclick="stopScanner()">✕</div>
+  </div>
+</div>
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-let _data={inventarios:[],metas:[],usuarios:[],totalConsolidado:0,grupos:[]};
-let _pausarRefresh=false;
-let _loadingData=false;
-let _loadingAlertas=false;
-let _open={};
-let _forcaAberta={};  // preserva qual card tem o campo de senha aberto
-let _forcaSenha={};   // preserva o que foi digitado antes do refresh
+let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
+let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
+const CHAVE_LOCAL="HS_INV_SESSAO_03";
 
-function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
+// pendentes de envio
+let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
+let loteEmAndamento=null,requestIdEmAndamento='';
+const MAX_TENTATIVAS=5;
 
-function callGAS(p){return new Promise((res,rej)=>{const cb='jsonp_'+Math.round(1e7*Math.random());window[cb]=d=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){}res(d);};const sc=document.createElement('script');let url=WEB_APP_URL+'?callback='+cb;for(const k in p)url+='&'+k+'='+encodeURIComponent(p[k]);sc.src=url;sc.onerror=()=>{delete window[cb];rej("Erro");};document.body.appendChild(sc);setTimeout(()=>{if(window[cb]){delete window[cb];try{document.body.removeChild(sc);}catch(_){}rej("Timeout");}},25000);});}
-
-async function loadData(){
-  if(_pausarRefresh)return; // pausa durante dialogs para evitar re-render e duplicidade
-  if(_loadingData)return;
-  if(Object.keys(_forcaAberta).length>0) return;
-  _loadingData=true;
-  const btn=document.getElementById('refresh-btn');btn.classList.add('spinning');
+function enqueue(ean){
+  queue.push(ean);totalLocal++;
+  updateCounterUI(ean);updateQueueUI();scheduleFlush();
+}
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,300);}
+async function flushQueue(){
+  if(enviando||queue.length===0)return;
+  enviando=true;setRT('warn');
+  if(!loteEmAndamento||!Array.isArray(loteEmAndamento)||loteEmAndamento.length===0){
+    loteEmAndamento=queue.slice();
+    requestIdEmAndamento='REQ_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+  }
+  const batch=loteEmAndamento;
   try{
-    const r=await callGAS({api:'getSheetsData'});
-    if(r&&r.success){
-      _data=r;
-      updateStats();renderAguardando();renderUsuarios();renderInventarios();renderGrupos();
-      renderGrupoInvSelect();
-    } else {
-      toast('Erro ao carregar: '+((r&&r.message)||'resposta inválida'),4000);
+    const res=await callGAS({api:'registrarBipeLote',requestId:requestIdEmAndamento,eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
+    if(res&&res.success){
+      queue=queue.slice(batch.length);
+      totalServidor=res.count||0;
+      totalLocal=totalServidor+queue.length;
+      loteEmAndamento=null;requestIdEmAndamento='';
+      _tentativas=0;setRT('ok');
+      if(queue.length>0)scheduleFlush();
+    }else{
+      setRT('err');
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}stopScanner();showScreen('main-menu');atualizarMenu();}
+      else if(res&&res.code==='SECAO_FECHADA'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;grupoEncerrado(res.message);}
+      else if(_tentativas<MAX_TENTATIVAS){
+        _tentativas++;
+        const delay=1500*_tentativas;
+        enviando=false;updateCounterUI();updateQueueUI();
+        timerEnvio=setTimeout(flushQueue,delay);
+        return;
+      }
     }
-  }catch(e){toast('Erro: '+e,4000);}
-  finally{
-    _loadingData=false;
-    btn.classList.remove('spinning');
-  }
-}
-
-function updateStats(){
-  const b=_data.usuarios.filter(u=>u.status!=='AGUARDANDO_META').reduce((s,u)=>s+(u.bipes||0),0);
-  document.getElementById('s-users').textContent=_data.usuarios.length;
-  document.getElementById('s-bipes').textContent=b;
-  document.getElementById('s-consol').textContent=_data.totalConsolidado||0;
-}
-
-function renderGrupoInvSelect(){
-  const sel=document.getElementById('grupo-inv-select');
-  const invs=(_data.inventarios||[]).filter(i=>i.status==='ABERTO');
-  sel.innerHTML=invs.length?invs.map(i=>`<option value="${i.id}">${i.nome}</option>`).join(''):'<option value="">Nenhum inventário aberto</option>';
-}
-
-function renderAguardando(){
-  const lista=(_data.usuarios||[]).filter(u=>u.status==='AGUARDANDO_META'&&!u.bloqueado);
-  const sec=document.getElementById('ag-section');
-  if(!lista.length){sec.style.display='none';return;}
-  sec.style.display='block';
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  document.getElementById('list-ag').innerHTML=lista.map(u=>{
-    const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
-    // Usa nome+grupo como chave única para evitar conflito quando mesmo usuário tem 2 grupos
-    const uid=encodeKey(u.nome+'_'+u.grupo);
-    return `<div class="ag-card">
-      <div class="ag-top">
-        <div>
-          <div class="ag-nome">👤 ${u.nome}</div>
-          <div class="ag-grupo">📦 ${u.grupo} <small style="color:var(--dim)">(${inv?inv.nome:u.idInventario})</small></div>
-        </div>
-      </div>
-      <div class="ag-form">
-        <input class="ag-input" type="number" id="mi-${uid}" placeholder="Qtd fisica..." min="1"/>
-        <button class="ag-btn" onclick="definirMeta('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}','${uid}')">Liberar</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderUsuarios(){
-  // Salva o que foi digitado nos campos de senha ANTES de destruir o DOM
-  document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
-    const key=inp.id.replace('forca-senha-','');
-    if(inp.value) _forcaSenha[key]=inp.value;
-  });
-
-  const q=(document.getElementById('search-user').value||'').toLowerCase();
-  const list=(_data.usuarios||[])
-    .filter(u=>u.status!=='AGUARDANDO_META')
-    .filter(u=>!q||u.nome.toLowerCase().includes(q)||(u.grupo||'').toLowerCase().includes(q))
-    .filter((u,i,arr)=>{
-      return arr.findIndex(x=>x.nome===u.nome&&x.grupo===u.grupo&&x.idInventario===u.idInventario)===i;
-    });
-  const el=document.getElementById('list-usuarios');
-  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';return;}
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  el.innerHTML=list.map(u=>{
-    const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
-    const pct=u.meta?Math.min(100,Math.round((u.bipes/u.meta)*100)):null;
-    const ini=u.nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
-    let bc='b-cnt',bt=u.bipes+(u.meta?'/'+u.meta:'')+' pcs';
-    if(u.meta){if(u.bipes===u.meta){bc='b-ok';bt='✓ '+bt;}else if(u.bipes>u.meta){bc='b-err';}else{bc='b-warn';}}
-    let bf='f-warn';if(pct!==null){if(pct>=100)bf=pct>100?'f-err':'f-ok';}
-    const oc=_open[u.nome]?'open':'';
-    const forcaAberta=!!_forcaAberta[u.nome];
-    const apiNome=u.nomeReal||u.nome;
-    const su2=s=>String(s||'').replace(/'/g,"\\'");
-    const membrosArr=u.isGrp&&u.membros?u.membros.split(',').filter(m=>m.trim()):[];
-    // Busca idGrupo para o botão de tornar colaborativo
-    const gInfo=(_data.grupos||[]).find(g=>String(g.idInventario)===String(u.idInventario)&&String(g.nome||'').replace(/_/g,' ').toUpperCase()===String(u.grupo||'').replace(/_/g,' ').toUpperCase()&&!g.colaborativo&&g.status!=='CONCLUIDO');
-    const btnColab=(!u.isGrp&&gInfo)?`<button class="btn btn-n btn-sm" style="font-size:9px;" onclick="promptTornarColab('${su2(u.idInventario)}','${su2(gInfo.id)}','${su2(u.grupo)}')">👥 Colab</button>`:'';
-    return `<div class="user-card">
-      <div class="uch" onclick="toggleItems('${su2(u.nome)}')">
-        <div class="u-avatar">${ini}</div>
-        <div class="u-info">
-          <div class="u-name">${u.nome}${u.isGrp?'<span style="font-size:9px;background:rgba(255,171,64,.2);color:var(--warn);border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:middle;">COLAB</span>':''}</div>
-          <div class="u-meta">${inv?inv.nome:u.idInventario}${u.grupo?' · '+u.grupo:''}</div>
-          ${membrosArr.length?`<div style="font-size:9px;color:var(--info);margin-top:1px;">${membrosArr.join(' · ')}</div>`:''}
-        </div>
-        <div class="u-badges"><span class="badge ${bc}">${bt}</span>${u.bloqueado?'<span class="badge b-err" style="font-size:9px">BLOQ</span>':''}<span style="color:var(--dim);font-size:11px">${_open[u.nome]?'▲':'▼'}</span></div>
-      </div>
-      ${u.meta!==null&&u.meta!==undefined?`<div class="prog-wrap"><div class="prog-info"><span>Progresso</span><strong>${pct!==null?pct+'%':'—'}</strong></div><div class="prog-bg"><div class="prog-fill ${bf}" style="width:${Math.min(pct||0,100)}%"></div></div></div>`:''}
-      <div class="u-actions">
-        <button class="btn btn-w btn-sm" onclick="addManual('${su2(apiNome)}','${su2(u.idInventario)}','${su2(u.grupo)}')">+ Manual</button>
-        <button class="btn btn-d btn-sm" onclick="zerarUsuario('${su2(apiNome)}','${su2(u.idInventario)}')">Zerar</button>
-        <button class="btn btn-n btn-sm" onclick="finalizarUsuario('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Finalizar</button>
-        <button class="btn btn-sm" style="background:#2a3a5c;color:#7eb3ff;border:1px solid #3a5a8c;" onclick="toggleAlterarMeta('${su2(u.nome)}')">✏️ Meta</button>
-        ${u.isGrp&&membrosArr.length>1
-          ? membrosArr.map(m=>`<button class="btn btn-sm" style="background:#444;color:#fff;font-size:9px;" onclick="removerDoGrupo('${su2(u.nome)}','${su2(m.trim())}','${su2(u.idInventario)}')">↩ ${m.trim()}</button>`).join('')
-          : `<button class="btn btn-sm" style="background:#444;color:#fff;" onclick="removerDoGrupo('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">↩ Remover</button>`
-        }
-        ${btnColab}
-      </div>
-      <div id="alterar-meta-${encodeKey(u.nome)}" style="display:none;" class="forca-box">
-        <p>✏️ Nova meta para <strong>${u.nome}</strong> (atual: ${u.meta||'sem meta'}):</p>
-        <div class="ag-form">
-          <input class="ag-input" type="number" min="1" id="nova-meta-${encodeKey(u.nome)}" placeholder="Nova meta..."/>
-          <button class="ag-btn" style="background:#2a3a5c;color:#7eb3ff;" onclick="alterarMeta('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Salvar</button>
-        </div>
-      </div>
-      <div id="forca-${encodeKey(u.nome)}" style="display:${forcaAberta?'block':'none'};" class="forca-box">
-        <p>⚠️ Contagem divergente. Digite a senha para forçar conclusão:</p>
-        <div class="ag-form">
-          <input class="ag-input" type="password" id="forca-senha-${encodeKey(u.nome)}" placeholder="Senha de autorização"/>
-          <button class="ag-btn" style="background:var(--err);color:#fff;" onclick="finalizarUsuarioForca('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Forçar</button>
-        </div>
-      </div>
-      <div class="items-panel ${oc}" id="items-${encodeKey(u.nome)}">${renderItems(u)}</div>
-    </div>`;
-  }).join('');
-
-  // Restaura o texto digitado nos campos de senha via JS (value no HTML não funciona em type=password)
-  Object.keys(_forcaSenha).forEach(key=>{
-    const inp=document.getElementById('forca-senha-'+key);
-    if(inp&&_forcaSenha[key]) inp.value=_forcaSenha[key];
-  });
-}
-
-function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
-
-function renderItems(u){
-  if(!u.items||!u.items.length)return '<div class="empty" style="padding:10px">Sem itens</div>';
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  const apiNome=u.nomeReal||u.nome; // usa nomeReal para grupos colaborativos
-  return u.items.map(item=>{
-    const dt=item.dataHora?new Date(item.dataHora):null;
-    const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span><span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
-  }).join('');
-}
-
-function toggleItems(nome){_open[nome]=!_open[nome];renderUsuarios();}
-
-function renderInventarios(){
-  const el=document.getElementById('list-inventarios');
-  if(!_data.inventarios||!_data.inventarios.length){el.innerHTML='<div class="empty">Nenhum inventário.</div>';return;}
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  el.innerHTML=_data.inventarios.map(i=>`
-    <div class="inv-row">
-      <div><div class="inv-nome">${i.nome}</div><div class="inv-id">ID: ${i.id} · <span style="color:${i.status==='ABERTO'?'var(--ok)':'var(--dim)'}">${i.status}</span></div></div>
-      <div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="btn btn-w btn-sm" onclick="fecharInventario('${su(i.id)}','${su(i.nome)}')">Fechar</button>`:''}<button class="btn btn-d btn-sm" onclick="excluirInventario('${su(i.id)}')">✕</button></div>
-    </div>`).join('');
-}
-
-function renderGrupos(){
-  const el=document.getElementById('list-grupos');
-  const invAbertos=(_data.inventarios||[]).filter(i=>i.status==='ABERTO').map(i=>String(i.id));
-  const grupos=(_data.grupos||[]).filter(g=>invAbertos.includes(String(g.idInventario))&&g.status!=='CONCLUIDO');
-  const concluidos=(_data.grupos||[]).filter(g=>invAbertos.includes(String(g.idInventario))&&g.status==='CONCLUIDO');
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-
-  const renderGrupoRow=(g,isConcluido)=>{
-    const inv=_data.inventarios.find(i=>String(i.id)===String(g.idInventario));
-    const statusCls=g.status==='DISPONIVEL'?'g-disp':g.status==='RESERVADO'?'g-res':'g-done';
-    const membros=g.membros?g.membros.split(',').filter(m=>m.trim()):[];
-    const vagasRestantes=Math.max(0,(parseInt(g.vagas)||1)-membros.length);
-    const statusLbl=g.colaborativo
-      ? (g.status==='DISPONIVEL'?'LIVRE':isConcluido?'CONCLUÍDO':`${membros.length}/${g.vagas} membros`)
-      : (g.status==='DISPONIVEL'?'LIVRE':g.status==='RESERVADO'?`${g.usuario||'?'}`:g.status);
-    return `<div class="grupo-row"${isConcluido?' style="opacity:0.65"':''}>
-      <div style="flex:1;min-width:0;">
-        <div class="grupo-nome">${g.colaborativo?'👥 ':''} ${String(g.nome||'—')}</div>
-        <div class="grupo-info">${inv?inv.nome:g.idInventario} · Meta: ${g.meta&&g.meta>0?g.meta+' pcs':'a definir'}${g.colaborativo&&!isConcluido?' · '+vagasRestantes+' vaga(s)':''}</div>
-        ${membros.length&&!isConcluido?`<div class="grupo-info" style="color:var(--info);">${membros.join(', ')}</div>`:''}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-        <span class="g-badge ${statusCls}">${statusLbl}</span>
-        ${!isConcluido?`<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-          ${!g.colaborativo?`<button class="btn btn-n btn-sm" style="font-size:9px;" onclick="promptTornarColab('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}')">👥 Colab</button>`:''}
-          ${g.status==='DISPONIVEL'?`<button class="btn btn-d btn-sm" onclick="excluirGrupo('${su(g.idInventario)}','${su(g.id)}')">✕</button>`:''}
-          ${g.status==='RESERVADO'?`<button class="btn btn-sm" style="background:#555;color:#fff;font-size:9px;" onclick="resetarGrupo('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}')">↺ Reset</button>`:''}
-        </div>`:''}
-      </div>
-    </div>`;
-  };
-
-  let html='';
-  if(grupos.length){
-    html+=grupos.map(g=>renderGrupoRow(g,false)).join('');
-  } else {
-    html+='<div class="empty">Nenhum grupo ativo.</div>';
-  }
-  if(concluidos.length){
-    html+=`<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px;font-weight:700;">✓ Concluídos</div>`;
-    html+=concluidos.map(g=>renderGrupoRow(g,true)).join('');
-  }
-  el.innerHTML=html;
-}
-
-// ── AÇÕES ──────────────────────────────────────────────────────────────────
-
-async function criarInventario(){
-  const nome=document.getElementById('novo-inv-nome').value.trim();
-  const senha=document.getElementById('novo-inv-senha').value.trim();
-  if(!nome||!senha)return toast('Preencha nome e senha.');
-  try{
-    const r=await callGAS({api:'criarNovoInventario',nome,senha});
-    if(r&&r.success){
-      toast(`Inventário "${nome}" criado! ID: ${r.id}`);
-      document.getElementById('novo-inv-nome').value='';
-      document.getElementById('novo-inv-senha').value='';
-      await loadData();
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-// Toggle campo de vagas ao marcar colaborativo
-document.addEventListener('DOMContentLoaded',()=>{
-  const chk=document.getElementById('novo-grupo-colab');
-  const vagasEl=document.getElementById('novo-grupo-vagas');
-  if(chk&&vagasEl)chk.addEventListener('change',()=>{vagasEl.style.display=chk.checked?'block':'none';});
-});
-
-async function criarGrupo(){
-  const invId=document.getElementById('grupo-inv-select').value;
-  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
-  const meta=document.getElementById('novo-grupo-meta').value.trim();
-  const colab=document.getElementById('novo-grupo-colab').checked;
-  const vagas=document.getElementById('novo-grupo-vagas').value||'2';
-  if(!invId||!nome||!meta)return toast('Preencha todos os campos.');
-  try{
-    const r=await callGAS({api:'criarGrupo',idInventario:invId,nomeGrupo:nome,meta,colaborativo:colab?'true':'false',vagas});
-    if(r&&r.success){
-      toast(`Grupo "${r.nomeGrupo}" criado${r.colaborativo?' (colaborativo, '+r.vagas+' vagas)':''}.`);
-      document.getElementById('novo-grupo-nome').value='';
-      document.getElementById('novo-grupo-meta').value='';
-      document.getElementById('novo-grupo-colab').checked=false;
-      document.getElementById('novo-grupo-vagas').style.display='none';
-      await loadData();
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-// ── DIALOGS CUSTOMIZADOS ───────────────────────────────────────────────────
-function hsConfirm(title,body='',danger=false){
-  return new Promise(resolve=>{
-    _pausarRefresh=true; // pausa auto-refresh enquanto dialog aberto
-    document.getElementById('hs-dialog-title').textContent=title;
-    document.getElementById('hs-dialog-body').textContent=body;
-    document.getElementById('hs-dialog-input').style.display='none';
-    const btns=document.getElementById('hs-dialog-btns');
-    btns.innerHTML='';
-    const bc=document.createElement('button');bc.className='hs-dialog-btn cancel';bc.textContent='Cancelar';
-    const bo=document.createElement('button');bo.className='hs-dialog-btn '+(danger?'danger':'confirm');bo.textContent='Confirmar';
-    const close=(v)=>{_pausarRefresh=false;document.getElementById('hs-dialog-overlay').classList.remove('show');resolve(v);};
-    bc.onclick=()=>close(false);bo.onclick=()=>close(true);
-    btns.appendChild(bc);btns.appendChild(bo);
-    document.getElementById('hs-dialog-overlay').classList.add('show');
-    setTimeout(()=>bo.focus(),50);
-  });
-}
-function hsPrompt(title,body='',placeholder='',type='text'){
-  return new Promise(resolve=>{
-    _pausarRefresh=true;
-    document.getElementById('hs-dialog-title').textContent=title;
-    document.getElementById('hs-dialog-body').textContent=body;
-    const inp=document.getElementById('hs-dialog-input');
-    inp.style.display='block';inp.type=type;inp.placeholder=placeholder;inp.value='';
-    const btns=document.getElementById('hs-dialog-btns');
-    btns.innerHTML='';
-    const bc=document.createElement('button');bc.className='hs-dialog-btn cancel';bc.textContent='Cancelar';
-    const bo=document.createElement('button');bo.className='hs-dialog-btn confirm';bo.textContent='OK';
-    const close=(v)=>{_pausarRefresh=false;document.getElementById('hs-dialog-overlay').classList.remove('show');resolve(v);};
-    bc.onclick=()=>close(null);bo.onclick=()=>close(inp.value.trim()||null);
-    inp.onkeydown=(e)=>{if(e.key==='Enter')close(inp.value.trim()||null);if(e.key==='Escape')close(null);};
-    btns.appendChild(bc);btns.appendChild(bo);
-    document.getElementById('hs-dialog-overlay').classList.add('show');
-    setTimeout(()=>inp.focus(),50);
-  });
-}
-
-async function promptTornarColab(invId,idGrupo,nomeGrupo){
-  const v=await hsPrompt(`Tornar "${nomeGrupo}" colaborativo`,'Quantas pessoas vão bipar juntas? (mínimo 2)','Ex: 2','number');
-  if(!v)return;
-  const vn=parseInt(v);
-  if(isNaN(vn)||vn<2)return toast('Mínimo 2 vagas para colaborativo.');
-  if(!await hsConfirm(`Tornar "${nomeGrupo}" colaborativo com ${vn} vagas?`,'Os bipes existentes serão migrados para a aba compartilhada.'))return;
-  try{
-    const r=await callGAS({api:'tornarColaborativo',idInventario:invId,idGrupo,vagas:String(vn)});
-    if(r&&r.success){toast(`Grupo colaborativo! ${r.bipesMigrados} bipes migrados.`);await loadData();}
-    else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-async function resetarGrupo(invId,idGrupo,nomeGrupo){
-  if(!await hsConfirm(`Resetar o grupo "${nomeGrupo}"?`,'Todos os membros serão removidos e o grupo voltará para DISPONÍVEL. Os bipes já registrados serão preservados.'))return;
-  try{
-    const r=await callGAS({api:'resetarGrupo',idInventario:invId,idGrupo});
-    if(r&&r.success){toast(`Grupo "${nomeGrupo}" resetado. ${r.membrosLimpos} membro(s) removido(s).`);await loadData();}
-    else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-async function excluirGrupo(invId,idGrupo){
-  if(!await hsConfirm('Excluir este grupo?','',true))return;
-  try{const r=await callGAS({api:'excluirGrupo',idInventario:invId,idGrupo});if(r&&r.success){toast('Grupo excluido.');await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}
-  catch(e){toast('Erro: '+e);}
-}
-
-async function definirMeta(usuario,idInventario,grupo,uid){
-  const inputEl=document.getElementById('mi-'+(uid||encodeKey(usuario)));
-  let meta=inputEl?inputEl.value.trim():null;
-  if(!meta)meta=await hsPrompt(`Meta para "${usuario}"`,`Grupo: ${grupo}`,'Ex: 20','number');
-  if(!meta)return;
-  try{const r=await callGAS({api:'definirMeta',idInventario,usuario,meta});if(r&&r.success){toast(`Meta de ${r.meta} pcs definida. ${usuario} liberado!`);await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}
-  catch(e){toast('Erro: '+e);}
-}
-
-async function removerDoGrupo(nomeExib,apiNome,idInventario){
-  if(!await hsConfirm(`Remover "${nomeExib}" do grupo?`,'Os bipes já registrados serão mantidos no grupo para o próximo conferente continuar de onde parou.'))return;
-  try{
-    const r=await callGAS({api:'removerDoGrupo',idInventario,usuario:apiNome});
-    if(r&&r.success){toast(`"${nomeExib}" removido. ${r.bipesMantidos} bipes mantidos.`);await loadData();}
-    else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-async function excluirItem(usuario,idInventario,rowIndex){
-  if(!await hsConfirm(`Excluir este item de "${usuario}"?`,'',true))return;
-  try{const r=await callGAS({api:'excluirItemUsuario',idInventario,usuario,rowIndex});if(r&&r.success){toast('Item excluido. Total: '+r.newCount);await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}catch(e){toast('Erro: '+e);}
-}
-
-async function zerarUsuario(usuario,idInventario){
-  if(!await hsConfirm(`Zerar TODA contagem de "${usuario}"?`,'Esta ação não pode ser desfeita.',true))return;
-  try{const r=await callGAS({api:'zerarContagemUsuario',idInventario,usuario});if(r&&r.success){toast('Contagem zerada.');await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}catch(e){toast('Erro: '+e);}
-}
-
-async function finalizarUsuario(nomeExib,apiNome,idInventario){
-  if(!await hsConfirm(`Finalizar grupo de "${nomeExib}"?`,'Os conferentes serão redirecionados para seleção ou criação de um novo grupo.'))return;
-  try{
-    const r=await callGAS({api:'masterConcluirSecao',usuario:apiNome,idInventario});
-    if(r&&r.success){
-      if(r.jaConcluidoPeloConferente){toast('Grupo já foi concluído pelo conferente.');}
-      else{toast(`${r.count||0} itens consolidados. Bloqueado.`);}
-      delete _forcaAberta[nomeExib];delete _forcaSenha[nomeExib];await loadData();
-    } else if(r&&r.code==='CONTAGEM_NAO_BATE'){
-      toast('Contagem divergente — digite a senha para forçar.');
-      _forcaAberta[nomeExib]=true;renderUsuarios();
-      setTimeout(()=>{const inp=document.getElementById('forca-senha-'+encodeKey(nomeExib));if(inp)inp.focus();},50);
-    } else {toast('Erro: '+((r&&r.message)||'?'));}
-  }catch(e){toast('Erro: '+e);}
-}
-
-async function finalizarUsuarioForca(nomeExib,apiNome,idInventario){
-  const inp=document.getElementById('forca-senha-'+encodeKey(nomeExib));
-  const senha=inp?inp.value.trim():'';
-  _forcaSenha[nomeExib]=senha;
-  if(!senha)return toast('Digite a senha.');
-  try{
-    const r=await callGAS({api:'masterConcluirSecao',usuario:apiNome,idInventario,senha});
-    if(r&&r.success){
-      toast(`Forçado! ${r.count||0} itens.`);
-      delete _forcaAberta[nomeExib];delete _forcaSenha[nomeExib];
-      await loadData();
-    } else {
-      toast('Senha incorreta.');
-      _forcaSenha[nomeExib]='';
-      renderUsuarios();
-      setTimeout(()=>{const i=document.getElementById('forca-senha-'+encodeKey(nomeExib));if(i){i.value='';i.focus();}},50);
-    }
-  }catch(e){toast('Erro: '+e);}
-}
-
-let _confrontoData=null,_confrontoFiltro=null;
-
-function abrirConfronto(){
-  const sel=document.getElementById('confronto-inv');
-  const invs=(_data.inventarios||[]);
-  if(!invs.length){
-    // Dados ainda não carregados — força um loadData e tenta de novo
-    loadData().then(()=>{abrirConfronto();});
-    return;
-  }
-  sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.nome}${i.status!=='ABERTO'?' ('+i.status+')':''}</option>`).join('');
-  document.getElementById('confronto-resultado').innerHTML='';
-  document.getElementById('conf-filtro-clear-wrap').style.display='none';
-  _confrontoFiltro=null;_confrontoData=null;
-  document.getElementById('modal-confronto').classList.add('open');
-}
-function fecharConfronto(){document.getElementById('modal-confronto').classList.remove('open');}
-
-function clicarCategoria(cat){
-  if(_confrontoFiltro===cat){
-    limparFiltroConfronto();
-  } else {
-    _confrontoFiltro=cat;
-    document.getElementById('conf-filtro-clear-wrap').style.display='block';
-    renderConfronto();
-  }
-}
-
-function limparFiltroConfronto(){
-  _confrontoFiltro=null;
-  document.getElementById('conf-filtro-clear-wrap').style.display='none';
-  renderConfronto();
-}
-
-function _itemHtml(i,tipo){
-  if(tipo==='acima'){
-    const ex=i.qtdBipada-i.qtdEstoque;
-    return `<div class="conf-item" style="background:rgba(255,82,82,.1);">
-      <div><div class="conf-label" style="color:var(--err)">${i.label}</div>
-      <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque}</div></div>
-      <span class="conf-badge" style="background:rgba(255,82,82,.2);color:var(--err)">+${ex} a mais</span></div>`;
-  }
-  if(tipo==='proximo'){
-    const faltam=i.qtdEstoque-i.qtdBipada;
-    return `<div class="conf-item" style="background:rgba(255,171,64,.08);">
-      <div style="flex:1;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
-          <div class="conf-label">${i.label}</div>
-          <span class="conf-badge" style="background:rgba(255,171,64,.2);color:var(--warn)">${i.pct}%</span>
-        </div>
-        <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque} · faltam: <strong style="color:#e8eaf0">${faltam}</strong></div>
-        <div class="conf-bar"><div class="conf-bar-fill" style="width:${i.pct}%;background:var(--warn)"></div></div>
-      </div></div>`;
-  }
-  return `<div class="conf-item" style="background:rgba(67,217,138,.07);">
-    <div class="conf-label" style="color:var(--ok)">${i.label}</div>
-    <div class="conf-qty">${i.qtdBipada} pcs ✓</div></div>`;
-}
-
-function renderConfronto(){
-  if(!_confrontoData)return;
-  const r=_confrontoData,f=_confrontoFiltro;
-  const res=document.getElementById('confronto-resultado');
-  let html='';
-
-  // Cards de resumo — sempre visíveis, clicável para filtrar
-  html+=`<div class="conf-stats">
-    <div class="conf-stat${f==='acima'?' ativo':''}" style="background:rgba(255,82,82,.1);" onclick="clicarCategoria('acima')">
-      <div class="conf-stat-val" style="color:var(--err)">${r.acima.length}</div>
-      <div class="conf-stat-lbl">Acima estoque</div>
-    </div>
-    <div class="conf-stat${f==='proximo'?' ativo':''}" style="background:rgba(255,171,64,.1);" onclick="clicarCategoria('proximo')">
-      <div class="conf-stat-val" style="color:var(--warn)">${r.proximo.length}</div>
-      <div class="conf-stat-lbl">≥50% bipado</div>
-    </div>
-    <div class="conf-stat${f==='exato'?' ativo':''}" style="background:rgba(67,217,138,.08);" onclick="clicarCategoria('exato')">
-      <div class="conf-stat-val" style="color:var(--ok)">${r.exato.length}</div>
-      <div class="conf-stat-lbl">Exato</div>
-    </div>
-  </div>`;
-
-  // Lista filtrada ou completa
-  if(f==='acima'){
-    if(r.acima.length)html+=r.acima.map(i=>_itemHtml(i,'acima')).join('');
-    else html+='<div class="conf-empty">Nenhum item acima do estoque.</div>';
-  } else if(f==='proximo'){
-    if(r.proximo.length)html+=r.proximo.map(i=>_itemHtml(i,'proximo')).join('');
-    else html+='<div class="conf-empty">Nenhum item próximo de fechar.</div>';
-  } else if(f==='exato'){
-    if(r.exato.length)html+=r.exato.map(i=>_itemHtml(i,'exato')).join('');
-    else html+='<div class="conf-empty">Nenhum item exato ainda.</div>';
-  } else {
-    // Tudo
-    if(r.acima.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;}
-    if(r.proximo.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;}
-    if(r.exato.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;}
-    if(!r.acima.length&&!r.proximo.length&&!r.exato.length)html+='<div class="conf-empty">Nenhum item atingiu 50% ainda. Continue bipando!</div>';
-  }
-  res.innerHTML=html;
-}
-
-async function rodarConfronto(){
-  const invId=document.getElementById('confronto-inv').value;
-  const res=document.getElementById('confronto-resultado');
-  res.innerHTML='<div class="conf-empty">Calculando...</div>';
-  _confrontoData=null;_confrontoFiltro=null;
-  document.getElementById('conf-filtro-clear-wrap').style.display='none';
-  try{
-    const r=await callGAS({api:'confrontarEstoque',idInventario:invId});
-    if(!r||!r.success){res.innerHTML=`<div class="conf-empty" style="color:var(--err)">${r&&r.message||'Erro. Verifique se a aba ESTOQUE existe.'}</div>`;return;}
-    _confrontoData=r;renderConfronto();
-  }catch(e){res.innerHTML=`<div class="conf-empty" style="color:var(--err)">Erro: ${e}</div>`;}
-}
-
-// ── ETIQUETAS ──────────────────────────────────────────────────────────────
-let _etiquetas=[];
-
-// Gera barras EAN-13 em SVG puro
-function ean13svg(code,w,h){
-  const enc={'0':'0001101','1':'0011001','2':'0010011','3':'0111101','4':'0100011',
-             '5':'0110001','6':'0101111','7':'0111011','8':'0110111','9':'0001011'};
-  const encR={'0':'1110010','1':'1100110','2':'1101100','3':'1000010','4':'1011100',
-              '5':'1001110','6':'1010000','7':'1000100','8':'1001000','9':'1110100'};
-  const paridade=[
-    [0,0,0,0,0,0],[0,0,1,0,1,1],[0,0,1,1,0,1],[0,0,1,1,1,0],[0,1,0,0,1,1],
-    [0,1,1,0,0,1],[0,1,1,1,0,0],[0,1,0,1,0,1],[0,1,0,1,1,0],[0,1,1,0,1,0]
-  ];
-  const d=code.padStart(13,'0').split('').map(Number);
-  const p=paridade[d[0]];
-  let bits='101'; // guard start
-  for(let i=0;i<6;i++) bits+=p[i]?encR[d[i+1]]:enc[d[i+1]];
-  bits+='01010'; // guard center
-  for(let i=7;i<13;i++) bits+=encR[d[i]];
-  bits+='101'; // guard end
-  const bw=w/bits.length;
-  let rects='';
-  bits.split('').forEach((b,i)=>{
-    if(b==='1') rects+=`<rect x="${(i*bw).toFixed(2)}" y="0" width="${bw.toFixed(2)}" height="${h}" fill="#000"/>`;
-  });
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${rects}</svg>`;
-}
-
-function etiqHTML(e, cls='etiq'){
-  const svg=ean13svg(e.ean,130,50);
-  const isPreview = cls==='etiq';
-  if(isPreview){
-    return `<div class="etiq">
-      <div class="etiq-top">
-        <div class="etiq-grade-box"><div class="etiq-grade">${e.grade||'?'}</div></div>
-        <div class="etiq-refcor">${e.refCor||'—'}</div>
-      </div>
-      <div class="etiq-barras">
-        ${svg}
-        <div class="etiq-ean-num">${e.ean}</div>
-      </div>
-    </div>`;
-  } else {
-    // versão impressão
-    return `<div class="etiq-print">
-      <div class="ep-top">
-        <div class="ep-grade-box"><div class="ep-grade">${e.grade||'?'}</div></div>
-        <div class="ep-refcor">${e.refCor||'—'}</div>
-      </div>
-      <div class="ep-barras">
-        ${svg}
-        <div class="ep-ean">${e.ean}</div>
-      </div>
-    </div>`;
-  }
-}
-
-async function abrirEtiquetas(){
-  document.getElementById('modal-etiquetas').classList.add('open');
-  document.getElementById('etiquetas-grid').innerHTML='<div class="conf-empty">Carregando...</div>';
-  try{
-    const r=await callGAS({api:'getEtiquetas'});
-    if(!r||!r.success){document.getElementById('etiquetas-grid').innerHTML=`<div class="conf-empty" style="color:var(--err)">${r&&r.message||'Erro'}</div>`;return;}
-    _etiquetas=r.etiquetas||[];
-    renderEtiquetas();
-  }catch(e){document.getElementById('etiquetas-grid').innerHTML=`<div class="conf-empty" style="color:var(--err)">Erro: ${e}</div>`;}
-}
-
-function fecharEtiquetas(){document.getElementById('modal-etiquetas').classList.remove('open');}
-
-function renderEtiquetas(){
-  const grid=document.getElementById('etiquetas-grid');
-  document.getElementById('etiq-count').textContent=`${_etiquetas.length} etiqueta${_etiquetas.length!==1?'s':''} pendente${_etiquetas.length!==1?'s':''}`;
-  if(!_etiquetas.length){grid.innerHTML='<div class="conf-empty">Nenhuma etiqueta pendente.<br>Adicione EANs manualmente em algum grupo.</div>';return;}
-  grid.innerHTML=`<div class="etiq-grid">${_etiquetas.map(e=>etiqHTML(e,'etiq')).join('')}</div>`;
-}
-
-function imprimirEtiquetas(){
-  if(!_etiquetas.length)return toast('Nenhuma etiqueta para imprimir.');
-  // Cria área de impressão oculta fora do modal
-  let pa=document.getElementById('print-area');
-  if(!pa){pa=document.createElement('div');pa.id='print-area';pa.style.display='none';document.body.appendChild(pa);}
-  pa.innerHTML=_etiquetas.map(e=>etiqHTML(e,'etiq-print')).join('');
-  window.print();
-}
-
-async function limparEtiquetasPendentes(){
-  if(!await hsConfirm('Limpar todas as etiquetas pendentes?','Esta ação não pode ser desfeita.',true))return;
-  try{
-    const r=await callGAS({api:'limparEtiquetas'});
-    if(r&&r.success){_etiquetas=[];renderEtiquetas();toast('Etiquetas limpas.');}
-    else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-function toggleAlterarMeta(nome){
-  const key=encodeKey(nome);
-  const el=document.getElementById('alterar-meta-'+key);
-  if(!el)return;
-  const aberto=el.style.display!=='none';
-  el.style.display=aberto?'none':'block';
-  if(!aberto)setTimeout(()=>{const inp=document.getElementById('nova-meta-'+key);if(inp)inp.focus();},50);
-}
-
-async function alterarMeta(nomeExib,apiNome,idInventario){
-  const key=encodeKey(nomeExib);
-  const inp=document.getElementById('nova-meta-'+key);
-  const nova=inp?inp.value.trim():'';
-  if(!nova||isNaN(nova)||parseInt(nova)<=0)return toast('Meta deve ser número positivo.');
-  try{
-    const r=await callGAS({api:'definirMeta',idInventario,usuario:apiNome,meta:parseInt(nova)});
-    if(r&&r.success){
-      toast(`Meta de "${nomeExib}" alterada para ${nova} pcs.`);
-      const el=document.getElementById('alterar-meta-'+key);
-      if(el)el.style.display='none';
-      await loadData();
-    } else {
-      toast('Erro: '+((r&&r.message)||'?'));
-    }
-  }catch(e){toast('Erro: '+e);}
-}
-
-async function addManual(usuario,idInventario,grupo){
-  const ean=await hsPrompt(`EAN manual para "${usuario}"`,`Grupo: ${grupo}`,'Código EAN-13');
-  if(!ean)return;
-  try{const r=await callGAS({api:'masterAddManualCode',usuario,idInventario,ean,secao:grupo||'MANUAL'});if(r&&r.success){toast('Incluido! Total: '+(r.newCount||'?'));await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}catch(e){toast('Erro: '+e);}
-}
-async function fecharInventario(id,nome){
-  if(!await hsConfirm(`Fechar inventário "${nome}"?`,'Todos os grupos abertos serão encerrados.'))return;
-  try{const r=await callGAS({api:'finalizarInventario',id});if(r&&r.success)toast(`${r.message} | ${r.itensMovidos||0} itens`);else toast('Erro: '+((r&&r.message)||'?'));await loadData();}catch(e){toast('Erro: '+e);}
-}
-async function excluirInventario(id){
-  if(!await hsConfirm('EXCLUIR inventário permanentemente?','Esta ação não pode ser desfeita.',true))return;
-  try{const r=await callGAS({api:'excluirInventario',id});if(r&&r.success)toast('Excluido.');else toast('Erro: '+((r&&r.message)||'?'));await loadData();}catch(e){toast('Erro: '+e);}
-}
-
-// ── ALERTAS DE EAN SUSPEITO ────────────────────────────────────────────────
-let _alertasPoll=null;
-
-async function carregarAlertas(){
-  if(_loadingAlertas)return;
-  _loadingAlertas=true;
-  try{
-    const r=await callGAS({api:'getAlertas'});
-    if(!r||!r.success)return;
-    const box=document.getElementById('alertas-box');
-    const lista=document.getElementById('alertas-list');
-    if(!r.alertas||r.alertas.length===0){
-      box.style.display='none';
+  }catch(e){
+    setRT('err');
+    if(_tentativas<MAX_TENTATIVAS){
+      _tentativas++;
+      enviando=false;updateCounterUI();updateQueueUI();
+      timerEnvio=setTimeout(flushQueue,1500*_tentativas);
       return;
     }
-    box.style.display='block';
-    lista.innerHTML=r.alertas.map(a=>{
-      const dt=a.dataHora?new Date(a.dataHora):null;
-      const hora=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-      return `<div class="alerta-item">
-        <div class="alerta-info">
-          <span class="alerta-ean">${a.ean}</span>
-          &nbsp;·&nbsp; <strong>${a.conferente}</strong> no grupo <strong>${a.grupo}</strong>
-          &nbsp;·&nbsp; ${a.inventario}${hora?' às '+hora:''}
-        </div>
-        <button class="alerta-close" onclick="fecharAlertaUI('${a.id}',this)">✕ Ciente</button>
-      </div>`;
-    }).join('');
-  }catch(_){}
-  finally{_loadingAlertas=false;}
+  }
+  enviando=false;updateCounterUI();updateQueueUI();
 }
 
-async function fecharAlertaUI(id,btn){
+function setRT(s){
+  const d=document.getElementById('rt-dot'),l=document.getElementById('rt-lbl');
+  if(!d)return;
+  d.className='rt-dot'+(s==='err'?' err':s==='warn'?' warn':'');
+  l.textContent=s==='err'?'Reconectando...':s==='warn'?'Sincronizando...':'Sincronizado';
+}
+
+function updateCounterUI(newEan){
+  const v=String(totalLocal);
+  document.getElementById('user-count').textContent=v;
+  document.getElementById('scanner-count-val').textContent=v;
+  if(newEan){
+    const n=document.getElementById('user-count');
+    n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');
+    setTimeout(()=>n.classList.remove('bump'),220);
+    const ev=document.getElementById('last-ean-val');
+    const eb=document.getElementById('last-ean-badge');
+    if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
+    if(eb)eb.style.display='inline-block';
+  }
+}
+function updateQueueUI(){
+  const pnd=queue.length;
+  const pill=document.getElementById('queue-pill'),pndl=document.getElementById('scanner-pnd-lbl');
+  if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;if(pill){pill.textContent=t;pill.style.display='block';}if(pndl)pndl.textContent=t;setRT('warn');}
+  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!enviando)setRT('ok');}
+}
+
+// atualização em tempo real
+let _redirecionando=false;
+let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
+function startRT(){
+  stopRT();
+  _redirecionando=false;
+  const tkAtual=++_tokenSessao;
+  timerRT=setInterval(async()=>{
+    if(!currentInvId||!currentUser||_redirecionando)return;
+    try{
+      const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+      if(tkAtual!==_tokenSessao)return; // resposta de sessão anterior — descarta
+      if(!r||!r.success)return;
+
+      if(r.status==='SECAO_BLOQUEADA'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        setTimeout(()=>{
+          alert(msg+'\nEscolha um novo grupo para continuar.');
+          telaGrupos();
+        },100);
+        return;
+      }
+
+      if(r.status==='INVENTARIO_ENCERRADO'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        atualizarMenu();
+        showScreen('main-menu');
+        setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
+        return;
+      }
+
+      if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
+        const prev=totalServidor;
+        totalServidor=r.count;totalLocal=r.count;
+        updateCounterUI();
+        if(r.count<prev){
+          const n=document.getElementById('user-count');
+          if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
+        }
+      }
+      setRT('ok');
+    }catch(_){setRT('err');}
+  },3000);
+}
+function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let actx=null;
+function bip(ok=true){
   try{
-    btn.disabled=true;btn.textContent='...';
-    await callGAS({api:'fecharAlerta',id});
-    const item=btn.closest('.alerta-item');
-    if(item)item.remove();
-    const lista=document.getElementById('alertas-list');
-    if(lista&&!lista.children.length)document.getElementById('alertas-box').style.display='none';
-  }catch(e){btn.disabled=false;btn.textContent='✕ Ciente';}
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=ok?'square':'sawtooth';
+    o.frequency.value=ok?1046:280;
+    const t=actx.currentTime,dur=ok?.08:.11;
+    g.gain.setValueAtTime(ok?.07:.04,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start();o.stop(t+dur);
+  }catch(_){}
 }
 
-window.onload=function(){
-  loadData();
-  setInterval(loadData,12000);
-  carregarAlertas();
-  _alertasPoll=setInterval(carregarAlertas,8000); // poll de alertas a cada 8s
-};
+// troca de telas
+let _timerGrupos=null;
+function showScreen(id){
+  _entrando=false;
+  document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='master-panel')startRealTime();else stopRealTime();
+  if(id==='counting-panel')startRT();else stopRT();
+  if(id!=='waiting-panel')pararEspera();
+  // Auto-refresh da lista de grupos enquanto na tela de seleção
+  if(_timerGrupos){clearInterval(_timerGrupos);_timerGrupos=null;}
+  if(id==='grupo-select-panel'){
+    _timerGrupos=setInterval(()=>listarGrupos(),15000);
+  }
+}
+function startRealTime(){loadDashboard();if(!timerDash)timerDash=setInterval(loadDashboard,10000);}
+function stopRealTime(){if(timerDash){clearInterval(timerDash);timerDash=null;}}
+function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
+
+// chamada para o backend
+function callGAS(params,retries=2){
+  return new Promise((resolve,reject)=>{
+    let attempt=0;
+    function go(){
+      const cb='jsonp_'+Math.round(1e7*Math.random());
+      window[cb]=d=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){}resolve(d);};
+      const sc=document.createElement('script');
+      let url=WEB_APP_URL+'?callback='+cb;
+      for(const k in params)url+='&'+k+'='+encodeURIComponent(params[k]);
+      sc.src=url;
+      sc.onerror=()=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Erro de conexao.");};
+      document.body.appendChild(sc);
+      setTimeout(()=>{if(window[cb]){delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Timeout");}},22000);
+    }
+    go();
+  });
+}
+
+// salva sessão local
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarMenu();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
+function atualizarMenu(){
+  const s=lerSessao();
+  document.getElementById('card-continuar').style.display=s?'flex':'none';
+  if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
+}
+
+function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
+
+// ── ESPERA ─────────────────────────────────────────────────────────────────
+let _verif=false;
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();timerEspera=setInterval(verificarLiberacao,3000);verificarLiberacao();}
+function pararEspera(){if(timerEspera){clearInterval(timerEspera);timerEspera=null;}_verif=false;}
+async function verificarLiberacao(){
+  if(_verif)return;_verif=true;
+  try{
+    const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+    if(!res||!res.success){_verif=false;return;}
+    if(res.status==='LIBERADO'){
+      pararEspera();currentMeta=res.meta||null;
+      iniciarTela(res.count||0,res.colaborativo||false);
+      return;
+    }
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}showScreen('main-menu');atualizarMenu();return;}
+    if(res.status==='SECAO_BLOQUEADA'){
+      pararEspera();
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
+      showScreen('main-menu');atualizarMenu();
+      setTimeout(()=>alert(msg),100);
+      return;
+    }
+  }catch(_){}
+  _verif=false;
+}
+let grupoColab=false;
+function iniciarTela(count,colaborativo){
+  grupoColab=!!colaborativo;
+  document.getElementById('display-name').textContent=currentUser;
+  document.getElementById('display-section').textContent=currentSection;
+  document.getElementById('active-inv-title').textContent=currentInvName;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('contagem-nao-bate').style.display='none';
+  document.getElementById('last-ean-val').textContent='—';
+  document.getElementById('last-ean-badge').style.display='none';
+  // Badge colaborativo
+  const badge=document.getElementById('colab-badge');
+  if(badge)badge.style.display=grupoColab?'flex':'none';
+  totalServidor=count;totalLocal=count;updateCounterUI();updateQueueUI();
+  showScreen('counting-panel');salvarSessao();
+}
+
+// painel master
+async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
+let invNameById={};
+async function loadDashboard(){
+  try{
+    const res=await callGAS({api:'getDashboardData'});if(!res.success)return;
+    document.getElementById('stat-total').textContent=res.totalConsolidado;
+    document.getElementById('stat-aberto').textContent=res.totalEmAberto;
+    invNameById={};(res.inventarios||[]).forEach(i=>{invNameById[String(i.id)]=i.nome;});
+    const ag=res.aguardando||[],boxAg=document.getElementById('aguardando-box');
+    if(ag.length>0){
+      boxAg.style.display='block';
+      const su=s=>String(s||'').replace(/'/g,"\\'");
+      document.getElementById('list-aguardando').innerHTML=ag.map(a=>`<div class="list-item" style="border-left-color:var(--warning);"><span style="flex:1;"><i class="fas fa-user" style="color:var(--warning)"></i> <strong>${a.usuario}</strong><small style="color:var(--dim);display:block;font-size:11px;">${invNameById[String(a.idInventario)]||a.idInventario} · Grupo: <strong style="color:#fff">${a.grupo}</strong></small></span><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-espera">AGUARDANDO</span><button class="mini-btn" onclick="promptMeta('${su(a.usuario)}','${su(a.idInventario)}','${su(a.grupo)}')"><i class="fas fa-lock-open"></i> Definir Meta</button></div></div>`).join('');
+    }else boxAg.style.display='none';
+    const ativos=(res.usuariosAtivos||[]).filter(u=>u.status!=='AGUARDANDO_META');
+    const su=s=>String(s||'').replace(/'/g,"\\'");
+    document.getElementById('list-usuarios').innerHTML=ativos.length?ativos.map(u=>`<div class="list-item"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1;font-size:13px;"><i class="fas fa-user"></i> <strong>${u.nome}</strong> <small style="color:var(--dim);font-size:11px;">(${invNameById[String(u.idInventario)]||u.idInventario})</small>${u.grupo?`<small style="color:var(--dim);">[${u.grupo}]</small>`:''}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="badge">${u.bipes} bipes</span><button class="mini-btn" onclick="masterConcluirUsuario('${su(u.nome)}','${su(u.idInventario)}')">Finalizar</button><button class="mini-btn s" onclick="masterAddManual('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}')">Manual</button></div></div>`).join(''):'<p style="font-size:12px;color:gray;text-align:center">Nenhum bipe em aberto.</p>';
+    document.getElementById('list-inventarios').innerHTML=(res.inventarios||[]).map(i=>`<div class="list-item" style="border-left-color:${i.status==='ABERTO'?'var(--success)':'#555'}"><div><strong>${i.nome}</strong><br><small>${i.status} · ID: ${i.id}</small></div><div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>`:''}<button class="mini-btn d" onclick="excluirInv('${i.id}')">X</button></div></div>`).join('')||'<p style="font-size:12px;color:gray;text-align:center">Nenhum inventario.</p>';
+  }catch(e){console.error(e);}
+}
+async function promptMeta(u,id,g){const m=prompt(`Meta para "${u}" (Grupo: ${g}):`);if(!m)return;const r=await callGAS({api:'definirMeta',idInventario:id,usuario:u,meta:m});if(r&&r.success){alert(`Meta de ${r.meta} pecas definida! ${u} foi liberado.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterConcluirUsuario(u,id){if(!confirm(`Finalizar secao de "${u}"?`))return;const r=await callGAS({api:'masterConcluirSecao',usuario:u,idInventario:id});if(r&&r.success){alert(`Finalizado! ${r.count||0} itens.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterAddManual(u,id,g){const ean=prompt(`EAN manual para "${u}":`);if(!ean)return;const r=await callGAS({api:'masterAddManualCode',usuario:u,idInventario:id,ean,secao:g||'MANUAL'});if(r&&r.success){alert("Incluido! Total: "+(r.newCount||'?'));loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function finalizarInv(id){if(!confirm("Fechar este inventario?"))return;const r=await callGAS({api:'finalizarInventario',id});if(r&&r.success)alert(`${r.message}\nItens: ${r.itensMovidos||0}`);else alert((r&&r.message)||"Erro.");loadDashboard();}
+async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;const r=await callGAS({api:'excluirInventario',id});alert(r&&r.success?"Excluido.":((r&&r.message)||"Erro."));loadDashboard();}
+async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
+
+// ── CONFERENTE ─────────────────────────────────────────────────────────────
+let _invAtual='', _invNome='';
+
+function onInvSelectChange(){ /* placeholder para eventos futuros */ }
+
+async function showConferentePanel(){
+  // Se tem sessão salva, verifica no servidor se o grupo ainda está ativo
+  const s=lerSessao();
+  if(s&&s.user&&s.invId){
+    setBtnLoading('btn-open-conf',true);
+    try{
+      const list=await callGAS({api:'listarInventariosAbertos'});
+      if(list&&list.some(i=>String(i.id)===String(s.invId))){
+        const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+        if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
+          // Grupo ainda ativo — restaura e vai direto
+          currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+          _invAtual=s.invId;_invNome=s.invName;
+          setBtnLoading('btn-open-conf',false,'');
+          if(sr.status==='LIBERADO'){
+            currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+            updateCounterUI();updateQueueUI();
+            iniciarTela(totalServidor,sr.colaborativo||false);
+          } else {
+            currentSection=sr.grupo||s.section||'';
+            iniciarEspera();
+          }
+          return;
+        }
+      }
+    }catch(_){}
+    setBtnLoading('btn-open-conf',false,'');
+  }
+
+  // Sem grupo ativo — mostra tela de login normalmente
+  setBtnLoading('btn-open-conf',true);
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    setBtnLoading('btn-open-conf',false,'');
+    if(!list||!list.length)return alert("Nenhum inventario aberto.");
+    document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
+    const sess=lerSessao();
+    if(sess&&list.some(i=>String(i.id)===String(sess.invId))){
+      document.getElementById('inv-select').value=sess.invId;
+      document.getElementById('conf-name').value=sess.user||'';
+    }
+    showScreen('conferente-login');
+  }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
+}
+
+
+async function doConferenteLogin(){
+  const name=document.getElementById('conf-name').value.trim();
+  const invId=document.getElementById('inv-select').value;
+  const invPass=document.getElementById('conf-inv-pass').value;
+  if(!name||!invPass)return alert("Preencha nome e senha.");
+  setBtnLoading('btn-conf-login',true);
+  try{
+    const res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
+    if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'AVANÇAR');return;}
+    if(res&&res.success){
+      currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
+      _invAtual=invId;_invNome=res.nomeInventario;
+
+      // Verifica se já tem seção ativa
+      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(sr&&sr.success){
+        if(sr.status==='LIBERADO'&&sr.count>0){
+          const continuar=confirm(
+            `Você já tem o grupo "${sr.grupo||'anterior'}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
+          );
+          if(continuar){
+            setBtnLoading('btn-conf-login',false,'AVANÇAR');
+            currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+            updateCounterUI();updateQueueUI();
+            iniciarTela(totalServidor,sr.colaborativo||false);
+            return;
+          }
+          currentSection='';currentMeta=null;
+          queue=[];totalServidor=0;totalLocal=0;
+          updateCounterUI();updateQueueUI();
+        } else if(sr.status==='AGUARDANDO_META'&&sr.grupo){
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
+          currentSection=sr.grupo;
+          iniciarEspera();
+          return;
+        } else if(sr.status==='SECAO_BLOQUEADA'){
+          // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
+        }
+        // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
+      }
+
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+      await telaGrupos();
+    }else{
+      alert(res&&res.message?res.message:"Senha incorreta.");
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
+}
+
+
+async function telaGrupos(){
+  _entrando=false;
+  showScreen('grupo-select-panel');
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+  document.getElementById('debug-inv-id').textContent='Inventário: '+_invAtual+' ('+_invNome+')';
+  await listarGrupos();
+}
+
+async function listarGrupos(){
+  if(!_invAtual)return;
+  const elLista=document.getElementById('lista-grupos-disponiveis');
+  if(!elLista)return;
+  
+  if(!elLista.querySelector('.grupo-card'))
+    elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
+  try{
+    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_invAtual});
+    if(!r||!r.success){
+      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro ao carregar grupos.</div>`;
+      return;
+    }
+    const grupos=r.grupos||[];
+    if(!grupos.length){
+      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo disponível.</div>';
+    }else{
+      elLista.innerHTML=grupos.map(g=>`
+        <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
+          <div>
+            <div class="grupo-card-nome">${g.nome}</div>
+            ${g.colaborativo?`<div style="font-size:10px;color:var(--warning);margin-top:3px;font-weight:700;">👥 COLABORATIVO · ${g.vagasRestantes} vaga${g.vagasRestantes!==1?'s':''} restante${g.vagasRestantes!==1?'s':''}</div>`:''}
+          </div>
+          <span class="grupo-card-badge">${g.colaborativo?'ENTRAR ›':'DISPONÍVEL ›'}</span>
+        </div>`).join('');
+    }
+  }catch(e){
+    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão.</div>`;
+  }
+}
+
+
+let _entrando=false;
+async function doUsarGrupo(idGrupo, nomeGrupo, meta){
+  if(_entrando)return;
+  _entrando=true;
+
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
+
+  try{
+    const r=await callGAS({api:'pegarGrupo',idInventario:_invAtual,usuario:currentUser,idGrupo});
+    if(r&&r.success){
+      // Restaura ANTES de mudar de tela
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      currentSection=r.nomeGrupo||nomeGrupo;
+      currentMeta=r.meta||meta;
+      queue=[];totalServidor=0;totalLocal=0;updateCounterUI();updateQueueUI();
+      iniciarTela(0,r&&r.colaborativo||false);
+      salvarSessao();
+    }else{
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      alert(r&&r.message?r.message:"Erro ao reservar grupo.");
+      await telaGrupos();
+    }
+  }catch(e){
+    if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+    alert("Erro: "+e);
+  }
+  _entrando=false;
+}
+
+
+async function doIniciarNovoGrupo(){
+  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
+  if(!nome)return alert("Digite o nome do grupo.");
+  setBtnLoading('btn-novo-grupo',true);
+  try{
+    // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
+    // já tivesse um grupo liberado anteriormente
+    const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
+    currentSection=nome;currentMeta=null;
+    queue=[];totalLocal=0;totalServidor=0;updateCounterUI();updateQueueUI();
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
+    iniciarEspera();
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
+}
+
+
+async function continuarUltimaContagem(){
+  const s=lerSessao();
+  if(!s)return alert("Nao existe sessao salva.");
+  const card=document.getElementById('card-continuar');
+  const orig=card.innerHTML;
+  card.innerHTML='<i class="fas fa-spinner fa-spin"></i><div><h3>Verificando...</h3></div>';
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    if(!list||!list.some(i=>String(i.id)===String(s.invId))){
+      card.innerHTML=orig;
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      atualizarMenu();
+      return alert("O inventario desta sessao foi encerrado.");
+    }
+    currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
+    _invAtual=s.invId;_invNome=s.invName;
+    const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+    card.innerHTML=orig;
+    if(!sr||!sr.success){return alert("Erro ao verificar status.");}
+    if(sr.status==='LIBERADO'){
+      queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();iniciarTela(totalServidor,sr&&sr.colaborativo||false);return;
+    }
+    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();return alert(sr.message||"Inventario encerrado.");}
+    if(sr.status==='SECAO_BLOQUEADA'){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
+      const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo.`:'Sua seção foi finalizada.';
+      alert(msg+'\nEscolha um novo grupo.');
+      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+      _invAtual=s.invId;_invNome=s.invName;
+      await telaGrupos();
+      return;
+    }
+    if(sr.status==='AGUARDANDO_META'){
+      currentSection=sr.grupo||s.section||'';
+      queue=[];totalLocal=0;totalServidor=0;currentMeta=null;
+      updateCounterUI();updateQueueUI();
+      iniciarEspera();
+      return;
+    }
+    if(sr.status==='SEM_GRUPO'){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
+      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+      _invAtual=s.invId;_invNome=s.invName;
+      await telaGrupos();
+      return;
+    }
+    await showConferentePanel();
+  }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
+}
+
+// valida código de barras
+function validarEAN13(code){
+  if(!/^\d{13}$/.test(code))return false;
+  let s=0;
+  for(let i=0;i<12;i++)s+=parseInt(code[i])*(i%2===0?1:3);
+  return (10-(s%10))%10===parseInt(code[12]);
+}
+
+// leitor de código de barras
+let h5scanner=null;
+let _scannerTravado=false;
+const LOCK_MS=1500;
+const _travas=new Map();
+function _podeAceitar(raw){
+  const now=Date.now();
+  if((now-(_travas.get(raw)||0))<LOCK_MS)return false;
+  _travas.set(raw,now);
+  if(_travas.size>50){const c=now-LOCK_MS*3;_travas.forEach((t,k)=>{if(t<c)_travas.delete(k);});}
+  return true;
+}
+
+function startScanner(){
+  document.getElementById('scanner-overlay').style.display='flex';
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  const sc=document.getElementById('scanner-colab-lbl');
+  if(sc)sc.style.display=grupoColab?'block':'none';
+
+  if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
+  _travas.clear();
+  _scannerTravado=false;
+  const rd=document.getElementById('h5-reader');
+  if(rd)rd.innerHTML='';
+
+  h5scanner=new Html5Qrcode('h5-reader');
+  h5scanner.start(
+    {facingMode:'environment'},
+    {fps:15,qrbox:{width:260,height:80},formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}},
+    (decodedText)=>{
+      if(_scannerTravado)return;
+      const raw=(decodedText||'').trim();
+      if(raw.length!==13)return;
+      if(!validarEAN13(raw)){
+        if(_podeAceitar('__inv__')){showEANPopup(raw,false);bip(false);if(navigator.vibrate)navigator.vibrate([40,20,40]);}
+        return;
+      }
+      // Verifica prefixo — pausa scanner e mostra overlay se suspeito
+      if(!['7909','7900','7890','7891','7892','7894','7895'].some(p=>raw.startsWith(p))){
+        _scannerTravado=true;
+        document.getElementById('scan-prefixo-ean').textContent=raw;
+        document.getElementById('scan-prefixo-alerta').style.display='flex';
+        bip(false);
+        if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+        // Notifica o admin mesmo sem registrar o bipe
+        callGAS({api:'registrarEanSuspeito',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId}).catch(()=>{});
+        return;
+      }
+      if(!_podeAceitar(raw))return;
+      _scannerTravado=true;
+      setTimeout(()=>{_scannerTravado=false;},LOCK_MS);
+      showEANPopup(raw,true);doFlash();bip(true);
+      if(navigator.vibrate)navigator.vibrate(55);
+      enqueue(raw);
+    },
+    ()=>{}
+  );
+}
+
+function stopScanner(){
+  if(h5scanner){
+    h5scanner.stop().catch(()=>{});
+    h5scanner=null;
+  }
+  document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
+  const r=document.getElementById('h5-reader');
+  if(r)r.innerHTML='';
+}
+
+function doFlash(){
+  const f=document.getElementById('scan-flash');
+  f.classList.remove('blink');void f.offsetWidth;f.classList.add('blink');
+}
+
+function showEANPopup(text,ok){
+  const el=document.getElementById('scan-ean-popup');
+  el.textContent=ok?text:'✕ '+text;
+  el.className='';void el.offsetWidth;
+  el.className=ok?'ok':'inv';
+}
+
+function fecharAlertaPrefixo(){
+  document.getElementById('scan-prefixo-alerta').style.display='none';
+  _travas.clear(); // limpa locks para próximo código ser aceito imediatamente
+  _scannerTravado=false;
+}
+
+function grupoEncerrado(msg){
+  try{stopScanner();}catch(_){}
+  alert(msg||"Sua seção foi finalizada. Escolha um novo grupo.");
+  telaGrupos();
+}
+
+// finalizar contagem
+async function doConcluirSecao(){
+  // Garante que todos os bipes foram enviados antes de concluir
+  if(queue.length>0){
+    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
+    if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
+    // Tenta flush até 3 vezes com 2s de espera entre tentativas
+    for(let t=0;t<3;t++){
+      await flushQueue();
+      if(queue.length===0)break;
+      if(t<2)await new Promise(r=>setTimeout(r,2000));
+    }
+    if(queue.length>0){alert("Não foi possível enviar todos os bipes. Verifique a conexão e tente novamente.");return;}
+  }
+  if(!confirm("Concluir contagem do grupo?"))return;
+  setBtnLoading('btn-concluir',true);
+  const res=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId});
+  if(res&&res.success){
+    document.getElementById('contagem-nao-bate').style.display='none';
+    alert(`Concluído! ${res.count} itens registrados.`);
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;
+    telaGrupos();
+  } else if(res&&res.code==='SEM_META'){
+    alert('Aguarde o administrador definir a meta antes de concluir.');
+  } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
+    document.getElementById('contagem-nao-bate').style.display='block';
+    document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
+  } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
+    alert(res.message);
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    atualizarMenu();
+    showScreen('main-menu');
+  } else {
+    alert(res&&res.message?res.message:"Erro ao concluir.");
+  }
+  setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
+}
+
+(function boot(){atualizarMenu();})();
 </script>
 </body>
 </html>
