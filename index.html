@@ -509,6 +509,21 @@ function startRT(){
         return;
       }
 
+      if(r.status==='SEM_GRUPO'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;
+        updateCounterUI();updateQueueUI();
+        setTimeout(()=>{
+          alert('Seu grupo foi resetado ou excluído pelo administrador. Escolha outro grupo para continuar.');
+          telaGrupos();
+        },100);
+        return;
+      }
+
       if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
         const prev=totalServidor;
         totalServidor=r.count;totalLocal=r.count;
