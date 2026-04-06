@@ -389,6 +389,9 @@ const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzI
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
 const CHAVE_LOCAL="HS_INV_SESSAO_03";
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(
+  navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1
+);
 
 // pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
@@ -506,21 +509,6 @@ function startRT(){
         atualizarMenu();
         showScreen('main-menu');
         setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
-        return;
-      }
-
-      if(r.status==='SEM_GRUPO'){
-        if(_redirecionando)return;
-        _redirecionando=true;
-        stopRT();
-        try{stopScanner();}catch(_){}
-        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;
-        updateCounterUI();updateQueueUI();
-        setTimeout(()=>{
-          alert('Seu grupo foi resetado ou excluído pelo administrador. Escolha outro grupo para continuar.');
-          telaGrupos();
-        },100);
         return;
       }
 
@@ -952,9 +940,26 @@ function startScanner(){
   if(rd)rd.innerHTML='';
 
   h5scanner=new Html5Qrcode('h5-reader');
+
+  const cameraConfig={facingMode:'environment'};
+  const scanConfig=IS_IOS
+    ? {
+        fps:10,
+        qrbox:{width:320,height:110},
+        aspectRatio:16/9,
+        formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+      }
+    : {
+        fps:15,
+        qrbox:{width:260,height:80},
+        formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+      };
+
   h5scanner.start(
-    {facingMode:'environment'},
-    {fps:15,qrbox:{width:260,height:80},formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],experimentalFeatures:{useBarCodeDetectorIfSupported:true}},
+    cameraConfig,
+    scanConfig,
     (decodedText)=>{
       if(_scannerTravado)return;
       const raw=(decodedText||'').trim();
@@ -982,7 +987,21 @@ function startScanner(){
       enqueue(raw);
     },
     ()=>{}
-  );
+  ).then(()=>{
+    if(IS_IOS){
+      setTimeout(()=>{
+        const video=document.querySelector('#h5-reader video');
+        if(video){
+          video.setAttribute('playsinline','true');
+          video.setAttribute('webkit-playsinline','true');
+          video.style.objectFit='contain';
+        }
+      },250);
+    }
+  }).catch((err)=>{
+    alert('Erro ao abrir câmera: '+err);
+    stopScanner();
+  });
 }
 
 function stopScanner(){
