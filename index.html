@@ -203,6 +203,29 @@
       padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;
     }
     .grupo-empty{text-align:center;color:var(--dim);font-size:13px;padding:12px 0;}
+
+    .last-refs-box{
+      background:#101417;border:1px solid rgba(64,196,255,.15);
+      border-radius:12px;padding:10px 12px;margin-bottom:10px;
+    }
+    .last-refs-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px;}
+    .last-ref-item{
+      font-size:13px;font-weight:700;color:#9fe8ff;line-height:1.5;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-family:'Courier New',monospace;
+    }
+    .sync-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2000;
+      display:none;align-items:center;justify-content:center;padding:24px;
+    }
+    .sync-box{
+      width:min(92vw,420px);background:#15171d;border:1px solid #2c3140;border-radius:18px;
+      padding:24px 22px;text-align:center;box-shadow:0 18px 48px rgba(0,0,0,.45);
+    }
+    .sync-box .ico{font-size:40px;color:var(--cyan);margin-bottom:12px;}
+    .sync-box .ttl{font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;}
+    .sync-box .sub{font-size:13px;color:var(--dim);line-height:1.6;}
+    .sync-box .mini{font-size:11px;color:#7e8798;margin-top:10px;}
   </style>
 </head>
 <body>
@@ -334,6 +357,12 @@
     <span class="last-ean-badge" id="last-ean-badge" style="display:none">✓ EAN-13</span>
   </div>
 
+  <div class="last-refs-box">
+    <div class="last-refs-title">Últimas peças</div>
+    <div class="last-ref-item" id="last-ref-1">—</div>
+    <div class="last-ref-item" id="last-ref-2">—</div>
+  </div>
+
   <!-- Info -->
   <div class="info-row">
     <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
@@ -384,6 +413,17 @@
   </div>
 </div>
 
+
+<div class="sync-overlay" id="sync-overlay">
+  <div class="sync-box">
+    <div class="ico"><i class="fas fa-boxes-stacked"></i></div>
+    <div class="ttl">Sincronizando peças</div>
+    <div class="sub">Aguarde enquanto o sistema sincroniza as referências do inventário.</div>
+    <div class="mini" id="sync-mini">Preparando dados...</div>
+    <div class="loading-spinner" style="margin:16px auto 0;"></div>
+  </div>
+</div>
+
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
@@ -392,6 +432,11 @@ const CHAVE_LOCAL="HS_INV_SESSAO_03";
 const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(
   navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1
 );
+
+const CHAVE_ESTOQUE_PREFIX='HS_ESTOQUE_MINI_';
+let _estoqueMiniMapa={};
+let _estoqueMiniInvId='';
+let _ultimasRefs=[];
 
 // pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
@@ -463,6 +508,9 @@ function updateCounterUI(newEan){
     const eb=document.getElementById('last-ean-badge');
     if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
     if(eb)eb.style.display='inline-block';
+    registrarUltimaRefPorEan(newEan);
+  } else {
+    renderUltimasRefs();
   }
 }
 function updateQueueUI(){
@@ -506,9 +554,25 @@ function startRT(){
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        limparCacheEstoqueInventario(currentInvId);
         atualizarMenu();
         showScreen('main-menu');
         setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
+        return;
+      }
+
+      if(r.status==='SEM_GRUPO'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+        updateCounterUI();updateQueueUI();
+        setTimeout(()=>{
+          alert('Seu grupo foi resetado ou excluído pelo administrador. Escolha outro grupo para continuar.');
+          telaGrupos();
+        },100);
         return;
       }
 
@@ -589,6 +653,79 @@ function atualizarMenu(){
   if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
 }
 
+function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'');}
+function limparCacheEstoqueInventario(invId){
+  try{
+    localStorage.removeItem(chaveEstoqueMini_(invId));
+  }catch(_){}
+  if(String(_estoqueMiniInvId)===String(invId||'')){
+    _estoqueMiniInvId='';
+    _estoqueMiniMapa={};
+  }
+}
+function abrirSyncOverlay(msg){
+  const ov=document.getElementById('sync-overlay');
+  const mini=document.getElementById('sync-mini');
+  if(mini)mini.textContent=msg||'Preparando dados...';
+  if(ov)ov.style.display='flex';
+}
+function fecharSyncOverlay(){
+  const ov=document.getElementById('sync-overlay');
+  if(ov)ov.style.display='none';
+}
+function renderUltimasRefs(){
+  const a=document.getElementById('last-ref-1');
+  const b=document.getElementById('last-ref-2');
+  if(a)a.textContent=_ultimasRefs[0]||'—';
+  if(b)b.textContent=_ultimasRefs[1]||'—';
+}
+function registrarUltimaRefPorEan(ean){
+  const texto=_estoqueMiniMapa[String(ean||'')]||('EAN '+String(ean||'').trim());
+  _ultimasRefs.unshift(texto);
+  _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
+  renderUltimasRefs();
+}
+async function garantirEstoqueMiniPronto(){
+  if(!currentInvId)return true;
+  if(String(_estoqueMiniInvId)===String(currentInvId)&&Object.keys(_estoqueMiniMapa||{}).length)return true;
+  try{
+    const bruto=localStorage.getItem(chaveEstoqueMini_(currentInvId));
+    if(bruto){
+      const obj=JSON.parse(bruto);
+      if(obj&&obj.idInventario===String(currentInvId)&&obj.mapa){
+        _estoqueMiniInvId=String(currentInvId);
+        _estoqueMiniMapa=obj.mapa||{};
+        return true;
+      }
+    }
+  }catch(_){}
+  abrirSyncOverlay('Sincronizando referências do inventário...');
+  try{
+    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:currentInvId});
+    if(r&&r.success){
+      _estoqueMiniInvId=String(currentInvId);
+      _estoqueMiniMapa=r.mapa||{};
+      try{
+        localStorage.setItem(chaveEstoqueMini_(currentInvId),JSON.stringify({
+          idInventario:String(currentInvId),
+          total:r.total||0,
+          geradoEm:r.geradoEm||new Date().toISOString(),
+          mapa:_estoqueMiniMapa
+        }));
+      }catch(_){}
+      fecharSyncOverlay();
+      return true;
+    }
+    fecharSyncOverlay();
+    alert((r&&r.message)||'Não foi possível sincronizar as peças do inventário.');
+    return false;
+  }catch(e){
+    fecharSyncOverlay();
+    alert('Erro ao sincronizar peças: '+e);
+    return false;
+  }
+}
+
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
 
 // ── ESPERA ─────────────────────────────────────────────────────────────────
@@ -605,7 +742,7 @@ async function verificarLiberacao(){
       iniciarTela(res.count||0,res.colaborativo||false);
       return;
     }
-    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}showScreen('main-menu');atualizarMenu();return;}
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
     if(res.status==='SECAO_BLOQUEADA'){
       pararEspera();
       const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
@@ -680,6 +817,8 @@ async function showConferentePanel(){
           currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
           _invAtual=s.invId;_invNome=s.invName;
           setBtnLoading('btn-open-conf',false,'');
+          const okEstoque=await garantirEstoqueMiniPronto();
+          if(!okEstoque){setBtnLoading('btn-open-conf',false,'');return;}
           if(sr.status==='LIBERADO'){
             currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
             queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
@@ -756,7 +895,9 @@ async function doConferenteLogin(){
         // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
       }
 
+      const okEstoque=await garantirEstoqueMiniPronto();
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
+      if(!okEstoque)return;
       await telaGrupos();
     }else{
       alert(res&&res.message?res.message:"Senha incorreta.");
@@ -889,6 +1030,8 @@ async function continuarUltimaContagem(){
       return;
     }
     if(sr.status==='AGUARDANDO_META'){
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque)return;
       currentSection=sr.grupo||s.section||'';
       queue=[];totalLocal=0;totalServidor=0;currentMeta=null;
       updateCounterUI();updateQueueUI();
@@ -899,6 +1042,8 @@ async function continuarUltimaContagem(){
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
       currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
       _invAtual=s.invId;_invNome=s.invName;
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque)return;
       await telaGrupos();
       return;
     }
@@ -1060,7 +1205,8 @@ async function doConcluirSecao(){
     document.getElementById('contagem-nao-bate').style.display='none';
     alert(`Concluído! ${res.count} itens registrados.`);
     try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-    currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;
+    currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+    renderUltimasRefs();
     telaGrupos();
   } else if(res&&res.code==='SEM_META'){
     alert('Aguarde o administrador definir a meta antes de concluir.');
@@ -1070,6 +1216,7 @@ async function doConcluirSecao(){
   } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
     alert(res.message);
     try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    limparCacheEstoqueInventario(currentInvId);
     atualizarMenu();
     showScreen('main-menu');
   } else {
