@@ -251,6 +251,18 @@
     .pend-estoque-box .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
     .pend-estoque-box .sub{font-size:13px;color:var(--dim);line-height:1.65;}
     .pend-estoque-box .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:20px;font-weight:700;margin:10px 0 4px;}
+
+    .scan-pend-estoque{
+      position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.72);z-index:7;padding:22px;
+    }
+    .scan-pend-card{
+      width:min(92vw,420px);background:rgba(27,18,0,.96);border:2px solid var(--warning);
+      border-radius:18px;padding:22px 18px;text-align:center;box-shadow:0 18px 48px rgba(0,0,0,.45);
+    }
+    .scan-pend-card .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .scan-pend-card .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:22px;font-weight:700;margin:10px 0 6px;word-break:break-all;}
+    .scan-pend-card .sub{font-size:13px;color:var(--dim);line-height:1.65;}
   </style>
 </head>
 <body>
@@ -422,6 +434,14 @@
 
     <div id="scan-flash"></div>
     <div id="scan-ean-popup"></div>
+
+    <div class="scan-pend-estoque" id="scan-pend-estoque">
+      <div class="scan-pend-card">
+        <div class="ttl">Peça fora da listagem de estoque</div>
+        <div class="ean" id="scan-pend-estoque-ean">—</div>
+        <div class="sub">A leitura foi pausada. Aguarde o administrador decidir se essa peça será considerada ou removida.</div>
+      </div>
+    </div>
 
     <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
     <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
@@ -1355,17 +1375,4 @@ async function doConcluirSecao(){
 (function boot(){atualizarMenu();})();
 </script>
 </body>
-</html
-async function resolverPendenciaEstoqueUI(idPendencia,acao){
-  try{
-    const r=await callGAS({api:'resolverPendenciaEstoque',idPendencia,acao});
-    if(r&&r.success){
-      toast(acao==='CONSIDERAR'?'Peça considerada.':'Peça removida.');
-      await loadData(true);
-    }else{
-      toast('Erro: '+((r&&r.message)||'?'));
-    }
-  }catch(e){toast('Erro: '+e);}
-}
-
->
+</html>
