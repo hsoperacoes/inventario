@@ -243,6 +243,14 @@
     .sync-box .ttl{font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;}
     .sync-box .sub{font-size:13px;color:var(--dim);line-height:1.6;}
     .sync-box .mini{font-size:11px;color:#7e8798;margin-top:10px;}
+
+    .pend-estoque-box{
+      display:none;background:#1b1200;border:2px solid var(--warning);border-radius:16px;
+      padding:18px 16px;margin:12px 0;text-align:center;
+    }
+    .pend-estoque-box .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .pend-estoque-box .sub{font-size:13px;color:var(--dim);line-height:1.65;}
+    .pend-estoque-box .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:20px;font-weight:700;margin:10px 0 4px;}
   </style>
 </head>
 <body>
@@ -394,6 +402,12 @@
     <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
   </div>
 
+  <div class="pend-estoque-box" id="pend-estoque-box">
+    <div class="ttl">Peça não encontrada no estoque</div>
+    <div class="ean" id="pend-estoque-ean">—</div>
+    <div class="sub">A contagem foi pausada até o administrador decidir se esta peça deve ser considerada ou removida.</div>
+  </div>
+
   <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
   <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
   <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
@@ -465,6 +479,7 @@ const CHAVE_ESTOQUE_PREFIX='HS_ESTOQUE_MINI_';
 let _estoqueMiniMapa={};
 let _estoqueMiniInvId='';
 let _ultimasRefs=[];
+let _pendenciaEstoqueAtiva=null;
 
 // pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
@@ -587,6 +602,18 @@ function startRT(){
         showScreen('main-menu');
         setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
         return;
+      }
+
+      if(r.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+        try{stopScanner();}catch(_){}
+        mostrarPendenciaEstoque(r.pendencia&&r.pendencia.ean?r.pendencia.ean:'');
+        setRT('warn');
+        if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
+          totalServidor=r.count;totalLocal=r.count;updateCounterUI();
+        }
+        return;
+      } else if(_pendenciaEstoqueAtiva) {
+        esconderPendenciaEstoque();
       }
 
       if(r.status==='SEM_GRUPO'){
@@ -713,6 +740,21 @@ function renderUltimasRefs(){
   if(sa)sa.textContent=v1;
   if(sb)sb.textContent=v2;
 }
+
+function mostrarPendenciaEstoque(ean){
+  _pendenciaEstoqueAtiva=String(ean||'');
+  const box=document.getElementById('pend-estoque-box');
+  const el=document.getElementById('pend-estoque-ean');
+  if(el)el.textContent=_pendenciaEstoqueAtiva||'—';
+  if(box)box.style.display='block';
+}
+function esconderPendenciaEstoque(){
+  _pendenciaEstoqueAtiva=null;
+  const box=document.getElementById('pend-estoque-box');
+  const el=document.getElementById('pend-estoque-ean');
+  if(el)el.textContent='—';
+  if(box)box.style.display='none';
+}
 function registrarUltimaRefPorEan(ean){
   const texto=_estoqueMiniMapa[String(ean||'')]||('EAN '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
@@ -773,7 +815,14 @@ async function verificarLiberacao(){
     if(!res||!res.success){_verif=false;return;}
     if(res.status==='LIBERADO'){
       pararEspera();currentMeta=res.meta||null;
+      esconderPendenciaEstoque();
       iniciarTela(res.count||0,res.colaborativo||false);
+      return;
+    }
+    if(res.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+      pararEspera();currentMeta=res.meta||null;
+      iniciarTela(res.count||0,res.colaborativo||false);
+      mostrarPendenciaEstoque(res.pendencia&&res.pendencia.ean?res.pendencia.ean:'');
       return;
     }
     if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
@@ -922,6 +971,14 @@ async function doConferenteLogin(){
           alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
           currentSection=sr.grupo;
           iniciarEspera();
+          return;
+        } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'&&sr.grupo){
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+          queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+          updateCounterUI();updateQueueUI();
+          iniciarTela(totalServidor,sr.colaborativo||false);
+          mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           return;
         } else if(sr.status==='SECAO_BLOQUEADA'){
           // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
@@ -1072,6 +1129,16 @@ async function continuarUltimaContagem(){
       iniciarEspera();
       return;
     }
+    if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque)return;
+      currentSection=sr.grupo||s.section||'';
+      queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
+      updateCounterUI();updateQueueUI();
+      iniciarTela(totalServidor,sr&&sr.colaborativo||false);
+      mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
+      return;
+    }
     if(sr.status==='SEM_GRUPO'){
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
       currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
@@ -1107,6 +1174,7 @@ function _podeAceitar(raw){
 }
 
 function startScanner(){
+  if(_pendenciaEstoqueAtiva){alert('Há uma peça aguardando decisão do administrador.');return;}
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
   const sc=document.getElementById('scanner-colab-lbl');
@@ -1159,6 +1227,30 @@ function startScanner(){
         return;
       }
       if(!_podeAceitar(raw))return;
+
+      if(!_estoqueMiniMapa[String(raw)]){
+        _scannerTravado=true;
+        showEANPopup(raw,false);doFlash();bip(false);
+        if(navigator.vibrate)navigator.vibrate([80,40,80]);
+        callGAS({api:'registrarPecaNaoEncontrada',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId})
+          .then(res=>{
+            if(res&&res.success){
+              totalServidor=res.count||totalServidor;
+              totalLocal=totalServidor+queue.length;
+              updateCounterUI(raw);updateQueueUI();
+              stopScanner();
+              mostrarPendenciaEstoque(raw);
+            }else{
+              _scannerTravado=false;
+              alert((res&&res.message)||'Não foi possível registrar a peça fora do estoque.');
+            }
+          })
+          .catch(e=>{
+            _scannerTravado=false;
+            alert('Erro: '+e);
+          });
+        return;
+      }
       _scannerTravado=true;
       setTimeout(()=>{_scannerTravado=false;},LOCK_MS);
       showEANPopup(raw,true);doFlash();bip(true);
@@ -1220,6 +1312,7 @@ function grupoEncerrado(msg){
 
 // finalizar contagem
 async function doConcluirSecao(){
+  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando decisão do administrador.');
   // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
