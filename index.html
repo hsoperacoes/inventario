@@ -488,6 +488,8 @@
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
+const APP_VERSION="2.6.0";
+const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
 const CHAVE_LOCAL="HS_INV_SESSAO_03";
@@ -725,15 +727,50 @@ function callGAS(params,retries=2){
 }
 
 // salva sessão local
-function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarMenu();}catch(_){}}
-function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);if(!o||!o.invId||!o.user)return null;if(o.appVersion&&o.appVersion!==APP_VERSION)return null;return o;}catch(_){return null;}}
 function atualizarMenu(){
   const s=lerSessao();
   document.getElementById('card-continuar').style.display=s?'flex':'none';
   if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
 }
 
-function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'');}
+function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'')+'_'+APP_VERSION;}
+
+function limparCachesAntigosVersao_(){
+  try{
+    const remover=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k)continue;
+      if(k.startsWith(CHAVE_ESTOQUE_PREFIX) && !k.endsWith('_'+APP_VERSION)) remover.push(k);
+    }
+    remover.forEach(k=>localStorage.removeItem(k));
+  }catch(_){}
+}
+function aplicarControleDeVersao(){
+  try{
+    const versaoSalva=localStorage.getItem(CHAVE_APP_VERSION)||'';
+    if(versaoSalva!==APP_VERSION){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      try{
+        const remover=[];
+        for(let i=0;i<localStorage.length;i++){
+          const k=localStorage.key(i);
+          if(!k)continue;
+          if(k.startsWith(CHAVE_ESTOQUE_PREFIX)) remover.push(k);
+        }
+        remover.forEach(k=>localStorage.removeItem(k));
+      }catch(_){}
+      localStorage.setItem(CHAVE_APP_VERSION,APP_VERSION);
+      return true;
+    }
+    limparCachesAntigosVersao_();
+    return false;
+  }catch(_){
+    return false;
+  }
+}
 function limparCacheEstoqueInventario(invId){
   try{
     localStorage.removeItem(chaveEstoqueMini_(invId));
@@ -1392,7 +1429,15 @@ async function doConcluirSecao(){
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
 }
 
-(function boot(){atualizarMenu();})();
+(function boot(){
+  const precisaRecarregar=aplicarControleDeVersao();
+  atualizarMenu();
+  if(precisaRecarregar){
+    const url=new URL(window.location.href);
+    url.searchParams.set('v',APP_VERSION);
+    setTimeout(()=>window.location.replace(url.toString()),80);
+  }
+})();
 </script>
 </body>
 </html>
