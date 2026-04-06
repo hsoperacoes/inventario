@@ -488,8 +488,6 @@
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-const APP_VERSION="2.6.0";
-const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
 const CHAVE_LOCAL="HS_INV_SESSAO_03";
@@ -644,14 +642,6 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
-        // Se acabou de bipar uma peça fora do estoque e a pendência local
-        // ainda não foi confirmada pelo backend, não expulsa o conferente.
-        if(_pendenciaEstoqueAtiva && !_pendenciaEstoqueRegistrada){
-          _scannerTravado=true;
-          setRT('warn');
-          return;
-        }
-
         if(_redirecionando)return;
         _redirecionando=true;
         stopRT();
@@ -735,50 +725,15 @@ function callGAS(params,retries=2){
 }
 
 // salva sessão local
-function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
-function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);if(!o||!o.invId||!o.user)return null;if(o.appVersion&&o.appVersion!==APP_VERSION)return null;return o;}catch(_){return null;}}
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now()}));atualizarMenu();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);return(o&&o.invId&&o.user)?o:null;}catch(_){return null;}}
 function atualizarMenu(){
   const s=lerSessao();
   document.getElementById('card-continuar').style.display=s?'flex':'none';
   if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
 }
 
-function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'')+'_'+APP_VERSION;}
-
-function limparCachesAntigosVersao_(){
-  try{
-    const remover=[];
-    for(let i=0;i<localStorage.length;i++){
-      const k=localStorage.key(i);
-      if(!k)continue;
-      if(k.startsWith(CHAVE_ESTOQUE_PREFIX) && !k.endsWith('_'+APP_VERSION)) remover.push(k);
-    }
-    remover.forEach(k=>localStorage.removeItem(k));
-  }catch(_){}
-}
-function aplicarControleDeVersao(){
-  try{
-    const versaoSalva=localStorage.getItem(CHAVE_APP_VERSION)||'';
-    if(versaoSalva!==APP_VERSION){
-      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-      try{
-        const remover=[];
-        for(let i=0;i<localStorage.length;i++){
-          const k=localStorage.key(i);
-          if(!k)continue;
-          if(k.startsWith(CHAVE_ESTOQUE_PREFIX)) remover.push(k);
-        }
-        remover.forEach(k=>localStorage.removeItem(k));
-      }catch(_){}
-      localStorage.setItem(CHAVE_APP_VERSION,APP_VERSION);
-      return true;
-    }
-    limparCachesAntigosVersao_();
-    return false;
-  }catch(_){
-    return false;
-  }
-}
+function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'');}
 function limparCacheEstoqueInventario(invId){
   try{
     localStorage.removeItem(chaveEstoqueMini_(invId));
@@ -897,12 +852,16 @@ async function verificarLiberacao(){
     const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
     if(!res||!res.success){_verif=false;return;}
     if(res.status==='LIBERADO'){
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque){_verif=false;return;}
       pararEspera();currentMeta=res.meta||null;
       esconderPendenciaEstoque();
       iniciarTela(res.count||0,res.colaborativo||false);
       return;
     }
     if(res.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque){_verif=false;return;}
       pararEspera();currentMeta=res.meta||null;
       iniciarTela(res.count||0,res.colaborativo||false);
       mostrarPendenciaEstoque(res.pendencia&&res.pendencia.ean?res.pendencia.ean:'');
@@ -1040,7 +999,9 @@ async function doConferenteLogin(){
             `Você já tem o grupo "${sr.grupo||'anterior'}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
           );
           if(continuar){
+            const okEstoque=await garantirEstoqueMiniPronto();
             setBtnLoading('btn-conf-login',false,'AVANÇAR');
+            if(!okEstoque)return;
             currentSection=sr.grupo||'';currentMeta=sr.meta||null;
             queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
             updateCounterUI();updateQueueUI();
@@ -1057,7 +1018,9 @@ async function doConferenteLogin(){
           iniciarEspera();
           return;
         } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'&&sr.grupo){
+          const okEstoque=await garantirEstoqueMiniPronto();
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          if(!okEstoque)return;
           currentSection=sr.grupo||'';currentMeta=sr.meta||null;
           queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
           updateCounterUI();updateQueueUI();
@@ -1191,6 +1154,8 @@ async function continuarUltimaContagem(){
     card.innerHTML=orig;
     if(!sr||!sr.success){return alert("Erro ao verificar status.");}
     if(sr.status==='LIBERADO'){
+      const okEstoque=await garantirEstoqueMiniPronto();
+      if(!okEstoque)return;
       queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
       updateCounterUI();updateQueueUI();iniciarTela(totalServidor,sr&&sr.colaborativo||false);return;
     }
@@ -1257,8 +1222,12 @@ function _podeAceitar(raw){
   return true;
 }
 
-function startScanner(){
+async function startScanner(){
   if(_pendenciaEstoqueAtiva){alert('Há uma peça aguardando decisão do administrador.');return;}
+  if(!_estoqueMiniMapa || Object.keys(_estoqueMiniMapa).length===0){
+    const okEstoque=await garantirEstoqueMiniPronto();
+    if(!okEstoque)return;
+  }
   document.getElementById('scanner-overlay').style.display='flex';
   document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
   const sc=document.getElementById('scanner-colab-lbl');
@@ -1437,15 +1406,7 @@ async function doConcluirSecao(){
   setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
 }
 
-(function boot(){
-  const precisaRecarregar=aplicarControleDeVersao();
-  atualizarMenu();
-  if(precisaRecarregar){
-    const url=new URL(window.location.href);
-    url.searchParams.set('v',APP_VERSION);
-    setTimeout(()=>window.location.replace(url.toString()),80);
-  }
-})();
+(function boot(){atualizarMenu();})();
 </script>
 </body>
 </html>
