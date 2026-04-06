@@ -644,6 +644,14 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
+        // Se acabou de bipar uma peça fora do estoque e a pendência local
+        // ainda não foi confirmada pelo backend, não expulsa o conferente.
+        if(_pendenciaEstoqueAtiva && !_pendenciaEstoqueRegistrada){
+          _scannerTravado=true;
+          setRT('warn');
+          return;
+        }
+
         if(_redirecionando)return;
         _redirecionando=true;
         stopRT();
