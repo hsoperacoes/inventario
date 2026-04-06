@@ -500,6 +500,7 @@ let _estoqueMiniMapa={};
 let _estoqueMiniInvId='';
 let _ultimasRefs=[];
 let _pendenciaEstoqueAtiva=null;
+let _pendenciaEstoqueRegistrada=false;
 
 // pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
@@ -625,14 +626,19 @@ function startRT(){
       }
 
       if(r.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-        mostrarPendenciaEstoque(r.pendencia&&r.pendencia.ean?r.pendencia.ean:'');
+        mostrarPendenciaEstoque(r.pendencia&&r.pendencia.ean?r.pendencia.ean:'', true);
         setRT('warn');
         if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
           totalServidor=r.count;totalLocal=r.count;updateCounterUI();
         }
         return;
       } else if(_pendenciaEstoqueAtiva) {
-        esconderPendenciaEstoque();
+        if(_pendenciaEstoqueRegistrada){
+          esconderPendenciaEstoque();
+        }else{
+          _scannerTravado=true;
+          setRT('warn');
+        }
       }
 
       if(r.status==='SEM_GRUPO'){
@@ -760,8 +766,9 @@ function renderUltimasRefs(){
   if(sb)sb.textContent=v2;
 }
 
-function mostrarPendenciaEstoque(ean){
+function mostrarPendenciaEstoque(ean, registrada=false){
   _pendenciaEstoqueAtiva=String(ean||'');
+  if(registrada)_pendenciaEstoqueRegistrada=true;
   _scannerTravado=true;
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
@@ -774,6 +781,7 @@ function mostrarPendenciaEstoque(ean){
 }
 function esconderPendenciaEstoque(){
   _pendenciaEstoqueAtiva=null;
+  _pendenciaEstoqueRegistrada=false;
   _scannerTravado=false;
   _travas.clear();
   const box=document.getElementById('pend-estoque-box');
@@ -876,6 +884,7 @@ function iniciarTela(count,colaborativo){
   document.getElementById('contagem-nao-bate').style.display='none';
   document.getElementById('last-ean-val').textContent='—';
   document.getElementById('last-ean-badge').style.display='none';
+  _pendenciaEstoqueRegistrada=false;
   // Badge colaborativo
   const badge=document.getElementById('colab-badge');
   if(badge)badge.style.display=grupoColab?'flex':'none';
@@ -1261,13 +1270,16 @@ function startScanner(){
       if(!_estoqueMiniMapa[String(raw)]){
         showEANPopup(raw,false);doFlash();bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80]);
-        mostrarPendenciaEstoque(raw); // mostra imediatamente na câmera
+        _pendenciaEstoqueRegistrada=false;
+        mostrarPendenciaEstoque(raw, false); // mostra imediatamente na câmera
         callGAS({api:'registrarPecaNaoEncontrada',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId})
           .then(res=>{
             if(res&&res.success){
+              _pendenciaEstoqueRegistrada=true;
               totalServidor=res.count||totalServidor;
               totalLocal=totalServidor+queue.length;
               updateCounterUI(raw);updateQueueUI();
+              mostrarPendenciaEstoque(raw, true);
             }else{
               esconderPendenciaEstoque();
               alert((res&&res.message)||'Não foi possível registrar a peça fora do estoque.');
