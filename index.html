@@ -762,6 +762,7 @@ function renderUltimasRefs(){
 
 function mostrarPendenciaEstoque(ean){
   _pendenciaEstoqueAtiva=String(ean||'');
+  _scannerTravado=true;
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
   const scanBox=document.getElementById('scan-pend-estoque');
@@ -773,6 +774,8 @@ function mostrarPendenciaEstoque(ean){
 }
 function esconderPendenciaEstoque(){
   _pendenciaEstoqueAtiva=null;
+  _scannerTravado=false;
+  _travas.clear();
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
   const scanBox=document.getElementById('scan-pend-estoque');
@@ -1256,23 +1259,22 @@ function startScanner(){
       if(!_podeAceitar(raw))return;
 
       if(!_estoqueMiniMapa[String(raw)]){
-        _scannerTravado=true;
         showEANPopup(raw,false);doFlash();bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80]);
+        mostrarPendenciaEstoque(raw); // mostra imediatamente na câmera
         callGAS({api:'registrarPecaNaoEncontrada',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId})
           .then(res=>{
             if(res&&res.success){
               totalServidor=res.count||totalServidor;
               totalLocal=totalServidor+queue.length;
               updateCounterUI(raw);updateQueueUI();
-              mostrarPendenciaEstoque(raw);
             }else{
-              _scannerTravado=false;
+              esconderPendenciaEstoque();
               alert((res&&res.message)||'Não foi possível registrar a peça fora do estoque.');
             }
           })
           .catch(e=>{
-            _scannerTravado=false;
+            esconderPendenciaEstoque();
             alert('Erro: '+e);
           });
         return;
