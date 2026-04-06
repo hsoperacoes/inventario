@@ -625,7 +625,6 @@ function startRT(){
       }
 
       if(r.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-        try{stopScanner();}catch(_){}
         mostrarPendenciaEstoque(r.pendencia&&r.pendencia.ean?r.pendencia.ean:'');
         setRT('warn');
         if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
@@ -765,15 +764,23 @@ function mostrarPendenciaEstoque(ean){
   _pendenciaEstoqueAtiva=String(ean||'');
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
+  const scanBox=document.getElementById('scan-pend-estoque');
+  const scanEl=document.getElementById('scan-pend-estoque-ean');
   if(el)el.textContent=_pendenciaEstoqueAtiva||'—';
   if(box)box.style.display='block';
+  if(scanEl)scanEl.textContent=_pendenciaEstoqueAtiva||'—';
+  if(scanBox)scanBox.style.display='flex';
 }
 function esconderPendenciaEstoque(){
   _pendenciaEstoqueAtiva=null;
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
+  const scanBox=document.getElementById('scan-pend-estoque');
+  const scanEl=document.getElementById('scan-pend-estoque-ean');
   if(el)el.textContent='—';
   if(box)box.style.display='none';
+  if(scanEl)scanEl.textContent='—';
+  if(scanBox)scanBox.style.display='none';
 }
 function registrarUltimaRefPorEan(ean){
   const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
@@ -1258,7 +1265,6 @@ function startScanner(){
               totalServidor=res.count||totalServidor;
               totalLocal=totalServidor+queue.length;
               updateCounterUI(raw);updateQueueUI();
-              stopScanner();
               mostrarPendenciaEstoque(raw);
             }else{
               _scannerTravado=false;
