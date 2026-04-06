@@ -756,7 +756,7 @@ function esconderPendenciaEstoque(){
   if(box)box.style.display='none';
 }
 function registrarUltimaRefPorEan(ean){
-  const texto=_estoqueMiniMapa[String(ean||'')]||('EAN '+String(ean||'').trim());
+  const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
   _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
   renderUltimasRefs();
