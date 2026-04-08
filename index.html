@@ -489,7 +489,7 @@
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-const APP_VERSION="2.6.1";
+const APP_VERSION="2.6.2";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
@@ -852,14 +852,13 @@ function registrarUltimaRefPorEan(ean){
 async function garantirEstoqueMiniPronto(force=false){
   if(!currentInvId)return true;
 
-  if(force){
-    try{ localStorage.removeItem(chaveEstoqueMini_(currentInvId)); }catch(_){}
-    _estoqueMiniInvId='';
-    _estoqueMiniMapa={};
-    _estoqueSyncFeitoNestaPagina=false;
-  }
-
-  if(!force && _estoqueSyncFeitoNestaPagina && String(_estoqueMiniInvId)===String(currentInvId) && Object.keys(_estoqueMiniMapa||{}).length)return true;
+  // Sempre faz nova leitura do estoque no servidor.
+  // Isso evita que um aparelho novo, um reload ou uma retomada com o mesmo login
+  // continue usando mapa antigo/incompleto e passe a tratar tudo como fora do estoque.
+  try{ localStorage.removeItem(chaveEstoqueMini_(currentInvId)); }catch(_){}
+  _estoqueMiniInvId='';
+  _estoqueMiniMapa={};
+  _estoqueSyncFeitoNestaPagina=false;
 
   abrirSyncOverlay(force?'Ressincronizando referências do inventário...':'Sincronizando referências do inventário...');
   try{
