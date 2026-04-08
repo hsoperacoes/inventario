@@ -418,15 +418,7 @@
   <div class="pend-estoque-box" id="pend-estoque-box">
     <div class="ttl">Peça não encontrada no estoque</div>
     <div class="ean" id="pend-estoque-ean">—</div>
-    <div class="sub">Confirme você mesmo se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua e continue a conferência.</div>
-    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
-      <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
-        ✓ Considerar
-      </button>
-      <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
-        ✕ Excluir
-      </button>
-    </div>
+    <div class="sub">A contagem foi pausada até o administrador decidir se esta peça deve ser considerada ou removida.</div>
   </div>
 
   <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
@@ -448,15 +440,7 @@
       <div class="scan-pend-card">
         <div class="ttl">Peça fora da listagem de estoque</div>
         <div class="ean" id="scan-pend-estoque-ean">—</div>
-        <div class="sub">Confirme se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua para continuar a conferência.</div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
-          <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
-            ✓ Considerar
-          </button>
-          <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
-            ✕ Excluir
-          </button>
-        </div>
+        <div class="sub">A leitura foi pausada. Aguarde o administrador decidir se essa peça será considerada ou removida.</div>
       </div>
     </div>
 
@@ -520,6 +504,8 @@ let _estoqueMiniInvId='';
 let _ultimasRefs=[];
 let _pendenciaEstoqueAtiva=null;
 let _pendenciaEstoqueRegistrada=false;
+let _estoqueSyncFeitoNestaPagina=false;
+let _semGrupoTransitCount=0;
 
 // pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
@@ -654,12 +640,11 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
-        // Durante qualquer pendência ativa de estoque, nunca trata SEM_GRUPO como expulsão.
-        // Isso evita o falso positivo entre registrar a pendência e o backend estabilizar o status.
-        if(_pendenciaEstoqueAtiva){
+        if(_pendenciaEstoqueAtiva || currentSection){
+          _semGrupoTransitCount++;
           _scannerTravado=true;
           setRT('warn');
-          return;
+          if(_semGrupoTransitCount < 4) return;
         }
 
         if(_redirecionando)return;
@@ -676,6 +661,7 @@ function startRT(){
         return;
       }
 
+      _semGrupoTransitCount=0;
       if(_pendenciaEstoqueAtiva) {
         if(_pendenciaEstoqueRegistrada){
           esconderPendenciaEstoque();
@@ -834,12 +820,10 @@ function mostrarPendenciaEstoque(ean, registrada=false){
   _pendenciaEstoqueAtiva=String(ean||'');
   if(registrada)_pendenciaEstoqueRegistrada=true;
   _scannerTravado=true;
-
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
   const scanBox=document.getElementById('scan-pend-estoque');
   const scanEl=document.getElementById('scan-pend-estoque-ean');
-
   if(el)el.textContent=_pendenciaEstoqueAtiva||'—';
   if(box)box.style.display='block';
   if(scanEl)scanEl.textContent=_pendenciaEstoqueAtiva||'—';
@@ -850,33 +834,14 @@ function esconderPendenciaEstoque(){
   _pendenciaEstoqueRegistrada=false;
   _scannerTravado=false;
   _travas.clear();
-
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
   const scanBox=document.getElementById('scan-pend-estoque');
   const scanEl=document.getElementById('scan-pend-estoque-ean');
-
   if(el)el.textContent='—';
   if(box)box.style.display='none';
   if(scanEl)scanEl.textContent='—';
   if(scanBox)scanBox.style.display='none';
-}
-function confirmarPecaForaEstoque(acao){
-  if(!_pendenciaEstoqueAtiva)return;
-
-  const ean=String(_pendenciaEstoqueAtiva||'').trim();
-  const ac=String(acao||'').toUpperCase();
-
-  if(ac==='CONSIDERAR'){
-    enqueue(ean);
-  }
-
-  esconderPendenciaEstoque();
-  setRT('ok');
-
-  if(h5scanner){
-    setTimeout(()=>{ _scannerTravado=false; },180);
-  }
 }
 function registrarUltimaRefPorEan(ean){
   const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
@@ -884,26 +849,17 @@ function registrarUltimaRefPorEan(ean){
   _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
   renderUltimasRefs();
 }
-async function garantirEstoqueMiniPronto(){
+async function garantirEstoqueMiniPronto(force=false){
   if(!currentInvId)return true;
-  if(String(_estoqueMiniInvId)===String(currentInvId)&&Object.keys(_estoqueMiniMapa||{}).length)return true;
-  try{
-    const bruto=localStorage.getItem(chaveEstoqueMini_(currentInvId));
-    if(bruto){
-      const obj=JSON.parse(bruto);
-      if(obj&&obj.idInventario===String(currentInvId)&&obj.mapa){
-        _estoqueMiniInvId=String(currentInvId);
-        _estoqueMiniMapa=obj.mapa||{};
-        return true;
-      }
-    }
-  }catch(_){}
+  if(!force && _estoqueSyncFeitoNestaPagina && String(_estoqueMiniInvId)===String(currentInvId) && Object.keys(_estoqueMiniMapa||{}).length)return true;
+
   abrirSyncOverlay('Sincronizando referências do inventário...');
   try{
     const r=await callGAS({api:'getMapaEstoqueMini',idInventario:currentInvId});
     if(r&&r.success){
       _estoqueMiniInvId=String(currentInvId);
       _estoqueMiniMapa=r.mapa||{};
+      _estoqueSyncFeitoNestaPagina=true;
       try{
         localStorage.setItem(chaveEstoqueMini_(currentInvId),JSON.stringify({
           idInventario:String(currentInvId),
@@ -1144,7 +1100,7 @@ async function listarGrupos(){
       elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro ao carregar grupos.</div>`;
       return;
     }
-    const grupos=r.grupos||[];
+    const grupos=(r.grupos||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
     if(!grupos.length){
       elLista.innerHTML='<div class="grupo-empty">Nenhum grupo disponível.</div>';
     }else{
@@ -1356,7 +1312,24 @@ function startScanner(){
         showEANPopup(raw,false);doFlash();bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80]);
         _pendenciaEstoqueRegistrada=false;
-        mostrarPendenciaEstoque(raw, false);
+        mostrarPendenciaEstoque(raw, false); // mostra imediatamente na câmera
+        callGAS({api:'registrarPecaNaoEncontrada',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId})
+          .then(res=>{
+            if(res&&res.success){
+              _pendenciaEstoqueRegistrada=true;
+              totalServidor=res.count||totalServidor;
+              totalLocal=totalServidor+queue.length;
+              updateCounterUI(raw);updateQueueUI();
+              mostrarPendenciaEstoque(raw, true);
+            }else{
+              esconderPendenciaEstoque();
+              alert((res&&res.message)||'Não foi possível registrar a peça fora do estoque.');
+            }
+          })
+          .catch(e=>{
+            esconderPendenciaEstoque();
+            alert('Erro: '+e);
+          });
         return;
       }
       _scannerTravado=true;
@@ -1420,7 +1393,7 @@ function grupoEncerrado(msg){
 
 // finalizar contagem
 async function doConcluirSecao(){
-  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua confirmação.');
+  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando decisão do administrador.');
   // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
@@ -1461,6 +1434,7 @@ async function doConcluirSecao(){
 }
 
 (function boot(){
+  _estoqueSyncFeitoNestaPagina=false;
   const precisaRecarregar=aplicarControleDeVersao();
   atualizarMenu();
   if(precisaRecarregar){
