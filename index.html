@@ -505,7 +505,7 @@
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-const APP_VERSION="2.6.2";
+const APP_VERSION="2.6.3";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
@@ -766,6 +766,15 @@ function atualizarMenu(){
 
 function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'')+'_'+APP_VERSION;}
 
+
+function normalizarEANChaveLocal(v){
+  let s=String(v==null?'':v).trim();
+  if(!s)return '';
+  s=s.replace(/\.0+$/,'');
+  s=s.replace(/[^0-9]/g,'');
+  return s;
+}
+
 function limparCachesAntigosVersao_(){
   try{
     const remover=[];
@@ -862,7 +871,7 @@ function esconderPendenciaEstoque(){
 function confirmarPecaForaEstoque(acao){
   if(!_pendenciaEstoqueAtiva)return;
 
-  const ean=String(_pendenciaEstoqueAtiva||'').trim();
+  const ean=normalizarEANChaveLocal(_pendenciaEstoqueAtiva);
   const ac=String(acao||'').toUpperCase();
 
   if(ac==='CONSIDERAR'){
@@ -877,7 +886,8 @@ function confirmarPecaForaEstoque(acao){
   }
 }
 function registrarUltimaRefPorEan(ean){
-  const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
+  const eanKey=normalizarEANChaveLocal(ean);
+  const texto=_estoqueMiniMapa[eanKey]||('NÃO ENCONTRADO — '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
   _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
   renderUltimasRefs();
@@ -1347,18 +1357,19 @@ function startScanner(){
       }
       if(!_podeAceitar(raw))return;
 
-      if(!_estoqueMiniMapa[String(raw)]){
+      const rawKey=normalizarEANChaveLocal(raw);
+      if(!_estoqueMiniMapa[rawKey]){
         showEANPopup(raw,false);doFlash();bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80]);
         _pendenciaEstoqueRegistrada=false;
-        mostrarPendenciaEstoque(raw, false);
+        mostrarPendenciaEstoque(rawKey || raw, false);
         return;
       }
       _scannerTravado=true;
       setTimeout(()=>{_scannerTravado=false;},LOCK_MS);
       showEANPopup(raw,true);doFlash();bip(true);
       if(navigator.vibrate)navigator.vibrate(55);
-      enqueue(raw);
+      enqueue(rawKey || raw);
     },
     ()=>{}
   ).then(()=>{
