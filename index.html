@@ -861,23 +861,6 @@ function esconderPendenciaEstoque(){
   if(scanEl)scanEl.textContent='—';
   if(scanBox)scanBox.style.display='none';
 }
-function confirmarPecaForaEstoque(acao){
-  if(!_pendenciaEstoqueAtiva)return;
-
-  const ean=String(_pendenciaEstoqueAtiva||'').trim();
-  const ac=String(acao||'').toUpperCase();
-
-  if(ac==='CONSIDERAR'){
-    enqueue(ean);
-  }
-
-  esconderPendenciaEstoque();
-  setRT('ok');
-
-  if(h5scanner){
-    setTimeout(()=>{ _scannerTravado=false; },180);
-  }
-}
 function registrarUltimaRefPorEan(ean){
   const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
