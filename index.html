@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -58,7 +57,6 @@
     .wait-dots span:nth-child(3){animation-delay:.4s;}
     @keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
 
-    /* ─── COUNTING PANEL ─────────────────────── */
     .count-hero{
       background:#0e0e1a;
       border:1px solid rgba(103,58,183,.35);
@@ -108,33 +106,28 @@
     .diff-pos{color:var(--warning);}
     .diff-neg{color:var(--danger);}
 
-    /* ─── SCANNER ────────────────────────────── */
     #scanner-overlay{
       position:fixed;inset:0;background:#000;z-index:1000;
       display:none;flex-direction:column;
     }
     #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
 
-    /* Esconde UI padrão do html5-qrcode (botões, selects, textos) */
     #h5-reader{width:100%;height:100%;}
     #h5-reader>div:first-child{width:100%!important;height:100%!important;}
     #h5-reader video{width:100%!important;height:100%!important;object-fit:cover;}
     #h5-reader img{display:none!important;}
     #h5-reader button,#h5-reader select,
     #h5-reader span,#h5-reader a{display:none!important;}
-    /* Caixa de scan do html5-qrcode — deixa ela aparecer */
     #h5-reader__scan_region{
       position:absolute!important;inset:0!important;
       display:flex!important;align-items:center!important;justify-content:center!important;
     }
     #h5-reader__scan_region>img{display:none!important;}
 
-    /* flash de leitura */
     #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
     #scan-flash.blink{animation:sfBlink .18s ease-out;}
     @keyframes sfBlink{0%{opacity:1}100%{opacity:0}}
 
-    /* popup EAN lido */
     #scan-ean-popup{
       position:absolute;top:42%;left:50%;
       transform:translate(-50%,-50%);
@@ -161,8 +154,7 @@
       100%{opacity:0;}
     }
 
-    /* HUD inferior no scanner */
-        .scan-top-refs{
+    .scan-top-refs{
       position:absolute;top:16px;left:16px;right:72px;z-index:6;
       display:flex;flex-direction:column;gap:6px;
     }
@@ -179,7 +171,7 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       backdrop-filter:blur(2px);
     }
-.scan-hud{
+    .scan-hud{
       position:absolute;bottom:0;left:0;right:0;
       padding:14px 18px 24px;
       background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
@@ -189,7 +181,6 @@
     .scan-hud-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
     .scan-hud-pnd{font-size:11px;color:var(--warning);min-height:16px;margin-top:2px;}
 
-    /* botão fechar scanner */
     #btn-close-scan{
       position:absolute;top:14px;right:14px;
       width:42px;height:42px;background:rgba(0,0,0,.65);
@@ -205,7 +196,6 @@
     .mini-btn.d{background:var(--danger);}
     .hint{font-size:12px;color:var(--dim);text-align:center;margin:-8px 0 14px;}
 
-    /* Grupo card */
     .grupo-card{
       background:#121212;border:1px solid #2a2a2a;border-radius:12px;
       padding:12px 14px;margin-bottom:8px;
@@ -268,7 +258,6 @@
 </head>
 <body>
 
-<!-- MENU PRINCIPAL -->
 <div class="container" id="main-menu">
   <h2>HS Inventário</h2>
   <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
@@ -280,7 +269,6 @@
   </div>
 </div>
 
-<!-- MASTER LOGIN -->
 <div class="container hidden" id="master-login">
   <h2>ACESSO MASTER</h2>
   <div class="form-group"><label>Senha</label><input type="password" id="master-pass" placeholder="Senha master"/></div>
@@ -288,7 +276,6 @@
   <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
 
-<!-- MASTER PANEL -->
 <div class="container hidden" id="master-panel" style="max-width:800px;">
   <div class="live-indicator"><div class="dot"></div>Monitoramento em Tempo Real</div>
   <h2>PAINEL DO LEONARDO</h2>
@@ -316,7 +303,6 @@
   <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
 </div>
 
-<!-- CRIAR INVENTÁRIO -->
 <div class="container hidden" id="create-inv-screen">
   <h2>NOVO INVENTÁRIO</h2>
   <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
@@ -325,7 +311,6 @@
   <button class="btn-sec" onclick="showScreen('master-panel')">CANCELAR</button>
 </div>
 
-<!-- LOGIN CONFERENTE -->
 <div class="container hidden" id="conferente-login">
   <h2>CONFERENTE</h2>
   <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
@@ -335,18 +320,15 @@
   <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
 
-<!-- ESCOLHA DE GRUPO -->
 <div class="container hidden" id="grupo-select-panel">
   <h2>ESCOLHER GRUPO</h2>
   <p id="debug-inv-id" style="text-align:center;color:var(--dim);font-size:11px;margin-bottom:16px;"></p>
 
-  <!-- Grupos disponíveis -->
   <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px;font-weight:700;">Grupos disponíveis</div>
     <div id="lista-grupos-disponiveis"></div>
   </div>
 
-  <!-- Criar novo grupo manual -->
   <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo (sem meta pré-definida)</div>
     <div class="form-group" style="margin-bottom:10px;">
@@ -358,7 +340,6 @@
   <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
 </div>
 
-<!-- WAITING PANEL -->
 <div class="container hidden" id="waiting-panel">
   <div style="text-align:center;">
     <div class="wait-icon">⏳</div>
@@ -371,24 +352,20 @@
   <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
 </div>
 
-<!-- COUNTING PANEL -->
 <div class="container hidden" id="counting-panel">
   <h2 id="active-inv-title" style="font-size:15px;margin-bottom:12px;">...</h2>
 
-  <!-- Status em tempo real -->
   <div class="rt-bar">
     <div class="rt-dot" id="rt-dot"></div>
     <span id="rt-lbl">Sincronizado</span>
     <span id="colab-badge" style="display:none;align-items:center;gap:5px;margin-left:10px;background:rgba(255,171,64,.15);border:1px solid rgba(255,171,64,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--warning);">👥 COLABORATIVO</span>
   </div>
 
-  <!-- Contador principal -->
   <div class="count-hero">
     <div class="count-hero-lbl">Peças bipadas</div>
     <div class="count-hero-num" id="user-count">0</div>
   </div>
 
-  <!-- Último EAN -->
   <div class="last-ean-box">
     <span class="last-ean-lbl">Último EAN</span>
     <span class="last-ean-val" id="last-ean-val">—</span>
@@ -401,7 +378,6 @@
     <div class="last-ref-item" id="last-ref-2">—</div>
   </div>
 
-  <!-- Info -->
   <div class="info-row">
     <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
     <div class="info-chip"><div class="ic-lbl">Grupo</div><div class="ic-val" id="display-section">—</div></div>
@@ -434,11 +410,8 @@
   <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
 </div>
 
-<!-- SCANNER OVERLAY -->
 <div id="scanner-overlay">
   <div id="video-wrap">
-
-    <!-- html5-qrcode renderiza aqui -->
     <div id="h5-reader" style="width:100%;height:100%;"></div>
 
     <div id="scan-flash"></div>
@@ -460,7 +433,6 @@
       </div>
     </div>
 
-    <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
     <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
       <div style="font-size:40px;">⚠️</div>
       <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
@@ -492,7 +464,6 @@
   </div>
 </div>
 
-
 <div class="sync-overlay" id="sync-overlay">
   <div class="sync-box">
     <div class="ico"><i class="fas fa-boxes-stacked"></i></div>
@@ -520,8 +491,8 @@ let _estoqueMiniInvId='';
 let _ultimasRefs=[];
 let _pendenciaEstoqueAtiva=null;
 let _pendenciaEstoqueRegistrada=false;
+let _confirmandoPendenciaEstoque=false;
 
-// pendentes de envio
 let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
 let loteEmAndamento=null,requestIdEmAndamento='';
 const MAX_TENTATIVAS=5;
@@ -603,9 +574,8 @@ function updateQueueUI(){
   else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!enviando)setRT('ok');}
 }
 
-// atualização em tempo real
 let _redirecionando=false;
-let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
+let _tokenSessao=0;
 function startRT(){
   stopRT();
   _redirecionando=false;
@@ -614,7 +584,7 @@ function startRT(){
     if(!currentInvId||!currentUser||_redirecionando)return;
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
-      if(tkAtual!==_tokenSessao)return; // resposta de sessão anterior — descarta
+      if(tkAtual!==_tokenSessao)return;
       if(!r||!r.success)return;
 
       if(r.status==='SECAO_BLOQUEADA'){
@@ -654,8 +624,6 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
-        // Durante qualquer pendência ativa de estoque, nunca trata SEM_GRUPO como expulsão.
-        // Isso evita o falso positivo entre registrar a pendência e o backend estabilizar o status.
         if(_pendenciaEstoqueAtiva){
           _scannerTravado=true;
           setRT('warn');
@@ -700,7 +668,6 @@ function startRT(){
 }
 function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
 
-// ── AUDIO ──────────────────────────────────────────────────────────────────
 let actx=null;
 function bip(ok=true){
   try{
@@ -715,7 +682,6 @@ function bip(ok=true){
   }catch(_){}
 }
 
-// troca de telas
 let _timerGrupos=null;
 function showScreen(id){
   _entrando=false;
@@ -724,7 +690,6 @@ function showScreen(id){
   if(id==='master-panel')startRealTime();else stopRealTime();
   if(id==='counting-panel')startRT();else stopRT();
   if(id!=='waiting-panel')pararEspera();
-  // Auto-refresh da lista de grupos enquanto na tela de seleção
   if(_timerGrupos){clearInterval(_timerGrupos);_timerGrupos=null;}
   if(id==='grupo-select-panel'){
     _timerGrupos=setInterval(()=>listarGrupos(),15000);
@@ -734,7 +699,6 @@ function startRealTime(){loadDashboard();if(!timerDash)timerDash=setInterval(loa
 function stopRealTime(){if(timerDash){clearInterval(timerDash);timerDash=null;}}
 function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
 
-// chamada para o backend
 function callGAS(params,retries=2){
   return new Promise((resolve,reject)=>{
     let attempt=0;
@@ -753,7 +717,6 @@ function callGAS(params,retries=2){
   });
 }
 
-// salva sessão local
 function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
 function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);if(!o||!o.invId||!o.user)return null;if(o.appVersion&&o.appVersion!==APP_VERSION)return null;return o;}catch(_){return null;}}
 function atualizarMenu(){
@@ -848,8 +811,6 @@ function mostrarPendenciaEstoque(ean, registrada=false){
 function esconderPendenciaEstoque(){
   _pendenciaEstoqueAtiva=null;
   _pendenciaEstoqueRegistrada=false;
-  _scannerTravado=false;
-  _travas.clear();
 
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
@@ -910,7 +871,6 @@ async function garantirEstoqueMiniPronto(){
 
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
 
-// ── ESPERA ─────────────────────────────────────────────────────────────────
 let _verif=false;
 function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();timerEspera=setInterval(verificarLiberacao,3000);verificarLiberacao();}
 function pararEspera(){if(timerEspera){clearInterval(timerEspera);timerEspera=null;}_verif=false;}
@@ -931,7 +891,8 @@ async function verificarLiberacao(){
       mostrarPendenciaEstoque(res.pendencia&&res.pendencia.ean?res.pendencia.ean:'');
       return;
     }
-    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
     if(res.status==='SECAO_BLOQUEADA'){
       pararEspera();
       const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
@@ -953,14 +914,12 @@ function iniciarTela(count,colaborativo){
   document.getElementById('last-ean-val').textContent='—';
   document.getElementById('last-ean-badge').style.display='none';
   _pendenciaEstoqueRegistrada=false;
-  // Badge colaborativo
   const badge=document.getElementById('colab-badge');
   if(badge)badge.style.display=grupoColab?'flex':'none';
   totalServidor=count;totalLocal=count;updateCounterUI();updateQueueUI();
   showScreen('counting-panel');salvarSessao();
 }
 
-// painel master
 async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
 let invNameById={};
 async function loadDashboard(){
@@ -988,13 +947,11 @@ async function finalizarInv(id){if(!confirm("Fechar este inventario?"))return;co
 async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;const r=await callGAS({api:'excluirInventario',id});alert(r&&r.success?"Excluido.":((r&&r.message)||"Erro."));loadDashboard();}
 async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
 
-// ── CONFERENTE ─────────────────────────────────────────────────────────────
 let _invAtual='', _invNome='';
 
-function onInvSelectChange(){ /* placeholder para eventos futuros */ }
+function onInvSelectChange(){}
 
 async function showConferentePanel(){
-  // Se tem sessão salva, verifica no servidor se o grupo ainda está ativo
   const s=lerSessao();
   if(s&&s.user&&s.invId){
     setBtnLoading('btn-open-conf',true);
@@ -1003,7 +960,6 @@ async function showConferentePanel(){
       if(list&&list.some(i=>String(i.id)===String(s.invId))){
         const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
         if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
-          // Grupo ainda ativo — restaura e vai direto
           currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
           _invAtual=s.invId;_invNome=s.invName;
           setBtnLoading('btn-open-conf',false,'');
@@ -1025,7 +981,6 @@ async function showConferentePanel(){
     setBtnLoading('btn-open-conf',false,'');
   }
 
-  // Sem grupo ativo — mostra tela de login normalmente
   setBtnLoading('btn-open-conf',true);
   try{
     const list=await callGAS({api:'listarInventariosAbertos'});
@@ -1041,7 +996,6 @@ async function showConferentePanel(){
   }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
 }
 
-
 async function doConferenteLogin(){
   const name=document.getElementById('conf-name').value.trim();
   const invId=document.getElementById('inv-select').value;
@@ -1055,7 +1009,6 @@ async function doConferenteLogin(){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
       _invAtual=invId;_invNome=res.nomeInventario;
 
-      // Verifica se já tem seção ativa
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
       if(sr&&sr.success){
         if(sr.status==='LIBERADO'&&sr.count>0){
@@ -1087,10 +1040,7 @@ async function doConferenteLogin(){
           iniciarTela(totalServidor,sr.colaborativo||false);
           mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           return;
-        } else if(sr.status==='SECAO_BLOQUEADA'){
-          // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
         }
-        // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
       }
 
       const okEstoque=await garantirEstoqueMiniPronto();
@@ -1103,7 +1053,6 @@ async function doConferenteLogin(){
     }
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
 }
-
 
 async function telaGrupos(){
   _entrando=false;
@@ -1118,7 +1067,7 @@ async function listarGrupos(){
   if(!_invAtual)return;
   const elLista=document.getElementById('lista-grupos-disponiveis');
   if(!elLista)return;
-  
+
   if(!elLista.querySelector('.grupo-card'))
     elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
   try{
@@ -1145,7 +1094,6 @@ async function listarGrupos(){
   }
 }
 
-
 let _entrando=false;
 async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   if(_entrando)return;
@@ -1157,7 +1105,6 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   try{
     const r=await callGAS({api:'pegarGrupo',idInventario:_invAtual,usuario:currentUser,idGrupo});
     if(r&&r.success){
-      // Restaura ANTES de mudar de tela
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
@@ -1176,14 +1123,11 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   _entrando=false;
 }
 
-
 async function doIniciarNovoGrupo(){
   const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
   if(!nome)return alert("Digite o nome do grupo.");
   setBtnLoading('btn-novo-grupo',true);
   try{
-    // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
-    // já tivesse um grupo liberado anteriormente
     const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
     if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
     currentSection=nome;currentMeta=null;
@@ -1192,7 +1136,6 @@ async function doIniciarNovoGrupo(){
     iniciarEspera();
   }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
 }
-
 
 async function continuarUltimaContagem(){
   const s=lerSessao();
@@ -1259,7 +1202,6 @@ async function continuarUltimaContagem(){
   }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
 }
 
-// valida código de barras
 function validarEAN13(code){
   if(!/^\d{13}$/.test(code))return false;
   let s=0;
@@ -1267,7 +1209,6 @@ function validarEAN13(code){
   return (10-(s%10))%10===parseInt(code[12]);
 }
 
-// leitor de código de barras
 let h5scanner=null;
 let _scannerTravado=false;
 const LOCK_MS=1500;
@@ -1322,14 +1263,12 @@ function startScanner(){
         if(_podeAceitar('__inv__')){showEANPopup(raw,false);bip(false);if(navigator.vibrate)navigator.vibrate([40,20,40]);}
         return;
       }
-      // Verifica prefixo — pausa scanner e mostra overlay se suspeito
       if(!['7909','7900','7890','7891','7892','7894','7895'].some(p=>raw.startsWith(p))){
         _scannerTravado=true;
         document.getElementById('scan-prefixo-ean').textContent=raw;
         document.getElementById('scan-prefixo-alerta').style.display='flex';
         bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
-        // Notifica o admin mesmo sem registrar o bipe
         callGAS({api:'registrarEanSuspeito',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId}).catch(()=>{});
         return;
       }
@@ -1372,7 +1311,6 @@ function stopScanner(){
     h5scanner=null;
   }
   document.getElementById('scanner-overlay').style.display='none';
-  // limpa o div para o próximo uso
   const r=document.getElementById('h5-reader');
   if(r)r.innerHTML='';
 }
@@ -1391,7 +1329,7 @@ function showEANPopup(text,ok){
 
 function fecharAlertaPrefixo(){
   document.getElementById('scan-prefixo-alerta').style.display='none';
-  _travas.clear(); // limpa locks para próximo código ser aceito imediatamente
+  _travas.clear();
   _scannerTravado=false;
 }
 
@@ -1401,14 +1339,91 @@ function grupoEncerrado(msg){
   telaGrupos();
 }
 
-// finalizar contagem
+function setBotoesPendenciaEstoque(disabled){
+  const botoes = document.querySelectorAll('#pend-estoque-box button, #scan-pend-estoque button');
+  botoes.forEach(btn=>{
+    btn.disabled = !!disabled;
+    if(disabled){
+      if(!btn.dataset.originalText) btn.dataset.originalText = btn.innerHTML;
+      btn.innerHTML = '<div class="loading-spinner"></div> Processando...';
+    }else{
+      btn.innerHTML = btn.dataset.originalText || btn.innerHTML;
+    }
+  });
+}
+
+async function confirmarPecaForaEstoque(acao){
+  if(_confirmandoPendenciaEstoque) return;
+  if(!_pendenciaEstoqueAtiva) return;
+
+  const ean = String(_pendenciaEstoqueAtiva || '').trim();
+  if(!ean) return;
+
+  _confirmandoPendenciaEstoque = true;
+  _scannerTravado = true;
+  setBotoesPendenciaEstoque(true);
+  setRT('warn');
+
+  let resposta = null;
+
+  try{
+    try{
+      resposta = await callGAS({
+        api:'confirmarPecaForaEstoque',
+        acao:acao,
+        ean:ean,
+        usuario:currentUser,
+        secao:currentSection,
+        nomeInventario:currentInvName,
+        idInventario:currentInvId
+      },1);
+    }catch(_){
+      resposta = null;
+    }
+
+    if(resposta && resposta.success === false){
+      alert(resposta.message || 'Não foi possível processar a peça fora do estoque.');
+      return;
+    }
+
+    if(acao === 'CONSIDERAR'){
+      showEANPopup(ean,true);
+      doFlash();
+      bip(true);
+      if(navigator.vibrate)navigator.vibrate(55);
+
+      enqueue(ean);
+
+      if(resposta && typeof resposta.count !== 'undefined'){
+        const countResp = Number(resposta.count);
+        if(!Number.isNaN(countResp)) totalServidor = countResp;
+      }
+    }else{
+      showEANPopup(ean,false);
+      doFlash();
+      bip(false);
+      if(navigator.vibrate)navigator.vibrate([40,20,40]);
+    }
+
+    esconderPendenciaEstoque();
+    _travas.delete(ean);
+    _scannerTravado = false;
+    setRT(queue.length > 0 ? 'warn' : 'ok');
+  }catch(e){
+    alert('Erro ao confirmar a peça: ' + e);
+    _scannerTravado = false;
+    setRT('err');
+  }finally{
+    _confirmandoPendenciaEstoque = false;
+    setBotoesPendenciaEstoque(false);
+  }
+}
+
 async function doConcluirSecao(){
   if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua confirmação.');
-  // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
-    // Tenta flush até 3 vezes com 2s de espera entre tentativas
     for(let t=0;t<3;t++){
       await flushQueue();
       if(queue.length===0)break;
