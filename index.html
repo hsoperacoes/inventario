@@ -489,7 +489,7 @@
 
 <script>
 const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
-const APP_VERSION="2.6.2";
+const APP_VERSION="2.6.0";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
@@ -851,18 +851,11 @@ function registrarUltimaRefPorEan(ean){
 }
 async function garantirEstoqueMiniPronto(force=false){
   if(!currentInvId)return true;
+  if(!force && _estoqueSyncFeitoNestaPagina && String(_estoqueMiniInvId)===String(currentInvId) && Object.keys(_estoqueMiniMapa||{}).length)return true;
 
-  // Sempre faz nova leitura do estoque no servidor.
-  // Isso evita que um aparelho novo, um reload ou uma retomada com o mesmo login
-  // continue usando mapa antigo/incompleto e passe a tratar tudo como fora do estoque.
-  try{ localStorage.removeItem(chaveEstoqueMini_(currentInvId)); }catch(_){}
-  _estoqueMiniInvId='';
-  _estoqueMiniMapa={};
-  _estoqueSyncFeitoNestaPagina=false;
-
-  abrirSyncOverlay(force?'Ressincronizando referências do inventário...':'Sincronizando referências do inventário...');
+  abrirSyncOverlay('Sincronizando referências do inventário...');
   try{
-    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:currentInvId,_t:Date.now()});
+    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:currentInvId});
     if(r&&r.success){
       _estoqueMiniInvId=String(currentInvId);
       _estoqueMiniMapa=r.mapa||{};
@@ -982,23 +975,18 @@ async function showConferentePanel(){
       const list=await callGAS({api:'listarInventariosAbertos'});
       if(list&&list.some(i=>String(i.id)===String(s.invId))){
         const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
-        if(sr&&sr.success&&sr.grupo&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META'||sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE')){
+        if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
+          // Grupo ainda ativo — restaura e vai direto
           currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
           _invAtual=s.invId;_invNome=s.invName;
           setBtnLoading('btn-open-conf',false,'');
-          const okEstoque=await garantirEstoqueMiniPronto(true);
+          const okEstoque=await garantirEstoqueMiniPronto();
           if(!okEstoque){setBtnLoading('btn-open-conf',false,'');return;}
           if(sr.status==='LIBERADO'){
             currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
             queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
             updateCounterUI();updateQueueUI();
             iniciarTela(totalServidor,sr.colaborativo||false);
-          } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-            currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
-            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
-            updateCounterUI();updateQueueUI();
-            iniciarTela(totalServidor,sr.colaborativo||false);
-            mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           } else {
             currentSection=sr.grupo||s.section||'';
             iniciarEspera();
@@ -1006,7 +994,7 @@ async function showConferentePanel(){
           return;
         }
       }
-    }catch(_){ }
+    }catch(_){}
     setBtnLoading('btn-open-conf',false,'');
   }
 
@@ -1040,39 +1028,45 @@ async function doConferenteLogin(){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
       _invAtual=invId;_invNome=res.nomeInventario;
 
+      // Verifica se já tem seção ativa
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
-      if(sr&&sr.success&&sr.grupo){
-        if(sr.status==='LIBERADO'){
-          const okEstoque=await garantirEstoqueMiniPronto(true);
-          setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          if(!okEstoque)return;
-          currentSection=sr.grupo||'';currentMeta=sr.meta||null;
-          queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+      if(sr&&sr.success){
+        if(sr.status==='LIBERADO'&&sr.count>0){
+          const continuar=confirm(
+            `Você já tem o grupo "${sr.grupo||'anterior'}" em andamento com ${sr.count} peça(s) bipada(s).\n\nDeseja continuar esse grupo?`
+          );
+          if(continuar){
+            setBtnLoading('btn-conf-login',false,'AVANÇAR');
+            currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+            updateCounterUI();updateQueueUI();
+            iniciarTela(totalServidor,sr.colaborativo||false);
+            return;
+          }
+          currentSection='';currentMeta=null;
+          queue=[];totalServidor=0;totalLocal=0;
           updateCounterUI();updateQueueUI();
-          iniciarTela(totalServidor,sr.colaborativo||false);
-          return;
-        } else if(sr.status==='AGUARDANDO_META'){
-          const okEstoque=await garantirEstoqueMiniPronto(true);
+        } else if(sr.status==='AGUARDANDO_META'&&sr.grupo){
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          if(!okEstoque)return;
-          currentSection=sr.grupo||'';
           alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
+          currentSection=sr.grupo;
           iniciarEspera();
           return;
-        } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-          const okEstoque=await garantirEstoqueMiniPronto(true);
+        } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'&&sr.grupo){
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
-          if(!okEstoque)return;
           currentSection=sr.grupo||'';currentMeta=sr.meta||null;
           queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
           updateCounterUI();updateQueueUI();
           iniciarTela(totalServidor,sr.colaborativo||false);
           mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           return;
+        } else if(sr.status==='SECAO_BLOQUEADA'){
+          // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
         }
+        // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
       }
 
-      const okEstoque=await garantirEstoqueMiniPronto(true);
+      const okEstoque=await garantirEstoqueMiniPronto();
       setBtnLoading('btn-conf-login',false,'AVANÇAR');
       if(!okEstoque)return;
       await telaGrupos();
@@ -1207,7 +1201,7 @@ async function continuarUltimaContagem(){
       return;
     }
     if(sr.status==='AGUARDANDO_META'){
-      const okEstoque=await garantirEstoqueMiniPronto(true);
+      const okEstoque=await garantirEstoqueMiniPronto();
       if(!okEstoque)return;
       currentSection=sr.grupo||s.section||'';
       queue=[];totalLocal=0;totalServidor=0;currentMeta=null;
@@ -1216,7 +1210,7 @@ async function continuarUltimaContagem(){
       return;
     }
     if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-      const okEstoque=await garantirEstoqueMiniPronto(true);
+      const okEstoque=await garantirEstoqueMiniPronto();
       if(!okEstoque)return;
       currentSection=sr.grupo||s.section||'';
       queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
@@ -1229,7 +1223,7 @@ async function continuarUltimaContagem(){
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
       currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
       _invAtual=s.invId;_invNome=s.invName;
-      const okEstoque=await garantirEstoqueMiniPronto(true);
+      const okEstoque=await garantirEstoqueMiniPronto();
       if(!okEstoque)return;
       await telaGrupos();
       return;
