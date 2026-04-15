@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -161,7 +162,7 @@
     }
 
     /* HUD inferior no scanner */
-    .scan-top-refs{
+        .scan-top-refs{
       position:absolute;top:16px;left:16px;right:72px;z-index:6;
       display:flex;flex-direction:column;gap:6px;
     }
@@ -178,7 +179,7 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       backdrop-filter:blur(2px);
     }
-    .scan-hud{
+.scan-hud{
       position:absolute;bottom:0;left:0;right:0;
       padding:14px 18px 24px;
       background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
@@ -263,18 +264,6 @@
     .scan-pend-card .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
     .scan-pend-card .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:22px;font-weight:700;margin:10px 0 6px;word-break:break-all;}
     .scan-pend-card .sub{font-size:13px;color:var(--dim);line-height:1.65;}
-
-    /* Botões de ação dentro dos cards de pendência — garantem clique */
-    .pend-btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      border:none;border-radius:10px;padding:12px 18px;
-      font-size:14px;font-weight:700;cursor:pointer;color:#fff;
-      transition:opacity .15s,transform .1s;
-      -webkit-tap-highlight-color:transparent;
-    }
-    .pend-btn:active{opacity:.8;transform:scale(.97);}
-    .pend-btn-ok{background:var(--success);}
-    .pend-btn-del{background:var(--danger);}
   </style>
 </head>
 <body>
@@ -426,16 +415,15 @@
     <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
   </div>
 
-  <!-- Caixa de pendência de estoque (fora do scanner) -->
   <div class="pend-estoque-box" id="pend-estoque-box">
     <div class="ttl">Peça não encontrada no estoque</div>
     <div class="ean" id="pend-estoque-ean">—</div>
     <div class="sub">Confirme você mesmo se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua e continue a conferência.</div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
-      <button type="button" class="pend-btn pend-btn-ok" id="btn-pend-considerar" onclick="confirmarPecaForaEstoque('CONSIDERAR')">
+      <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
         ✓ Considerar
       </button>
-      <button type="button" class="pend-btn pend-btn-del" id="btn-pend-excluir" onclick="confirmarPecaForaEstoque('EXCLUIR')">
+      <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
         ✕ Excluir
       </button>
     </div>
@@ -456,24 +444,23 @@
     <div id="scan-flash"></div>
     <div id="scan-ean-popup"></div>
 
-    <!-- Pendência dentro do scanner -->
     <div class="scan-pend-estoque" id="scan-pend-estoque">
       <div class="scan-pend-card">
         <div class="ttl">Peça fora da listagem de estoque</div>
         <div class="ean" id="scan-pend-estoque-ean">—</div>
         <div class="sub">Confirme se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua para continuar a conferência.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
-          <button type="button" class="pend-btn pend-btn-ok" onclick="confirmarPecaForaEstoque('CONSIDERAR')">
+          <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
             ✓ Considerar
           </button>
-          <button type="button" class="pend-btn pend-btn-del" onclick="confirmarPecaForaEstoque('EXCLUIR')">
+          <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
             ✕ Excluir
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Overlay de prefixo suspeito -->
+    <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
     <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
       <div style="font-size:40px;">⚠️</div>
       <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
@@ -618,7 +605,7 @@ function updateQueueUI(){
 
 // atualização em tempo real
 let _redirecionando=false;
-let _tokenSessao=0;
+let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
   stopRT();
   _redirecionando=false;
@@ -627,7 +614,7 @@ function startRT(){
     if(!currentInvId||!currentUser||_redirecionando)return;
     try{
       const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
-      if(tkAtual!==_tokenSessao)return;
+      if(tkAtual!==_tokenSessao)return; // resposta de sessão anterior — descarta
       if(!r||!r.success)return;
 
       if(r.status==='SECAO_BLOQUEADA'){
@@ -667,6 +654,8 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
+        // Durante qualquer pendência ativa de estoque, nunca trata SEM_GRUPO como expulsão.
+        // Isso evita o falso positivo entre registrar a pendência e o backend estabilizar o status.
         if(_pendenciaEstoqueAtiva){
           _scannerTravado=true;
           setRT('warn');
@@ -735,6 +724,7 @@ function showScreen(id){
   if(id==='master-panel')startRealTime();else stopRealTime();
   if(id==='counting-panel')startRT();else stopRT();
   if(id!=='waiting-panel')pararEspera();
+  // Auto-refresh da lista de grupos enquanto na tela de seleção
   if(_timerGrupos){clearInterval(_timerGrupos);_timerGrupos=null;}
   if(id==='grupo-select-panel'){
     _timerGrupos=setInterval(()=>listarGrupos(),15000);
@@ -840,95 +830,10 @@ function renderUltimasRefs(){
   if(sb)sb.textContent=v2;
 }
 
-// ── PENDÊNCIA DE ESTOQUE ────────────────────────────────────────────────────
-// BUG CORRIGIDO: a função confirmarPecaForaEstoque não existia no código original.
-// Ela é chamada pelos botões "Considerar" e "Excluir" em dois contextos:
-//   1. Dentro do scanner overlay (scan-pend-estoque)
-//   2. No painel de contagem (pend-estoque-box)
-// A função agora registra a decisão no backend, trava os botões durante o envio
-// e só esconde o painel após confirmação do servidor (ou localmente no caso EXCLUIR).
-// ────────────────────────────────────────────────────────────────────────────
-
-let _confirmandoPendencia=false; // evita duplo clique
-
-async function confirmarPecaForaEstoque(acao){
-  // Proteção contra duplo clique
-  if(_confirmandoPendencia)return;
-  if(!_pendenciaEstoqueAtiva){
-    esconderPendenciaEstoque();
-    return;
-  }
-  _confirmandoPendencia=true;
-
-  const ean=String(_pendenciaEstoqueAtiva);
-
-  // Desabilita os botões para feedback visual imediato
-  _setarBotoesPendencia(true);
-
-  try{
-    const res=await callGAS({
-      api:'resolverPendenciaEstoque',
-      idInventario:currentInvId,
-      usuario:currentUser,
-      ean:ean,
-      acao:acao  // 'CONSIDERAR' ou 'EXCLUIR'
-    });
-
-    if(res&&res.success){
-      if(acao==='CONSIDERAR'){
-        // Peça foi aceita → registra localmente e atualiza contador
-        _pendenciaEstoqueRegistrada=true;
-        // Adiciona ao mapa local temporariamente para que a ref apareça
-        if(!_estoqueMiniMapa[ean]){
-          _estoqueMiniMapa[ean]='[FORA DO ESTOQUE] '+ean;
-        }
-        enqueue(ean);
-      }else{
-        // Peça foi excluída → só esconde, não registra bipe
-        if(res.count!==undefined){
-          totalServidor=res.count;
-          totalLocal=res.count+queue.length;
-          updateCounterUI();
-        }
-      }
-      esconderPendenciaEstoque();
-    }else{
-      // Se o backend retornar erro mas a peça já foi resolvida em outra sessão,
-      // esconde mesmo assim para não travar o conferente.
-      if(res&&res.code==='PENDENCIA_JA_RESOLVIDA'){
-        esconderPendenciaEstoque();
-      }else{
-        alert((res&&res.message)||'Erro ao registrar decisão. Tente novamente.');
-        _setarBotoesPendencia(false);
-      }
-    }
-  }catch(e){
-    alert('Erro de conexão ao registrar decisão: '+e);
-    _setarBotoesPendencia(false);
-  }
-
-  _confirmandoPendencia=false;
-}
-
-// Habilita/desabilita os botões de pendência (em ambos os contextos)
-function _setarBotoesPendencia(desabilitado){
-  const ids=['btn-pend-considerar','btn-pend-excluir'];
-  ids.forEach(id=>{
-    const b=document.getElementById(id);
-    if(b)b.disabled=desabilitado;
-  });
-  // Botões dentro do scanner (sem id fixo — usa classe)
-  document.querySelectorAll('#scan-pend-estoque .pend-btn').forEach(b=>{
-    b.disabled=desabilitado;
-    b.style.opacity=desabilitado?'0.5':'1';
-  });
-}
-
 function mostrarPendenciaEstoque(ean, registrada=false){
   _pendenciaEstoqueAtiva=String(ean||'');
   if(registrada)_pendenciaEstoqueRegistrada=true;
   _scannerTravado=true;
-  _confirmandoPendencia=false;
 
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
@@ -939,17 +844,12 @@ function mostrarPendenciaEstoque(ean, registrada=false){
   if(box)box.style.display='block';
   if(scanEl)scanEl.textContent=_pendenciaEstoqueAtiva||'—';
   if(scanBox)scanBox.style.display='flex';
-
-  // Garante que os botões estejam habilitados ao mostrar
-  _setarBotoesPendencia(false);
 }
-
 function esconderPendenciaEstoque(){
   _pendenciaEstoqueAtiva=null;
   _pendenciaEstoqueRegistrada=false;
   _scannerTravado=false;
   _travas.clear();
-  _confirmandoPendencia=false;
 
   const box=document.getElementById('pend-estoque-box');
   const el=document.getElementById('pend-estoque-ean');
@@ -961,7 +861,6 @@ function esconderPendenciaEstoque(){
   if(scanEl)scanEl.textContent='—';
   if(scanBox)scanBox.style.display='none';
 }
-
 function registrarUltimaRefPorEan(ean){
   const texto=_estoqueMiniMapa[String(ean||'')]||('NÃO ENCONTRADO — '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
@@ -1054,6 +953,7 @@ function iniciarTela(count,colaborativo){
   document.getElementById('last-ean-val').textContent='—';
   document.getElementById('last-ean-badge').style.display='none';
   _pendenciaEstoqueRegistrada=false;
+  // Badge colaborativo
   const badge=document.getElementById('colab-badge');
   if(badge)badge.style.display=grupoColab?'flex':'none';
   totalServidor=count;totalLocal=count;updateCounterUI();updateQueueUI();
@@ -1091,9 +991,10 @@ async function doCreateInventory(){const nome=document.getElementById('inv-name'
 // ── CONFERENTE ─────────────────────────────────────────────────────────────
 let _invAtual='', _invNome='';
 
-function onInvSelectChange(){ /* placeholder */ }
+function onInvSelectChange(){ /* placeholder para eventos futuros */ }
 
 async function showConferentePanel(){
+  // Se tem sessão salva, verifica no servidor se o grupo ainda está ativo
   const s=lerSessao();
   if(s&&s.user&&s.invId){
     setBtnLoading('btn-open-conf',true);
@@ -1102,6 +1003,7 @@ async function showConferentePanel(){
       if(list&&list.some(i=>String(i.id)===String(s.invId))){
         const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
         if(sr&&sr.success&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META')){
+          // Grupo ainda ativo — restaura e vai direto
           currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
           _invAtual=s.invId;_invNome=s.invName;
           setBtnLoading('btn-open-conf',false,'');
@@ -1123,6 +1025,7 @@ async function showConferentePanel(){
     setBtnLoading('btn-open-conf',false,'');
   }
 
+  // Sem grupo ativo — mostra tela de login normalmente
   setBtnLoading('btn-open-conf',true);
   try{
     const list=await callGAS({api:'listarInventariosAbertos'});
@@ -1152,6 +1055,7 @@ async function doConferenteLogin(){
       currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
       _invAtual=invId;_invNome=res.nomeInventario;
 
+      // Verifica se já tem seção ativa
       const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
       if(sr&&sr.success){
         if(sr.status==='LIBERADO'&&sr.count>0){
@@ -1184,8 +1088,9 @@ async function doConferenteLogin(){
           mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           return;
         } else if(sr.status==='SECAO_BLOQUEADA'){
-          // Silencioso — segue para seleção de grupo
+          // Não mostra alert aqui — só vai para seleção de grupo silenciosamente
         }
+        // SEM_GRUPO, LIBERADO sem bipes → mostra lista de grupos
       }
 
       const okEstoque=await garantirEstoqueMiniPronto();
@@ -1213,6 +1118,7 @@ async function listarGrupos(){
   if(!_invAtual)return;
   const elLista=document.getElementById('lista-grupos-disponiveis');
   if(!elLista)return;
+  
   if(!elLista.querySelector('.grupo-card'))
     elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
   try{
@@ -1251,6 +1157,7 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
   try{
     const r=await callGAS({api:'pegarGrupo',idInventario:_invAtual,usuario:currentUser,idGrupo});
     if(r&&r.success){
+      // Restaura ANTES de mudar de tela
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
@@ -1275,6 +1182,8 @@ async function doIniciarNovoGrupo(){
   if(!nome)return alert("Digite o nome do grupo.");
   setBtnLoading('btn-novo-grupo',true);
   try{
+    // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
+    // já tivesse um grupo liberado anteriormente
     const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
     if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
     currentSection=nome;currentMeta=null;
@@ -1413,13 +1322,14 @@ function startScanner(){
         if(_podeAceitar('__inv__')){showEANPopup(raw,false);bip(false);if(navigator.vibrate)navigator.vibrate([40,20,40]);}
         return;
       }
-      // Verifica prefixo
+      // Verifica prefixo — pausa scanner e mostra overlay se suspeito
       if(!['7909','7900','7890','7891','7892','7894','7895'].some(p=>raw.startsWith(p))){
         _scannerTravado=true;
         document.getElementById('scan-prefixo-ean').textContent=raw;
         document.getElementById('scan-prefixo-alerta').style.display='flex';
         bip(false);
         if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+        // Notifica o admin mesmo sem registrar o bipe
         callGAS({api:'registrarEanSuspeito',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId}).catch(()=>{});
         return;
       }
@@ -1462,6 +1372,7 @@ function stopScanner(){
     h5scanner=null;
   }
   document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
   const r=document.getElementById('h5-reader');
   if(r)r.innerHTML='';
 }
@@ -1480,7 +1391,7 @@ function showEANPopup(text,ok){
 
 function fecharAlertaPrefixo(){
   document.getElementById('scan-prefixo-alerta').style.display='none';
-  _travas.clear();
+  _travas.clear(); // limpa locks para próximo código ser aceito imediatamente
   _scannerTravado=false;
 }
 
@@ -1493,9 +1404,11 @@ function grupoEncerrado(msg){
 // finalizar contagem
 async function doConcluirSecao(){
   if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua confirmação.');
+  // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
+    // Tenta flush até 3 vezes com 2s de espera entre tentativas
     for(let t=0;t<3;t++){
       await flushQueue();
       if(queue.length===0)break;
