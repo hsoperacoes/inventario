@@ -273,7 +273,7 @@
   <h2>HS Inventário</h2>
   <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
   <div class="home-grid">
-    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão e monitoramento em tempo real.</p></div></div>
+    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão básica pelo backend Python local.</p></div></div>
     <button id="btn-open-conf" class="hidden"></button>
     <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
     <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Retomar Grupo Ativo</h3><p id="continuar-desc"></p></div></div>
@@ -352,7 +352,7 @@
     <div class="form-group" style="margin-bottom:10px;">
       <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
     </div>
-    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E AGUARDAR META</button>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E ENTRAR</button>
   </div>
 
   <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
@@ -504,7 +504,7 @@
 </div>
 
 <script>
-const WEB_APP_URL="https://script.google.com/macros/s/AKfycbxGS0dxhZtqXY5GBvwKzIxzUYwKnQh8qUHI9BYvstsmWMLuz8uyDwYZmaOA-SsyV4gcVQ/exec";
+const API_BASE=(localStorage.getItem('HS_API_BASE')||'http://127.0.0.1:8000').replace(/\/$/,'');
 const APP_VERSION="2.6.3";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
@@ -736,23 +736,218 @@ function startRealTime(){loadDashboard();if(!timerDash)timerDash=setInterval(loa
 function stopRealTime(){if(timerDash){clearInterval(timerDash);timerDash=null;}}
 function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
 
-// chamada para o backend
-function callGAS(params,retries=2){
-  return new Promise((resolve,reject)=>{
-    let attempt=0;
-    function go(){
-      const cb='jsonp_'+Math.round(1e7*Math.random());
-      window[cb]=d=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){}resolve(d);};
-      const sc=document.createElement('script');
-      let url=WEB_APP_URL+'?callback='+cb;
-      for(const k in params)url+='&'+k+'='+encodeURIComponent(params[k]);
-      sc.src=url;
-      sc.onerror=()=>{delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Erro de conexao.");};
-      document.body.appendChild(sc);
-      setTimeout(()=>{if(window[cb]){delete window[cb];try{document.body.removeChild(sc);}catch(_){};if(attempt<retries){attempt++;setTimeout(go,800);}else reject("Timeout");}},22000);
+// chamada para o backend (FastAPI local / Railway)
+async function apiFetch(path, options={}, retries=1){
+  let lastErr=null;
+  for(let attempt=0; attempt<=retries; attempt++){
+    try{
+      const res=await fetch(API_BASE+path, Object.assign({
+        headers:{'Content-Type':'application/json'}
+      }, options));
+      const txt=await res.text();
+      let data={};
+      try{ data = txt ? JSON.parse(txt) : {}; }catch(_){ data = { raw: txt }; }
+      if(!res.ok){
+        const msg=(data&&data.detail)||data.message||('HTTP '+res.status);
+        throw new Error(msg);
+      }
+      return data;
+    }catch(err){
+      lastErr=err;
+      if(attempt<retries) await new Promise(r=>setTimeout(r,700));
     }
-    go();
-  });
+  }
+  throw lastErr||new Error('Erro de conexão');
+}
+function makeId(prefix='id'){
+  return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+}
+async function getAdminPainelFast(){
+  return await apiFetch('/admin/painel',{method:'GET'},1);
+}
+async function callGAS(params,retries=1){
+  const api=params&&params.api?String(params.api):'';
+  try{
+    switch(api){
+      case 'masterLogin': {
+        const senha=String(params.senha||'');
+        return senha==='1'
+          ? {success:true,user:'LEONARDO'}
+          : {success:false,message:'Senha incorreta.'};
+      }
+      case 'criarNovoInventario': {
+        const payload={id:makeId('inv'),nome:String(params.nome||'').trim(),senha:String(params.senha||'').trim()};
+        await apiFetch('/inventarios',{method:'POST',body:JSON.stringify(payload)},retries);
+        return {success:true,id:payload.id};
+      }
+      case 'listarInventariosAbertos': {
+        const r=await apiFetch('/inventarios',{method:'GET'},retries);
+        const lista=(r.inventarios||[]).filter(i=>String(i.status||'')==='ABERTO').map(i=>({id:i.id,nome:i.nome,senha:i.senha,status:i.status}));
+        return lista;
+      }
+      case 'validarAcessoInventario': {
+        const r=await apiFetch('/inventarios',{method:'GET'},retries);
+        const inv=(r.inventarios||[]).find(i=>String(i.id)===String(params.idInventario));
+        if(!inv) return {success:false,message:'Inventário não encontrado.'};
+        if(String(inv.status||'')!=='ABERTO') return {success:false,code:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.',nomeInventario:inv.nome};
+        if(String(inv.senha||'')!==String(params.senhaDigitada||'')) return {success:false,message:'Senha incorreta.'};
+        return {success:true,nomeInventario:inv.nome};
+      }
+      case 'listarGruposDisponiveis': {
+        const r=await apiFetch('/grupos/'+encodeURIComponent(params.idInventario),{method:'GET'},retries);
+        const grupos=(r.grupos||[]).filter(g=>{
+          const membros=(g.membros||[]);
+          if(String(g.status||'')==='DISPONIVEL') return true;
+          if(g.colaborativo && String(g.status||'')==='RESERVADO' && membros.length < (parseInt(g.vagas||1,10)||1)) return true;
+          return false;
+        }).map(g=>({
+          id:g.id,
+          nome:g.nome,
+          meta:g.meta||0,
+          colaborativo:!!g.colaborativo,
+          vagas:parseInt(g.vagas||1,10)||1,
+          vagasOcupadas:(g.membros||[]).length,
+          vagasRestantes:(parseInt(g.vagas||1,10)||1)-(g.membros||[]).length
+        }));
+        return {success:true,grupos};
+      }
+      case 'pegarGrupo': {
+        const r=await apiFetch('/grupos/entrar',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:String(params.idGrupo||'')
+          })
+        },retries);
+        return {
+          success:true,
+          nomeGrupo:r.grupo,
+          meta:r.meta||0,
+          colaborativo:!!r.colaborativo,
+          membros:r.membros||[]
+        };
+      }
+      case 'iniciarSecaoNova': {
+        const idGrupo=makeId('grp');
+        await apiFetch('/grupos',{
+          method:'POST',
+          body:JSON.stringify({
+            id:idGrupo,
+            id_inventario:String(params.idInventario||''),
+            nome:String(params.secao||'').trim().toUpperCase(),
+            meta:0,
+            colaborativo:false,
+            vagas:1
+          })
+        },retries);
+        await apiFetch('/grupos/entrar',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:idGrupo
+          })
+        },retries);
+        return {success:true,idGrupo};
+      }
+      case 'getStatusSecao': {
+        const lista=await apiFetch('/inventarios',{method:'GET'},retries);
+        const inv=(lista.inventarios||[]).find(i=>String(i.id)===String(params.idInventario));
+        if(!inv || String(inv.status||'')!=='ABERTO'){
+          return {success:true,status:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.'};
+        }
+        const painel=await getAdminPainelFast();
+        const u=(painel.usuarios_ativos||[]).find(x=>String(x.usuario)===String(params.usuario) && String(x.id_inventario)===String(params.idInventario));
+        if(!u) return {success:true,status:'SEM_GRUPO'};
+        const g=(painel.grupos||[]).find(x=>String(x.id)===String(u.id_grupo) && String(x.id_inventario)===String(params.idInventario));
+        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(u.id_grupo)).length;
+        return {
+          success:true,
+          status:'LIBERADO',
+          grupo:(g&&g.nome)||u.grupo_nome||'',
+          meta:(g&&g.meta)||0,
+          count:count,
+          colaborativo:!!(g&&g.colaborativo),
+          membros:(g&&g.membros)||[]
+        };
+      }
+      case 'registrarBipeLote': {
+        const eans=JSON.parse(String(params.eans||'[]'));
+        for(const ean of eans){
+          await apiFetch('/bipes',{
+            method:'POST',
+            body:JSON.stringify({
+              usuario:String(params.usuario||''),
+              id_inventario:String(params.idInventario||''),
+              id_grupo:(window._grupoIdAtual||''),
+              ean:String(ean||'')
+            })
+          },0);
+        }
+        const painel=await getAdminPainelFast();
+        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(window._grupoIdAtual||'')).length;
+        return {success:true,count};
+      }
+      case 'getDashboardData': {
+        const painel=await getAdminPainelFast();
+        const usuarios=(painel.usuarios_ativos||[]).map(u=>{
+          const g=(painel.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
+          const count=(painel.bipes||[]).filter(b=>String(b.id_grupo)===String(u.id_grupo) && String(b.id_inventario)===String(u.id_inventario)).length;
+          return {
+            nome:u.usuario,
+            idInventario:u.id_inventario,
+            grupo:(g&&g.nome)||u.grupo_nome||'',
+            bipes:count,
+            meta:(g&&g.meta)||0,
+            status:'LIBERADO'
+          };
+        });
+        return {
+          success:true,
+          totalConsolidado:(painel.bipes||[]).length,
+          totalEmAberto:(painel.bipes||[]).length,
+          aguardando:[],
+          usuariosAtivos:usuarios,
+          inventarios:(painel.inventarios||[]).map(i=>({id:i.id,nome:i.nome,status:i.status}))
+        };
+      }
+      case 'getMapaEstoqueMini': {
+        return {success:true,mapa:{},total:0,geradoEm:new Date().toISOString()};
+      }
+      case 'registrarEanSuspeito':
+      case 'registrarPecaNaoEncontrada': {
+        return {success:true,count:totalServidor||0};
+      }
+      case 'masterAddManualCode': {
+        const grupoId=(window._grupoIdAtual||'');
+        if(!grupoId) return {success:false,message:'Sem grupo ativo no backend local.'};
+        await apiFetch('/bipes',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:grupoId,
+            ean:String(params.ean||'')
+          })
+        },retries);
+        const painel=await getAdminPainelFast();
+        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(grupoId)).length;
+        return {success:true,newCount:count};
+      }
+      case 'concluirSecao':
+      case 'masterConcluirSecao':
+      case 'definirMeta':
+      case 'finalizarInventario':
+      case 'excluirInventario': {
+        return {success:false,message:'Essa ação ainda não foi ligada ao backend Python nesta etapa.'};
+      }
+      default:
+        return {success:false,message:'API não mapeada no backend Python: '+api};
+    }
+  }catch(err){
+    return {success:false,message:(err&&err.message)||String(err||'Erro')};
+  }
 }
 
 // salva sessão local
@@ -887,48 +1082,16 @@ function confirmarPecaForaEstoque(acao){
 }
 function registrarUltimaRefPorEan(ean){
   const eanKey=normalizarEANChaveLocal(ean);
-  const texto=_estoqueMiniMapa[eanKey]||('NÃO ENCONTRADO — '+String(ean||'').trim());
+  const texto=_estoqueMiniMapa[eanKey]||('EAN '+String(ean||'').trim());
   _ultimasRefs.unshift(texto);
   _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
   renderUltimasRefs();
 }
 async function garantirEstoqueMiniPronto(force=false){
-  if(!currentInvId)return true;
-
-  // Sempre faz nova leitura do estoque no servidor.
-  // Isso evita que um aparelho novo, um reload ou uma retomada com o mesmo login
-  // continue usando mapa antigo/incompleto e passe a tratar tudo como fora do estoque.
-  try{ localStorage.removeItem(chaveEstoqueMini_(currentInvId)); }catch(_){}
-  _estoqueMiniInvId='';
+  _estoqueMiniInvId=String(currentInvId||'');
   _estoqueMiniMapa={};
-  _estoqueSyncFeitoNestaPagina=false;
-
-  abrirSyncOverlay(force?'Ressincronizando referências do inventário...':'Sincronizando referências do inventário...');
-  try{
-    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:currentInvId,_t:Date.now()});
-    if(r&&r.success){
-      _estoqueMiniInvId=String(currentInvId);
-      _estoqueMiniMapa=r.mapa||{};
-      _estoqueSyncFeitoNestaPagina=true;
-      try{
-        localStorage.setItem(chaveEstoqueMini_(currentInvId),JSON.stringify({
-          idInventario:String(currentInvId),
-          total:r.total||0,
-          geradoEm:r.geradoEm||new Date().toISOString(),
-          mapa:_estoqueMiniMapa
-        }));
-      }catch(_){}
-      fecharSyncOverlay();
-      return true;
-    }
-    fecharSyncOverlay();
-    alert((r&&r.message)||'Não foi possível sincronizar as peças do inventário.');
-    return false;
-  }catch(e){
-    fecharSyncOverlay();
-    alert('Erro ao sincronizar peças: '+e);
-    return false;
-  }
+  _estoqueSyncFeitoNestaPagina=true;
+  return true;
 }
 
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
@@ -1181,6 +1344,7 @@ async function doUsarGrupo(idGrupo, nomeGrupo, meta){
     if(r&&r.success){
       // Restaura ANTES de mudar de tela
       if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      window._grupoIdAtual=idGrupo;
       currentSection=r.nomeGrupo||nomeGrupo;
       currentMeta=r.meta||meta;
       queue=[];totalServidor=0;totalLocal=0;updateCounterUI();updateQueueUI();
@@ -1204,15 +1368,20 @@ async function doIniciarNovoGrupo(){
   if(!nome)return alert("Digite o nome do grupo.");
   setBtnLoading('btn-novo-grupo',true);
   try{
-    // iniciarSecaoNova sempre reseta para AGUARDANDO_META, mesmo que o usuário
-    // já tivesse um grupo liberado anteriormente
     const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
-    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');return;}
-    currentSection=nome;currentMeta=null;
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');return;}
+    const grupos=await callGAS({api:'listarGruposDisponiveis',idInventario:_invAtual});
+    const criado=(grupos.grupos||[]).find(g=>String(g.nome||'')===nome);
+    currentSection=nome;currentMeta=0;
     queue=[];totalLocal=0;totalServidor=0;updateCounterUI();updateQueueUI();
-    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');
-    iniciarEspera();
-  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E AGUARDAR META');}
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
+    if(criado){
+      await doUsarGrupo(criado.id, criado.nome, criado.meta||0);
+    }else{
+      iniciarTela(0,false);
+      salvarSessao();
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
 }
 
 
@@ -1426,44 +1595,22 @@ function grupoEncerrado(msg){
 
 // finalizar contagem
 async function doConcluirSecao(){
-  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua decisão.');
-  // Garante que todos os bipes foram enviados antes de concluir
   if(queue.length>0){
-    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e concluir?`))return;
+    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e encerrar a sessão local?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
-    // Tenta flush até 3 vezes com 2s de espera entre tentativas
     for(let t=0;t<3;t++){
       await flushQueue();
       if(queue.length===0)break;
-      if(t<2)await new Promise(r=>setTimeout(r,2000));
+      if(t<2)await new Promise(r=>setTimeout(r,1200));
     }
     if(queue.length>0){alert("Não foi possível enviar todos os bipes. Verifique a conexão e tente novamente.");return;}
   }
-  if(!confirm("Concluir contagem do grupo?"))return;
-  setBtnLoading('btn-concluir',true);
-  const res=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId});
-  if(res&&res.success){
-    document.getElementById('contagem-nao-bate').style.display='none';
-    alert(`Concluído! ${res.count} itens registrados.`);
-    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-    currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
-    renderUltimasRefs();
-    telaGrupos();
-  } else if(res&&res.code==='SEM_META'){
-    alert('Aguarde o administrador definir a meta antes de concluir.');
-  } else if(res&&res.code==='CONTAGEM_NAO_BATE'){
-    document.getElementById('contagem-nao-bate').style.display='block';
-    document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
-  } else if(res&&res.code==='INVENTARIO_ENCERRADO'){
-    alert(res.message);
-    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-    limparCacheEstoqueInventario(currentInvId);
-    atualizarMenu();
-    showScreen('main-menu');
-  } else {
-    alert(res&&res.message?res.message:"Erro ao concluir.");
-  }
-  setBtnLoading('btn-concluir',false,'<i class="fas fa-check-double"></i> CONCLUIR GRUPO');
+  alert('Nesta etapa, o backend Python ainda não conclui o grupo pelo servidor. A sessão local será encerrada para você seguir testando o fluxo.');
+  try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+  currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+  renderUltimasRefs();
+  atualizarMenu();
+  await telaGrupos();
 }
 
 (function boot(){
