@@ -778,7 +778,7 @@ async function callGAS(params,retries=1){
     switch(api){
       case 'masterLogin': {
         const senha=String(params.senha||'');
-        return senha==='1'
+        return senha==='hs1001'
           ? {success:true,user:'LEONARDO'}
           : {success:false,message:'Senha incorreta.'};
       }
@@ -800,6 +800,18 @@ async function callGAS(params,retries=1){
         if(String(inv.senha||'')!==String(params.senhaDigitada||'')) return {success:false,message:'Senha incorreta.'};
         return {success:true,nomeInventario:inv.nome};
       }
+      case 'usuarioAtivo': {
+        const r=await apiFetch('/usuario/ativo?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
+        return {
+          success:true,
+          ativo:!!r.ativo,
+          idGrupo:r.id_grupo||'',
+          grupo:r.grupo_nome||'',
+          meta:r.meta||0,
+          count:r.bipes||0,
+          colaborativo:!!r.colaborativo
+        };
+      }
       case 'listarGruposDisponiveis': {
         const r=await apiFetch('/grupos/'+encodeURIComponent(params.idInventario),{method:'GET'},retries);
         const grupos=(r.grupos||[]).filter(g=>{
@@ -814,7 +826,7 @@ async function callGAS(params,retries=1){
           colaborativo:!!g.colaborativo,
           vagas:parseInt(g.vagas||1,10)||1,
           vagasOcupadas:(g.membros||[]).length,
-          vagasRestantes:(parseInt(g.vagas||1,10)||1)-(g.membros||[]).length
+          vagasRestantes:Math.max(0,(parseInt(g.vagas||1,10)||1)-(g.membros||[]).length)
         }));
         return {success:true,grupos};
       }
@@ -864,19 +876,17 @@ async function callGAS(params,retries=1){
         if(!inv || String(inv.status||'')!=='ABERTO'){
           return {success:true,status:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.'};
         }
-        const painel=await getAdminPainelFast();
-        const u=(painel.usuarios_ativos||[]).find(x=>String(x.usuario)===String(params.usuario) && String(x.id_inventario)===String(params.idInventario));
-        if(!u) return {success:true,status:'SEM_GRUPO'};
-        const g=(painel.grupos||[]).find(x=>String(x.id)===String(u.id_grupo) && String(x.id_inventario)===String(params.idInventario));
-        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(u.id_grupo)).length;
+        const r=await apiFetch('/usuario/ativo?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
+        if(!r.ativo) return {success:true,status:'SEM_GRUPO'};
         return {
           success:true,
           status:'LIBERADO',
-          grupo:(g&&g.nome)||u.grupo_nome||'',
-          meta:(g&&g.meta)||0,
-          count:count,
-          colaborativo:!!(g&&g.colaborativo),
-          membros:(g&&g.membros)||[]
+          idGrupo:r.id_grupo||'',
+          grupo:r.grupo_nome||'',
+          meta:r.meta||0,
+          count:r.bipes||0,
+          colaborativo:!!r.colaborativo,
+          membros:r.membros||[]
         };
       }
       case 'registrarBipeLote': {
@@ -943,7 +953,19 @@ async function callGAS(params,retries=1){
         return {success:true,newCount:count};
       }
       case 'concluirSecao':
-      case 'masterConcluirSecao':
+      case 'masterConcluirSecao': {
+        const grupoId=String(params.idGrupo||window._grupoIdAtual||'');
+        if(!grupoId) return {success:false,message:'Grupo não identificado.'};
+        const r=await apiFetch('/grupos/concluir',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||currentUser||''),
+            id_inventario:String(params.idInventario||currentInvId||''),
+            id_grupo:grupoId
+          })
+        },retries);
+        return {success:true,count:r.count||0};
+      }
       case 'definirMeta':
       case 'finalizarInventario':
       case 'excluirInventario': {
@@ -958,7 +980,7 @@ async function callGAS(params,retries=1){
 }
 
 // salva sessão local
-function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,groupId:(window._grupoIdAtual||''),invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
 function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);if(!o||!o.invId||!o.user)return null;if(o.appVersion&&o.appVersion!==APP_VERSION)return null;return o;}catch(_){return null;}}
 function atualizarMenu(){
   const s=lerSessao();
@@ -1405,6 +1427,7 @@ async function doIniciarNovoGrupo(){
 }
 
 
+
 async function continuarUltimaContagem(){
   const s=lerSessao();
   if(!s)return alert("Nao existe sessao salva.");
@@ -1421,53 +1444,26 @@ async function continuarUltimaContagem(){
     }
     currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
     _invAtual=s.invId;_invNome=s.invName;
-    const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+
+    const ativo=await callGAS({api:'usuarioAtivo',idInventario:s.invId,usuario:s.user});
     card.innerHTML=orig;
-    if(!sr||!sr.success){return alert("Erro ao verificar status.");}
-    if(sr.status==='LIBERADO'){
-      queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
-      updateCounterUI();updateQueueUI();iniciarTela(totalServidor,sr&&sr.colaborativo||false);return;
-    }
-    if(sr.status==='INVENTARIO_ENCERRADO'){try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();return alert(sr.message||"Inventario encerrado.");}
-    if(sr.status==='SECAO_BLOQUEADA'){
-      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
-      const msg=sr.quemFechou?`"${sr.quemFechou}" concluiu o grupo.`:'Sua seção foi finalizada.';
-      alert(msg+'\nEscolha um novo grupo.');
-      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
-      _invAtual=s.invId;_invNome=s.invName;
-      await telaGrupos();
-      return;
-    }
-    if(sr.status==='AGUARDANDO_META'){
+    if(ativo&&ativo.success&&ativo.ativo){
       const okEstoque=await garantirEstoqueMiniPronto(true);
       if(!okEstoque)return;
-      currentSection=sr.grupo||s.section||'';
-      queue=[];totalLocal=0;totalServidor=0;currentMeta=null;
-      updateCounterUI();updateQueueUI();
-      iniciarEspera();
-      return;
+      window._grupoIdAtual=ativo.idGrupo||s.groupId||'';
+      currentSection=ativo.grupo||s.section||'';
+      currentMeta=ativo.meta||null;
+      queue=[];totalServidor=ativo.count||0;totalLocal=totalServidor;
+      updateCounterUI();updateQueueUI();iniciarTela(totalServidor,ativo.colaborativo||false);salvarSessao();return;
     }
-    if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
-      const okEstoque=await garantirEstoqueMiniPronto(true);
-      if(!okEstoque)return;
-      currentSection=sr.grupo||s.section||'';
-      queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;currentMeta=sr.meta||null;
-      updateCounterUI();updateQueueUI();
-      iniciarTela(totalServidor,sr&&sr.colaborativo||false);
-      mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
-      return;
-    }
-    if(sr.status==='SEM_GRUPO'){
-      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}atualizarMenu();
-      currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
-      _invAtual=s.invId;_invNome=s.invName;
-      const okEstoque=await garantirEstoqueMiniPronto(true);
-      if(!okEstoque)return;
-      await telaGrupos();
-      return;
-    }
-    await showConferentePanel();
-  }catch(e){card.innerHTML=orig;alert("Erro: "+e);}
+
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    atualizarMenu();
+    return alert("Nao foi encontrado grupo ativo para esta sessao.");
+  }catch(e){
+    card.innerHTML=orig;
+    alert("Erro ao retomar: "+e);
+  }
 }
 
 // valida código de barras
@@ -1614,9 +1610,10 @@ function grupoEncerrado(msg){
 }
 
 // finalizar contagem
+
 async function doConcluirSecao(){
   if(queue.length>0){
-    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Aguardar e encerrar a sessão local?`))return;
+    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir o grupo?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
     for(let t=0;t<3;t++){
       await flushQueue();
@@ -1625,12 +1622,30 @@ async function doConcluirSecao(){
     }
     if(queue.length>0){alert("Não foi possível enviar todos os bipes. Verifique a conexão e tente novamente.");return;}
   }
-  alert('Nesta etapa, o backend Python ainda não conclui o grupo pelo servidor. A sessão local será encerrada para você seguir testando o fluxo.');
-  try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-  currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
-  renderUltimasRefs();
-  atualizarMenu();
-  await telaGrupos();
+  if(!confirm(`Deseja concluir o grupo "${currentSection}"?`)) return;
+  const btn=document.getElementById('btn-concluir');
+  const old=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
+  try{
+    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
+    if(r&&r.success){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
+      renderUltimasRefs();
+      atualizarMenu();
+      stopScanner();
+      alert('Grupo concluído com sucesso.');
+      await telaGrupos();
+      return;
+    }
+    alert(r&&r.message?r.message:'Erro ao concluir grupo.');
+  }catch(e){
+    alert('Erro ao concluir: '+e);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=old;
+  }
 }
 
 (function boot(){
