@@ -512,7 +512,7 @@
 
 <script>
 const API_BASE=(localStorage.getItem('HS_API_BASE')||'http://192.168.0.108:8000').replace(/\/$/,'');
-const APP_VERSION="2.6.3";
+const APP_VERSION="2.7.0";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
@@ -930,7 +930,8 @@ async function callGAS(params,retries=1){
         };
       }
       case 'getMapaEstoqueMini': {
-        return {success:true,mapa:{},total:0,geradoEm:new Date().toISOString()};
+        const r=await apiFetch('/estoque/mapa-mini',{method:'GET'},retries);
+        return {success:!!(r&&r.success),mapa:(r&&r.mapa)||{},total:(r&&r.total)||0,geradoEm:new Date().toISOString()};
       }
       case 'registrarEanSuspeito':
       case 'registrarPecaNaoEncontrada': {
@@ -1117,10 +1118,62 @@ function registrarUltimaRefPorEan(ean){
   renderUltimasRefs();
 }
 async function garantirEstoqueMiniPronto(force=false){
-  _estoqueMiniInvId=String(currentInvId||'');
-  _estoqueMiniMapa={};
-  _estoqueSyncFeitoNestaPagina=true;
-  return true;
+  const invId=String(currentInvId||'');
+  if(!invId){
+    _estoqueMiniInvId='';
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return true;
+  }
+
+  const cacheKey=chaveEstoqueMini_(invId);
+  const agora=Date.now();
+  const TTL_MS=5*60*1000;
+
+  if(!force && _estoqueMiniInvId===invId && _estoqueMiniMapa && Object.keys(_estoqueMiniMapa).length){
+    _estoqueSyncFeitoNestaPagina=true;
+    return true;
+  }
+
+  if(!force){
+    try{
+      const raw=localStorage.getItem(cacheKey);
+      if(raw){
+        const cache=JSON.parse(raw);
+        if(cache && cache.ts && (agora-cache.ts)<TTL_MS && cache.mapa && typeof cache.mapa==='object'){
+          _estoqueMiniInvId=invId;
+          _estoqueMiniMapa=cache.mapa||{};
+          _estoqueSyncFeitoNestaPagina=true;
+          return true;
+        }
+      }
+    }catch(_){}
+  }
+
+  abrirSyncOverlay('Baixando estoque do servidor...');
+  try{
+    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:invId});
+    if(r && r.success && r.mapa && typeof r.mapa==='object'){
+      _estoqueMiniInvId=invId;
+      _estoqueMiniMapa=r.mapa||{};
+      try{
+        localStorage.setItem(cacheKey, JSON.stringify({ts:agora,mapa:_estoqueMiniMapa,total:r.total||0,geradoEm:r.geradoEm||new Date().toISOString()}));
+      }catch(_){}
+      _estoqueSyncFeitoNestaPagina=true;
+      return true;
+    }
+    _estoqueMiniInvId=invId;
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return false;
+  }catch(_){
+    _estoqueMiniInvId=invId;
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return false;
+  }finally{
+    fecharSyncOverlay();
+  }
 }
 
 function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
