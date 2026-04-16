@@ -367,6 +367,22 @@
       <div id="list-grupos"></div>
     </div>
 
+    <!-- IMPORTAR ESTOQUE -->
+    <div class="side-card">
+      <h4>Importar estoque</h4>
+      <div style="font-size:11px;color:var(--dim);line-height:1.5;margin-bottom:10px;">
+        Envie um arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com as colunas:
+        <br>PRODUTO, COR_PRODU, FILIAL, TAMANHO, QUANTIDADE, GRADE, CODIGO_BARR
+      </div>
+      <input type="file" id="arquivo-estoque" accept=".xlsx,.csv" class="search-bar" style="padding:8px 10px;margin-bottom:8px;" />
+      <label style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--dim);cursor:pointer;margin-bottom:10px;">
+        <input type="checkbox" id="substituir-estoque" checked style="width:auto;padding:0;"/>
+        Substituir todo o estoque atual
+      </label>
+      <button class="btn btn-p btn-sm" onclick="importarEstoqueArquivo()" style="width:100%;justify-content:center;">📦 Importar estoque</button>
+      <div id="estoque-import-status" style="margin-top:10px;font-size:11px;color:var(--dim);line-height:1.5;"></div>
+    </div>
+
   </div>
 </div>
 
@@ -374,6 +390,17 @@
 
 <script>
 const API_BASE='http://192.168.0.108:8000';
+async function apiUpload(path, formData){
+  const res=await fetch(API_BASE+path,{method:'POST',body:formData});
+  const txt=await res.text();
+  let data={};
+  try{ data = txt ? JSON.parse(txt) : {}; }catch(_){ data = { raw: txt }; }
+  if(!res.ok){
+    const msg=(data&&data.detail)||data.message||('HTTP '+res.status);
+    throw new Error(msg);
+  }
+  return data;
+}
 let _data={inventarios:[],metas:[],usuarios:[],totalConsolidado:0,totalEstoque:0,percentualConsolidado:0,grupos:[]};
 let _pausarRefresh=false;
 let _loadingData=false;
@@ -495,6 +522,38 @@ async function callGAS(p){
 }
 
 
+
+async function importarEstoqueArquivo(){
+  const input=document.getElementById('arquivo-estoque');
+  const status=document.getElementById('estoque-import-status');
+  const substituir=!!document.getElementById('substituir-estoque')?.checked;
+
+  if(!input || !input.files || !input.files.length){
+    if(status) status.textContent='Selecione um arquivo primeiro.';
+    return;
+  }
+
+  const file=input.files[0];
+  const nome=(file.name||'').toLowerCase();
+  if(!(nome.endsWith('.xlsx') || nome.endsWith('.csv'))){
+    if(status) status.textContent='Envie um arquivo .xlsx ou .csv.';
+    return;
+  }
+
+  const form=new FormData();
+  form.append('arquivo', file);
+  if(status) status.textContent='Importando estoque...';
+
+  try{
+    const r=await apiUpload('/estoque/importar?substituir_tudo=' + (substituir ? 'true' : 'false'), form);
+    if(status) status.textContent=`Importação concluída. Inseridos: ${r.inseridos||0} | Ignorados: ${r.ignorados||0} | Total no banco: ${r.total_estoque||0}`;
+    input.value='';
+    toast('Estoque importado com sucesso.');
+  }catch(err){
+    if(status) status.textContent='Erro ao importar: '+((err&&err.message)||String(err||'Erro'));
+    toast('Falha ao importar estoque.',4000);
+  }
+}
 
 
 window.onerror=function(){return false;};
