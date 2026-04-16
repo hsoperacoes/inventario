@@ -273,7 +273,7 @@
   <h2>HS Inventário</h2>
   <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
   <div class="home-grid">
-    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão básica pelo backend Python local.</p></div></div>
+    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão completa pelo painel admin web.</p></div></div>
     <button id="btn-open-conf" class="hidden"></button>
     <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
     <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Retomar Grupo Ativo</h3><p id="continuar-desc"></p></div></div>
@@ -314,9 +314,16 @@
     <div id="list-inventarios"></div>
   </div>
   <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
+
+</div>
+
+<!-- MASTER PANEL IFRAME -->
+<div class="container hidden" id="master-iframe-panel" style="max-width:1200px;height:92vh;padding:0;overflow:hidden;">
+  <iframe id="admin-iframe" src="admin_fastapi_embutido.html" style="width:100%;height:calc(100% - 54px);border:none;background:#111318;"></iframe><div style="padding:10px 14px;background:#111318;border-top:1px solid #2e3140;"><button class="btn-sec" onclick="showScreen('main-menu')" style="margin:0;">VOLTAR</button></div>
 </div>
 
 <!-- CRIAR INVENTÁRIO -->
+
 <div class="container hidden" id="create-inv-screen">
   <h2>NOVO INVENTÁRIO</h2>
   <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
@@ -1147,7 +1154,20 @@ function iniciarTela(count,colaborativo){
 }
 
 // painel master
-async function doMasterLogin(){setBtnLoading('btn-master-login',true);try{const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});if(r.success)showScreen('master-panel');else alert(r.message);}catch(e){alert(e);}setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');}
+async function doMasterLogin(){
+  setBtnLoading('btn-master-login',true);
+  try{
+    const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});
+    if(r.success){
+      const ifr=document.getElementById('admin-iframe');
+      if(ifr && ifr.contentWindow){
+        try{ ifr.contentWindow.postMessage({type:'HS_ADMIN_AUTH',senha:'hs1001'}, '*'); }catch(_){}
+      }
+      showScreen('master-iframe-panel');
+    }else alert(r.message);
+  }catch(e){alert(e);}
+  setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');
+}
 let invNameById={};
 async function loadDashboard(){
   try{
