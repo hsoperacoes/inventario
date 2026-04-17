@@ -1684,6 +1684,7 @@ function grupoEncerrado(msg){
 // finalizar contagem
 
 async function doConcluirSecao(){
+  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua decisão.');
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir o grupo?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
@@ -1700,15 +1701,21 @@ async function doConcluirSecao(){
   btn.disabled=true;
   btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
   try{
-    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
+    const sessaoAtual=lerSessao();
+    const grupoId=String(window._grupoIdAtual||(sessaoAtual&&sessaoAtual.groupId)||'');
+    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:grupoId});
     if(r&&r.success){
+      document.getElementById('contagem-nao-bate').style.display='none';
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
       currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
       renderUltimasRefs();
+      updateCounterUI();
+      updateQueueUI();
       atualizarMenu();
       stopScanner();
-      alert('Grupo concluído com sucesso.');
-      await telaGrupos();
+      alert(`Grupo concluído com sucesso. ${r.count||0} item(ns) registrados.`);
+      showScreen('main-menu');
+      await listarGrupos();
       return;
     }
     alert(r&&r.message?r.message:'Erro ao concluir grupo.');
