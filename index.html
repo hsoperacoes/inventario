@@ -535,11 +535,32 @@ let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
 let loteEmAndamento=null,requestIdEmAndamento='';
 const MAX_TENTATIVAS=5;
 
+const HS_ADMIN_BC=('BroadcastChannel' in window)?new BroadcastChannel('hs_inventario_admin_live'):null;
+function notifyAdminRealtime(payload={}){
+  const msg=Object.assign({
+    type:'HS_BIPE_EVENT',
+    ts:Date.now(),
+    invId:currentInvId||'',
+    grupo:currentSection||'',
+    groupId:(window._grupoIdAtual||''),
+    usuario:currentUser||''
+  }, payload||{});
+  try{
+    if(HS_ADMIN_BC) HS_ADMIN_BC.postMessage(msg);
+  }catch(_){ }
+  try{
+    localStorage.setItem('HS_ADMIN_LIVE_PULSE', JSON.stringify(msg));
+  }catch(_){ }
+  try{
+    const ifr=document.getElementById('admin-iframe');
+    if(ifr && ifr.contentWindow) ifr.contentWindow.postMessage(msg,'*');
+  }catch(_){ }
+}
 function enqueue(ean){
   queue.push(ean);totalLocal++;
   updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,300);}
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,180);}
 async function flushQueue(){
   if(enviando||queue.length===0)return;
   enviando=true;setRT('warn');
@@ -556,6 +577,7 @@ async function flushQueue(){
       totalLocal=totalServidor+queue.length;
       loteEmAndamento=null;requestIdEmAndamento='';
       _tentativas=0;setRT('ok');
+      notifyAdminRealtime({batchSize:batch.length,count:totalServidor,ultimoEan:batch[batch.length-1]||''});
       if(queue.length>0)scheduleFlush();
     }else{
       setRT('err');
@@ -563,7 +585,7 @@ async function flushQueue(){
       else if(res&&res.code==='SECAO_FECHADA'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;grupoEncerrado(res.message);}
       else if(_tentativas<MAX_TENTATIVAS){
         _tentativas++;
-        const delay=1500*_tentativas;
+        const delay=900*_tentativas;
         enviando=false;updateCounterUI();updateQueueUI();
         timerEnvio=setTimeout(flushQueue,delay);
         return;
@@ -574,7 +596,7 @@ async function flushQueue(){
     if(_tentativas<MAX_TENTATIVAS){
       _tentativas++;
       enviando=false;updateCounterUI();updateQueueUI();
-      timerEnvio=setTimeout(flushQueue,1500*_tentativas);
+      timerEnvio=setTimeout(flushQueue,900*_tentativas);
       return;
     }
   }
@@ -965,6 +987,7 @@ async function callGAS(params,retries=1){
             id_grupo:grupoId
           })
         },retries);
+        notifyAdminRealtime({type:'HS_GROUP_FINISHED',count:r.count||0,groupId:grupoId});
         return {success:true,count:r.count||0};
       }
       case 'definirMeta':
