@@ -414,9 +414,7 @@ let _criandoGrupos=false;
 let _loadingAlertas=false;
 let _lastAlertasAt=0;
 let _pollTimer=null;
-let _liveRefreshTimer=null;
-const HS_ADMIN_BC=('BroadcastChannel' in window)?new BroadcastChannel('hs_inventario_admin_live'):null;
-const ADMIN_POLL_MS=2000;
+const ADMIN_POLL_MS=3000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
 
@@ -1322,16 +1320,6 @@ function fecharAlertas(){
   document.getElementById('modal-alertas').classList.remove('open');
 }
 
-function scheduleImmediateRefresh(delay=120){
-  clearTimeout(_liveRefreshTimer);
-  _liveRefreshTimer=setTimeout(async ()=>{
-    if(document.hidden) return;
-    if(_pausarRefresh) return;
-    if(Object.keys(_forcaAberta).length) return;
-    try{ await loadData(true); }catch(_){ }
-  },delay);
-}
-
 function scheduleAdminPoll(){
   clearTimeout(_pollTimer);
   _pollTimer=setTimeout(async ()=>{
@@ -1357,28 +1345,30 @@ window.onload=function(){
   carregarAlertas(true);
   scheduleAdminPoll();
 };
-</script>
-</body>
-</html>
-<script>
+
+function triggerAdminRefreshSoon(){
+  clearTimeout(window.__hsAdminRefreshTimer);
+  window.__hsAdminRefreshTimer=setTimeout(()=>{
+    loadData(true).catch(()=>{});
+  },120);
+}
+
 window.addEventListener('message', (ev)=>{
-  if(!ev || !ev.data) return;
+  if(!(ev && ev.data)) return;
   if(ev.data.type==='HS_ADMIN_AUTH'){
     toast('Painel admin liberado.');
     return;
   }
-  if(ev.data.type==='HS_BIPE_EVENT' || ev.data.type==='HS_GROUP_FINISHED' || ev.data.type==='HS_FORCE_REFRESH'){
-    scheduleImmediateRefresh(60);
+  if(ev.data.type==='HS_BIPE_EVENT' || ev.data.type==='HS_FORCE_REFRESH' || ev.data.type==='HS_GROUP_FINISHED'){
+    triggerAdminRefreshSoon();
   }
 });
 
 window.addEventListener('storage',(ev)=>{
-  if(ev && ev.key==='HS_ADMIN_LIVE_PULSE') scheduleImmediateRefresh(80);
-});
-
-try{
-  if(HS_ADMIN_BC){
-    HS_ADMIN_BC.onmessage=()=>scheduleImmediateRefresh(40);
+  if(ev && ev.key==='HS_ADMIN_PULSE' && ev.newValue){
+    triggerAdminRefreshSoon();
   }
-}catch(_){ }
+});
 </script>
+</body>
+</html>
