@@ -539,104 +539,46 @@ function enqueue(ean){
   queue.push(ean);totalLocal++;
   updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,150);}
-
-function avisarPainelAdminAtualizacao(tipo='HS_FORCE_REFRESH'){
-  try{
-    const payload={type:tipo,ts:Date.now(),idInventario:currentInvId||'',idGrupo:(window._grupoIdAtual||''),usuario:currentUser||''};
-    const ifr=document.getElementById('admin-iframe');
-    if(ifr && ifr.contentWindow){
-      try{ifr.contentWindow.postMessage(payload,'*');}catch(_){}
-    }
-    try{
-      localStorage.setItem('HS_ADMIN_PULSE', JSON.stringify(payload));
-      setTimeout(()=>{ try{ localStorage.removeItem('HS_ADMIN_PULSE'); }catch(_){} }, 300);
-    }catch(_){}
-  }catch(_){}
-}
-
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,300);}
 async function flushQueue(){
   if(enviando||queue.length===0)return;
-  if(!window._grupoIdAtual){
-    setRT('err');
-    return;
+  enviando=true;setRT('warn');
+  if(!loteEmAndamento||!Array.isArray(loteEmAndamento)||loteEmAndamento.length===0){
+    loteEmAndamento=queue.slice();
+    requestIdEmAndamento='REQ_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
   }
-
-  enviando=true;
-  setRT('warn');
-
-  let enviadosAgora=0;
-
+  const batch=loteEmAndamento;
   try{
-    while(queue.length){
-      const ean=queue[0];
-      try{
-        await apiFetch('/bipes',{
-          method:'POST',
-          body:JSON.stringify({
-            usuario:String(currentUser||''),
-            id_inventario:String(currentInvId||''),
-            id_grupo:String(window._grupoIdAtual||''),
-            ean:String(ean||'')
-          })
-        },0);
-
-        queue.shift();
-        totalServidor++;
-        enviadosAgora++;
-        totalLocal=totalServidor+queue.length;
-        _tentativas=0;
-        updateCounterUI();
-        updateQueueUI();
-      }catch(err){
-        const msg=String(err&&err.message||err||'');
-        if(/Grupo concluído/i.test(msg)){
-          queue=[];loteEmAndamento=null;requestIdEmAndamento='';
-          totalLocal=totalServidor;
-          grupoEncerrado(msg||'Grupo concluído.');
-        }else if(/Usuário não está ativo nesse grupo/i.test(msg)){
-          queue=[];loteEmAndamento=null;requestIdEmAndamento='';
-          totalLocal=totalServidor;
-          try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-          stopScanner();
-          showScreen('main-menu');
-          atualizarMenu();
-          alert('Sua sessão neste grupo não está mais ativa. Entre novamente.');
-        }else{
-          throw err;
-        }
-        break;
+    const res=await callGAS({api:'registrarBipeLote',requestId:requestIdEmAndamento,eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
+    if(res&&res.success){
+      queue=queue.slice(batch.length);
+      totalServidor=res.count||0;
+      totalLocal=totalServidor+queue.length;
+      loteEmAndamento=null;requestIdEmAndamento='';
+      _tentativas=0;setRT('ok');
+      if(queue.length>0)scheduleFlush();
+    }else{
+      setRT('err');
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}stopScanner();showScreen('main-menu');atualizarMenu();}
+      else if(res&&res.code==='SECAO_FECHADA'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;grupoEncerrado(res.message);}
+      else if(_tentativas<MAX_TENTATIVAS){
+        _tentativas++;
+        const delay=1500*_tentativas;
+        enviando=false;updateCounterUI();updateQueueUI();
+        timerEnvio=setTimeout(flushQueue,delay);
+        return;
       }
-    }
-
-    loteEmAndamento=null;
-    requestIdEmAndamento='';
-
-    if(enviadosAgora>0){
-      avisarPainelAdminAtualizacao('HS_BIPE_EVENT');
-      setRT(queue.length?'warn':'ok');
-    }else if(queue.length===0){
-      setRT('ok');
     }
   }catch(e){
     setRT('err');
     if(_tentativas<MAX_TENTATIVAS){
       _tentativas++;
-      enviando=false;
-      updateCounterUI();
-      updateQueueUI();
-      timerEnvio=setTimeout(flushQueue, 800*_tentativas);
+      enviando=false;updateCounterUI();updateQueueUI();
+      timerEnvio=setTimeout(flushQueue,1500*_tentativas);
       return;
     }
   }
-
-  enviando=false;
-  updateCounterUI();
-  updateQueueUI();
-
-  if(queue.length>0){
-    timerEnvio=setTimeout(flushQueue,300);
-  }
+  enviando=false;updateCounterUI();updateQueueUI();
 }
 
 function setRT(s){
@@ -949,20 +891,28 @@ async function callGAS(params,retries=1){
       }
       case 'registrarBipeLote': {
         const eans=JSON.parse(String(params.eans||'[]'));
+        const sessaoAtual=lerSessao();
+        const grupoId=String(
+          window._grupoIdAtual||
+          (sessaoAtual&&sessaoAtual.groupId)||''
+        );
+        if(!grupoId){
+          return {success:false,message:'Grupo não identificado para envio do bipe.'};
+        }
+        let ultimoTotal=totalServidor||0;
         for(const ean of eans){
-          await apiFetch('/bipes',{
+          const resp=await apiFetch('/bipes',{
             method:'POST',
             body:JSON.stringify({
               usuario:String(params.usuario||''),
               id_inventario:String(params.idInventario||''),
-              id_grupo:(window._grupoIdAtual||''),
+              id_grupo:grupoId,
               ean:String(ean||'')
             })
           },0);
+          ultimoTotal=(resp&&resp.total_grupo!=null)?resp.total_grupo:ultimoTotal;
         }
-        const painel=await getAdminPainelFast();
-        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(window._grupoIdAtual||'')).length;
-        return {success:true,count};
+        return {success:true,count:ultimoTotal};
       }
       case 'getDashboardData': {
         const painel=await getAdminPainelFast();
@@ -1270,6 +1220,12 @@ async function verificarLiberacao(){
 }
 let grupoColab=false;
 function iniciarTela(count,colaborativo){
+  if(!window._grupoIdAtual){
+    const s=lerSessao();
+    if(s && String(s.invId||'')===String(currentInvId||'')){
+      window._grupoIdAtual=String(s.groupId||'');
+    }
+  }
   grupoColab=!!colaborativo;
   document.getElementById('display-name').textContent=currentUser;
   document.getElementById('display-section').textContent=currentSection;
@@ -1353,12 +1309,14 @@ async function showConferentePanel(){
             updateCounterUI();updateQueueUI();
             iniciarTela(totalServidor,sr.colaborativo||false);
           } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+            window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
             currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
             queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
             updateCounterUI();updateQueueUI();
             iniciarTela(totalServidor,sr.colaborativo||false);
             mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
           } else {
+            window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
             currentSection=sr.grupo||s.section||'';
             iniciarEspera();
           }
@@ -1405,6 +1363,7 @@ async function doConferenteLogin(){
           const okEstoque=await garantirEstoqueMiniPronto(true);
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
           if(!okEstoque)return;
+          window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
           currentSection=sr.grupo||'';currentMeta=sr.meta||null;
           queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
           updateCounterUI();updateQueueUI();
@@ -1414,6 +1373,7 @@ async function doConferenteLogin(){
           const okEstoque=await garantirEstoqueMiniPronto(true);
           setBtnLoading('btn-conf-login',false,'AVANÇAR');
           if(!okEstoque)return;
+          window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
           currentSection=sr.grupo||'';
           alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
           iniciarEspera();
@@ -1531,6 +1491,7 @@ async function doIniciarNovoGrupo(){
     if(criado){
       await doUsarGrupo(criado.id, criado.nome, criado.meta||0);
     }else{
+      window._grupoIdAtual=r2.idGrupo||window._grupoIdAtual||'';
       iniciarTela(0,false);
       salvarSessao();
     }
