@@ -1,428 +1,750 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>HS Inventário Admin</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <meta name="author" content="HS Sistemas"/>
+  <title>HS Inventário.</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
-    :root{--primary:#7c4dff;--pl:#b39ddb;--bg:#111318;--card:#1c1f26;--card2:#252830;--border:#2e3140;--text:#e8eaf0;--dim:#8b90a0;--ok:#43d98a;--err:#ff5252;--warn:#ffab40;--info:#40c4ff;--r:10px;}
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;padding:16px;min-height:100vh;}
-
-    .layout{display:grid;grid-template-columns:1fr 340px;gap:16px;height:calc(100vh - 120px);}
-    .col-main{overflow-y:auto;padding-right:4px;}
-    .col-side{overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
-
-    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
-    .header-title{font-size:16px;font-weight:800;color:var(--pl);}
-    .live-dot{width:8px;height:8px;background:var(--ok);border-radius:50%;animation:pulse 1.5s infinite;display:inline-block;margin-right:5px;}
-    .live-lbl{font-size:10px;color:var(--ok);font-weight:700;text-transform:uppercase;}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
-
-    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
-    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:10px 8px;text-align:center;}
-    .stat-val{font-size:22px;font-weight:900;color:var(--pl);line-height:1;}
-    .stat-lbl{font-size:9px;color:var(--dim);text-transform:uppercase;margin-top:3px;}
-
-    .section-title{font-size:11px;text-transform:uppercase;color:var(--dim);letter-spacing:.5px;margin-bottom:8px;font-weight:700;}
-
-    /* AGUARDANDO */
-    .ag-section{background:rgba(255,171,64,.07);border:1px solid rgba(255,171,64,.35);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;}
-    .ag-title{font-size:11px;text-transform:uppercase;color:var(--warn);letter-spacing:.5px;margin-bottom:8px;font-weight:700;}
-    .ag-card{background:var(--card2);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
-    .ag-card:last-child{margin-bottom:0;}
-    .ag-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
-    .ag-nome{font-weight:700;font-size:13px;}
-    .ag-grupo{font-size:11px;color:var(--warn);margin-top:2px;}
-    .ag-form{display:flex;gap:6px;}
-    .ag-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;}
-    .ag-input:focus{border-color:var(--warn);}
-    .ag-btn{padding:7px 14px;background:var(--warn);color:#000;border:none;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;}
-    .ag-btn:hover{background:#ffa000;}
-
-    /* USER CARD */
-    .user-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
-    .uch{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer;gap:8px;}
-    .uch:hover{background:var(--card2);}
-    .u-avatar{width:34px;height:34px;background:linear-gradient(135deg,var(--primary),#3d1f8a);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0;}
-    .u-info{flex:1;min-width:0;}
-    .u-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .u-meta{font-size:10px;color:var(--dim);margin-top:2px;}
-    .u-badges{display:flex;gap:5px;align-items:center;flex-shrink:0;}
-    .badge{padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800;white-space:nowrap;}
-    .b-cnt{background:rgba(124,77,255,.25);color:var(--pl);border:1px solid rgba(124,77,255,.4);}
-    .b-ok{background:rgba(67,217,138,.15);color:var(--ok);border:1px solid rgba(67,217,138,.3);}
-    .b-warn{background:rgba(255,171,64,.15);color:var(--warn);border:1px solid rgba(255,171,64,.3);}
-    .b-err{background:rgba(255,82,82,.15);color:var(--err);border:1px solid rgba(255,82,82,.3);}
-
-    .prog-wrap{padding:0 12px 10px;border-top:1px solid var(--border);}
-    .prog-info{display:flex;justify-content:space-between;padding:8px 0 5px;font-size:11px;color:var(--dim);}
-    .prog-info strong{color:var(--text);}
-    .prog-bg{height:6px;background:#1e2030;border-radius:3px;overflow:hidden;}
-    .prog-fill{height:100%;border-radius:3px;transition:width .5s;}
-    .f-ok{background:linear-gradient(90deg,#43d98a,#00bfa5);}
-    .f-warn{background:linear-gradient(90deg,#ffab40,#ff6d00);}
-    .f-err{background:linear-gradient(90deg,#ff5252,#b71c1c);}
-
-    .u-actions{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 10px;border-top:1px solid var(--border);background:var(--card2);}
-
-    .items-panel{display:none;background:#0e1017;border-top:1px solid var(--border);max-height:220px;overflow-y:auto;}
-    .items-panel.open{display:block;}
-    .item-row{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #1a1d26;gap:8px;}
-    .item-row:hover{background:#13161f;}
-    .i-ean{font-family:'Courier New',monospace;font-size:12px;color:var(--info);}
-    .i-sec{font-size:10px;color:var(--dim);}
-    .i-time{font-size:9px;color:var(--dim);white-space:nowrap;}
-
-    /* BOTÕES */
-    .btn{padding:6px 10px;border:none;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap;}
-    .btn:disabled{opacity:.5;cursor:not-allowed;}
-    .btn-p{background:var(--primary);color:#fff;}
-    .btn-p:hover{background:#6a3fcc;}
-    .btn-d{background:rgba(255,82,82,.2);color:var(--err);border:1px solid rgba(255,82,82,.4);}
-    .btn-d:hover{background:rgba(255,82,82,.35);}
-    .btn-w{background:rgba(255,171,64,.2);color:var(--warn);border:1px solid rgba(255,171,64,.4);}
-    .btn-w:hover{background:rgba(255,171,64,.35);}
-    .btn-n{background:rgba(255,255,255,.06);color:var(--dim);border:1px solid var(--border);}
-    .btn-n:hover{background:rgba(255,255,255,.1);color:var(--text);}
-    .btn-sm{padding:4px 8px;font-size:10px;border-radius:5px;}
-
-    /* COLUNA LATERAL */
-    .side-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;}
-    .side-card h4{font-size:11px;text-transform:uppercase;color:var(--dim);letter-spacing:.5px;margin-bottom:10px;font-weight:700;}
-
-    .inv-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px;}
-    .inv-row:last-child{border-bottom:none;}
-    .inv-nome{font-weight:700;font-size:12px;}
-    .inv-id{font-size:10px;color:var(--dim);}
-
-    /* GRUPOS */
-    .grupo-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);gap:8px;}
-    .grupo-row:last-child{border-bottom:none;}
-    .grupo-nome{font-weight:700;font-size:12px;}
-    .grupo-info{font-size:10px;color:var(--dim);margin-top:1px;}
-    .g-badge{padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;}
-    .g-disp{background:rgba(67,217,138,.15);color:var(--ok);border:1px solid rgba(67,217,138,.3);}
-    .g-res{background:rgba(255,171,64,.15);color:var(--warn);border:1px solid rgba(255,171,64,.3);}
-    .g-done{background:rgba(139,144,160,.15);color:var(--dim);border:1px solid var(--border);}
-
-    /* Form inline */
-    .inline-form{display:flex;gap:6px;margin-top:8px;}
-    .inline-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;}
-    .inline-input:focus{border-color:var(--primary);}
-    .inline-input-sm{width:80px;flex:none;}
-
-    /* Força senha modal */
-    .forca-box{background:rgba(255,82,82,.08);border:1px solid rgba(255,82,82,.3);border-radius:8px;padding:10px 12px;margin-top:6px;}
-    .forca-box p{font-size:11px;color:var(--err);margin-bottom:6px;}
-
-    .search-bar{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;margin-bottom:10px;}
-    .search-bar:focus{border-color:var(--primary);}
-    .empty{text-align:center;color:var(--dim);font-size:12px;padding:20px 0;}
-
-    #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#23263a;border:1px solid var(--border);color:var(--text);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .25s;z-index:9999;white-space:nowrap;}
-    #toast.show{opacity:1;}
-
-    .refresh-btn{background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;}
-    .refresh-btn:hover{color:var(--text);background:var(--card2);}
-    .refresh-btn.spinning{animation:spin .7s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg)}}
-
-    ::-webkit-scrollbar{width:5px;}
-    ::-webkit-scrollbar-track{background:transparent;}
-    ::-webkit-scrollbar-thumb{background:#333;border-radius:3px;}
-
-
-
-    /* CONFRONTO ESTOQUE */
-    .btn-confronto{width:100%;padding:10px;background:rgba(124,77,255,.15);border:1px solid rgba(124,77,255,.4);color:#b39ddb;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px;}
-    .btn-confronto:hover{background:rgba(124,77,255,.25);}
-    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:stretch;justify-content:stretch;}
-    .modal-overlay.open{display:flex;}
-    .modal-box{background:#111318;border:none;border-radius:0;width:100%;height:100%;padding:28px 32px;display:flex;flex-direction:column;overflow:hidden;}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0;}
-    .modal-title{font-size:17px;font-weight:500;color:#e8eaf0;}
-    .modal-close{background:none;border:none;color:#8b90a0;font-size:22px;cursor:pointer;padding:0;line-height:1;}
-    .conf-section{margin-bottom:16px;}
-    .conf-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
-    .conf-item{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-radius:12px;margin-bottom:8px;font-size:14px;}
-    .conf-label{font-family:monospace;font-weight:700;font-size:16px;}
-    .conf-qty{font-size:13px;color:#8b90a0;margin-top:3px;}
-    .conf-badge{border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;white-space:nowrap;}
-    .conf-bar{height:5px;border-radius:3px;margin-top:6px;background:#2e3140;}
-    .conf-bar-fill{height:5px;border-radius:3px;}
-    .conf-empty{text-align:center;color:#555;font-size:13px;padding:20px;}
-    .conf-stats{display:flex;gap:10px;margin-bottom:16px;flex-shrink:0;}
-    .conf-stat{flex:1;border-radius:12px;padding:20px 10px;text-align:center;cursor:pointer;border:2px solid transparent;transition:border-color .15s,transform .1s;}
-    .conf-stat:hover{transform:translateY(-1px);}
-    .conf-stat.ativo{border-color:#7c4dff;}
-    .conf-stat-val{font-size:32px;font-weight:500;line-height:1;}
-    .conf-stat-lbl{font-size:10px;color:#8b90a0;text-transform:uppercase;margin-top:4px;letter-spacing:.3px;}
-    .conf-scroll{flex:1;overflow-y:auto;padding-right:6px;}
-    .conf-scroll::-webkit-scrollbar{width:4px;}
-    .conf-scroll::-webkit-scrollbar-thumb{background:#333;border-radius:2px;}
-    .conf-filtro-clear{background:none;border:1px solid #444;color:#8b90a0;border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;margin-bottom:12px;flex-shrink:0;}
-    .conf-filtro-clear:hover{border-color:#aaa;color:#ccc;}
-
-    /* ALERTAS */
-    .alert-card{background:rgba(255,171,64,.07);border:1px solid rgba(255,171,64,.35);border-radius:var(--r);padding:12px;}
-    .alert-title{font-size:11px;text-transform:uppercase;color:var(--warn);letter-spacing:.5px;margin-bottom:8px;font-weight:700;}
-    .alerta-item{background:var(--card2);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
-    .alerta-item:last-child{margin-bottom:0;}
-    .alerta-info{font-size:11px;line-height:1.4;flex:1;}
-    .alerta-ean{font-family:'Courier New',monospace;color:var(--info);font-weight:700;}
-    .alerta-close{background:rgba(255,82,82,.2);color:var(--err);border:1px solid rgba(255,82,82,.3);border-radius:6px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;}
-    .btn-alerta-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;background:rgba(255,82,82,.22);color:#ffd7d7;font-size:10px;font-weight:800;padding:0 6px;margin-left:6px;}
-
-
-    /* ETIQUETAS */
-    .etiq-grid{display:flex;flex-wrap:wrap;gap:10px;padding:6px;}
-    .etiq{width:152px;height:228px;border:1.5px solid #888;border-radius:3px;background:#fff;color:#000;
-          display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-          padding:10px 8px 8px;font-family:'Courier New',monospace;flex-shrink:0;}
-    .etiq-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
-    .etiq-refcor{font-size:12px;font-weight:900;color:#000;letter-spacing:.5px;text-align:center;font-family:Arial,sans-serif;}
-    .etiq-grade-box{border:2px solid #000;border-radius:3px;padding:4px 18px;margin-top:2px;}
-    .etiq-grade{font-size:32px;font-weight:900;color:#000;line-height:1;font-family:Arial,sans-serif;letter-spacing:1px;}
-    .etiq-barras{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;}
-    .etiq-ean-num{font-size:8px;letter-spacing:.5px;color:#000;font-family:'Courier New',monospace;}
-    @media print{
-      body>*{display:none!important;}
-      #print-area{display:flex!important;flex-wrap:wrap;gap:4mm;padding:4mm;}
-      #print-area .etiq-print{width:4cm;height:6cm;border:1px solid #000;break-inside:avoid;
-        display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-        padding:3mm 2mm 2mm;font-family:'Courier New',monospace;page-break-inside:avoid;background:#fff;}
-      #print-area .ep-top{width:100%;display:flex;flex-direction:column;align-items:center;gap:2mm;}
-      #print-area .ep-refcor{font-size:8pt;font-weight:900;text-align:center;font-family:Arial,sans-serif;letter-spacing:.3px;}
-      #print-area .ep-grade-box{border:1.5px solid #000;border-radius:2px;padding:2mm 5mm;}
-      #print-area .ep-grade{font-size:22pt;font-weight:900;line-height:1;font-family:Arial,sans-serif;}
-      #print-area .ep-barras{width:100%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1mm;}
-      #print-area .ep-ean{font-size:5.5pt;letter-spacing:.3px;font-family:'Courier New',monospace;}
+    :root{
+      --primary:#673ab7;--primary-dark:#5e35b1;--bg:#0f0f0f;--card:#1e1e1e;
+      --text:#fff;--dim:#b0b0b0;--success:#4caf50;--danger:#f44336;--warning:#ff9800;
+      --cyan:#00e5ff;
     }
-    /* DIALOG CUSTOMIZADO */
-    #hs-dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px;}
-    #hs-dialog-overlay.show{display:flex;}
-    #hs-dialog-box{background:#1c1f26;border:1px solid #3a3f52;border-radius:14px;padding:24px 22px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.6);}
-    #hs-dialog-title{font-size:14px;font-weight:500;color:#e8eaf0;margin-bottom:8px;line-height:1.4;}
-    #hs-dialog-body{font-size:12px;color:#8b90a0;margin-bottom:18px;line-height:1.6;}
-    #hs-dialog-input{width:100%;background:#111318;border:1px solid #3a3f52;border-radius:8px;color:#e8eaf0;padding:9px 12px;font-size:13px;margin-bottom:16px;outline:none;}
-    #hs-dialog-input:focus{border-color:#7c4dff;}
-    #hs-dialog-btns{display:flex;gap:8px;justify-content:flex-end;}
-    .hs-dialog-btn{border:none;border-radius:8px;padding:8px 20px;font-size:13px;font-weight:500;cursor:pointer;}
-    .hs-dialog-btn.cancel{background:#252830;color:#8b90a0;}
-    .hs-dialog-btn.cancel:hover{background:#2e3140;}
-    .hs-dialog-btn.confirm{background:#7c4dff;color:#fff;}
-    .hs-dialog-btn.confirm:hover{background:#9c6dff;}
-    .hs-dialog-btn.danger{background:rgba(255,82,82,.2);color:var(--err);border:1px solid rgba(255,82,82,.3);}
-    .hs-dialog-btn.danger:hover{background:rgba(255,82,82,.3);}
+    *{box-sizing:border-box;}
+    body{font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+    .container{width:95%;max-width:600px;background:var(--card);padding:30px 20px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.5);margin:20px 10px;border:1px solid #333;}
+    h2{text-align:center;margin-top:0;color:var(--primary);font-weight:800;letter-spacing:1px;}
+    .home-grid{display:grid;gap:20px;margin-top:20px;}
+    .home-card{background:#252525;padding:25px;border-radius:15px;border:1px solid #333;cursor:pointer;display:flex;align-items:center;gap:20px;transition:transform .2s,border-color .2s,background .2s;}
+    .home-card:hover{transform:translateY(-5px);border-color:var(--primary);background:#2a2a2a;}
+    .home-card i{font-size:30px;color:var(--primary);}
+    .home-card div h3{margin:0;font-size:18px;}
+    .home-card div p{margin:5px 0 0;font-size:13px;color:var(--dim);}
+    .form-group{margin-bottom:15px;}
+    label{font-size:13px;font-weight:600;display:block;margin-bottom:6px;color:var(--dim);}
+    input,select{width:100%;padding:14px;font-size:15px;border:1px solid #333;border-radius:10px;background:#121212;color:#fff;outline:none;transition:border-color .2s;}
+    input:focus{border-color:var(--primary);}
+    select{appearance:none;}
+    button{background:var(--primary);color:#fff;border:none;padding:15px;border-radius:10px;font-size:15px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;transition:background .2s,transform .1s;}
+    button:hover{background:var(--primary-dark);transform:scale(1.02);}
+    button:disabled{background:#444;cursor:not-allowed;opacity:.7;transform:none;}
+    .btn-sec{background:#333;margin-top:10px;}
+    .btn-danger{background:var(--danger);margin-top:10px;}
+    .hidden{display:none!important;}
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;}
+    .stat-box{background:#121212;padding:15px;border-radius:12px;text-align:center;border:1px solid #333;}
+    .stat-box span{display:block;font-size:24px;font-weight:800;color:var(--primary);}
+    .stat-box label{font-size:11px;text-transform:uppercase;margin:0;}
+    .list-item{background:#121212;padding:12px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:14px;border-left:4px solid var(--primary);gap:10px;}
+    .badge{background:var(--warning);color:#000;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:bold;white-space:nowrap;}
+    .badge-espera{background:#333;color:var(--warning);border:1px solid var(--warning);}
+    .live-indicator{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--success);justify-content:center;margin-bottom:10px;text-transform:uppercase;font-weight:bold;}
+    .dot{width:8px;height:8px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .wait-icon{font-size:52px;margin:20px 0 10px;animation:wspin 3s linear infinite;display:inline-block;}
+    @keyframes wspin{to{transform:rotate(360deg)}}
+    .wait-title{font-size:20px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .wait-sub{font-size:14px;color:var(--dim);margin-bottom:24px;line-height:1.6;}
+    .wait-grupo-box{background:#111;border:1px solid #333;border-radius:12px;padding:16px;margin:16px 0;}
+    .wait-grupo-box .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;}
+    .wait-grupo-box .val{font-size:20px;font-weight:900;color:var(--primary);margin-top:4px;}
+    .wait-dots{display:inline-flex;gap:6px;margin-top:10px;}
+    .wait-dots span{width:8px;height:8px;background:var(--warning);border-radius:50%;animation:dp 1.4s infinite;}
+    .wait-dots span:nth-child(2){animation-delay:.2s;}
+    .wait-dots span:nth-child(3){animation-delay:.4s;}
+    @keyframes dp{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+    /* ─── COUNTING PANEL ─────────────────────── */
+    .count-hero{
+      background:#0e0e1a;
+      border:1px solid rgba(103,58,183,.35);
+      border-radius:18px;padding:18px 16px;margin:0 0 14px;text-align:center;
+    }
+    .count-hero-lbl{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:4px;}
+    .count-hero-num{
+      font-size:76px;font-weight:900;line-height:1;color:#fff;
+      transition:transform .12s,color .12s;
+    }
+    .count-hero-num.bump{transform:scale(1.13);color:var(--cyan);}
+    .count-hero-meta{font-size:12px;color:var(--dim);margin-top:6px;}
+    .count-hero-meta strong{color:#fff;}
+
+    .last-ean-box{
+      background:#060e14;border:1px solid rgba(0,229,255,.18);
+      border-radius:12px;padding:10px 14px;margin-bottom:12px;
+      display:flex;align-items:center;gap:10px;min-height:44px;
+    }
+    .last-ean-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);white-space:nowrap;}
+    .last-ean-val{
+      font-family:'Courier New',monospace;font-size:19px;font-weight:700;
+      color:var(--cyan);letter-spacing:2px;flex:1;
+    }
+    .last-ean-val.flash{animation:eanFlash .45s ease-out;}
+    @keyframes eanFlash{
+      0%{color:#fff;text-shadow:0 0 18px var(--cyan),0 0 36px var(--cyan);}
+      100%{color:var(--cyan);text-shadow:none;}
+    }
+    .last-ean-badge{
+      font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;
+      background:rgba(76,175,80,.18);color:var(--success);
+      border:1px solid rgba(76,175,80,.35);white-space:nowrap;
+    }
+    .info-row{display:flex;gap:10px;margin-bottom:12px;}
+    .info-chip{background:#181818;border:1px solid #252525;border-radius:10px;padding:8px 12px;flex:1;font-size:12px;}
+    .info-chip .ic-lbl{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    .info-chip .ic-val{font-weight:700;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rt-bar{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--success);margin-bottom:10px;}
+    .rt-dot{width:6px;height:6px;background:var(--success);border-radius:50%;animation:pulse 1.5s infinite;}
+    .rt-dot.warn{background:var(--warning);}
+    .rt-dot.err{background:var(--danger);animation:none;}
+
+    #queue-pill{display:none;background:#1a1000;border:1px solid var(--warning);border-radius:10px;padding:7px 14px;text-align:center;font-size:12px;color:var(--warning);margin-bottom:8px;}
+    #contagem-nao-bate{background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;}
+    #contagem-nao-bate h3{color:var(--danger);margin:0 0 10px;}
+    .diff-pos{color:var(--warning);}
+    .diff-neg{color:var(--danger);}
+
+    /* ─── SCANNER ────────────────────────────── */
+    #scanner-overlay{
+      position:fixed;inset:0;background:#000;z-index:1000;
+      display:none;flex-direction:column;
+    }
+    #video-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
+
+    /* Esconde UI padrão do html5-qrcode (botões, selects, textos) */
+    #h5-reader{width:100%;height:100%;}
+    #h5-reader>div:first-child{width:100%!important;height:100%!important;}
+    #h5-reader video{width:100%!important;height:100%!important;object-fit:cover;}
+    #h5-reader img{display:none!important;}
+    #h5-reader button,#h5-reader select,
+    #h5-reader span,#h5-reader a{display:none!important;}
+    /* Caixa de scan do html5-qrcode — deixa ela aparecer */
+    #h5-reader__scan_region{
+      position:absolute!important;inset:0!important;
+      display:flex!important;align-items:center!important;justify-content:center!important;
+    }
+    #h5-reader__scan_region>img{display:none!important;}
+
+    /* flash de leitura */
+    #scan-flash{position:absolute;inset:0;background:rgba(76,175,80,.22);opacity:0;pointer-events:none;}
+    #scan-flash.blink{animation:sfBlink .18s ease-out;}
+    @keyframes sfBlink{0%{opacity:1}100%{opacity:0}}
+
+    /* popup EAN lido */
+    #scan-ean-popup{
+      position:absolute;top:42%;left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,.88);
+      border:1px solid var(--cyan);border-radius:14px;
+      padding:12px 22px;
+      font-family:'Courier New',monospace;font-size:24px;font-weight:700;
+      color:var(--cyan);letter-spacing:3px;text-align:center;
+      opacity:0;pointer-events:none;white-space:nowrap;
+    }
+    #scan-ean-popup.ok{animation:popOk .85s ease-out forwards;}
+    #scan-ean-popup.inv{border-color:var(--danger);color:var(--danger);animation:popInv .7s ease-out forwards;}
+    @keyframes popOk{
+      0%{opacity:1;transform:translate(-50%,-50%) scale(.88);}
+      55%{opacity:1;transform:translate(-50%,-50%) scale(1.04);}
+      100%{opacity:0;transform:translate(-50%,-50%) scale(1.08);}
+    }
+    @keyframes popInv{
+      0%{opacity:1;transform:translate(calc(-50% + 0px),-50%);}
+      15%{transform:translate(calc(-50% + 7px),-50%);}
+      30%{transform:translate(calc(-50% - 7px),-50%);}
+      45%{transform:translate(calc(-50% + 4px),-50%);}
+      60%{opacity:1;transform:translate(-50%,-50%);}
+      100%{opacity:0;}
+    }
+
+    /* HUD inferior no scanner */
+        .scan-top-refs{
+      position:absolute;top:16px;left:16px;right:72px;z-index:6;
+      display:flex;flex-direction:column;gap:6px;
+    }
+    .scan-top-ref{
+      background:rgba(0,0,0,.62);
+      border:1px solid rgba(64,196,255,.22);
+      border-radius:10px;
+      padding:7px 10px;
+      color:#9fe8ff;
+      font-family:'Courier New',monospace;
+      font-size:12px;
+      font-weight:700;
+      line-height:1.25;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      backdrop-filter:blur(2px);
+    }
+.scan-hud{
+      position:absolute;bottom:0;left:0;right:0;
+      padding:14px 18px 24px;
+      background:linear-gradient(to top,rgba(0,0,0,.92) 0%,transparent 100%);
+    }
+    .scan-hud-cnt{font-size:56px;font-weight:900;color:#fff;line-height:1;}
+    .scan-hud-sub{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.45);}
+    .scan-hud-grp{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;}
+    .scan-hud-pnd{font-size:11px;color:var(--warning);min-height:16px;margin-top:2px;}
+
+    /* botão fechar scanner */
+    #btn-close-scan{
+      position:absolute;top:14px;right:14px;
+      width:42px;height:42px;background:rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.18);border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;z-index:5;font-size:17px;color:#fff;
+    }
+
+    .loading-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-radius:50%;border-top-color:#fff;animation:lspin 1s linear infinite;}
+    @keyframes lspin{to{transform:rotate(360deg)}}
+    .mini-btn{padding:6px 10px!important;font-size:10px!important;border-radius:8px!important;line-height:1!important;gap:6px!important;margin-top:0!important;white-space:nowrap;width:auto!important;}
+    .mini-btn.s{background:#2d2d2d;}
+    .mini-btn.d{background:var(--danger);}
+    .hint{font-size:12px;color:var(--dim);text-align:center;margin:-8px 0 14px;}
+
+    /* Grupo card */
+    .grupo-card{
+      background:#121212;border:1px solid #2a2a2a;border-radius:12px;
+      padding:12px 14px;margin-bottom:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      cursor:pointer;transition:border-color .2s,background .2s;
+    }
+    .grupo-card:hover{border-color:var(--primary);background:#1a1a2e;}
+    .grupo-card-nome{font-weight:700;font-size:14px;}
+    .grupo-card-meta{font-size:11px;color:var(--dim);margin-top:2px;}
+    .grupo-card-badge{
+      background:rgba(76,175,80,.15);color:var(--success);
+      border:1px solid rgba(76,175,80,.3);border-radius:8px;
+      padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap;
+    }
+    .grupo-empty{text-align:center;color:var(--dim);font-size:13px;padding:12px 0;}
+
+    .last-refs-box{
+      background:#101417;border:1px solid rgba(64,196,255,.15);
+      border-radius:12px;padding:10px 12px;margin-bottom:10px;
+    }
+    .last-refs-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:6px;}
+    .last-ref-item{
+      font-size:13px;font-weight:700;color:#9fe8ff;line-height:1.5;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-family:'Courier New',monospace;
+    }
+    .sync-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:2000;
+      display:none;align-items:center;justify-content:center;padding:24px;
+    }
+    .sync-box{
+      width:min(92vw,420px);background:#15171d;border:1px solid #2c3140;border-radius:18px;
+      padding:24px 22px;text-align:center;box-shadow:0 18px 48px rgba(0,0,0,.45);
+    }
+    .sync-box .ico{font-size:40px;color:var(--cyan);margin-bottom:12px;}
+    .sync-box .ttl{font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;}
+    .sync-box .sub{font-size:13px;color:var(--dim);line-height:1.6;}
+    .sync-box .mini{font-size:11px;color:#7e8798;margin-top:10px;}
+
+    .pend-estoque-box{
+      display:none;background:#1b1200;border:2px solid var(--warning);border-radius:16px;
+      padding:18px 16px;margin:12px 0;text-align:center;
+    }
+    .pend-estoque-box .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .pend-estoque-box .sub{font-size:13px;color:var(--dim);line-height:1.65;}
+    .pend-estoque-box .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:20px;font-weight:700;margin:10px 0 4px;}
+
+    .scan-pend-estoque{
+      position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.72);z-index:7;padding:22px;
+    }
+    .scan-pend-card{
+      width:min(92vw,420px);background:rgba(27,18,0,.96);border:2px solid var(--warning);
+      border-radius:18px;padding:22px 18px;text-align:center;box-shadow:0 18px 48px rgba(0,0,0,.45);
+    }
+    .scan-pend-card .ttl{font-size:18px;font-weight:800;color:var(--warning);margin-bottom:8px;}
+    .scan-pend-card .ean{font-family:'Courier New',monospace;color:#9fe8ff;font-size:22px;font-weight:700;margin:10px 0 6px;word-break:break-all;}
+    .scan-pend-card .sub{font-size:13px;color:var(--dim);line-height:1.65;}
   </style>
 </head>
 <body>
 
-<!-- DIALOG CUSTOMIZADO (substitui confirm/prompt nativos) -->
-<div id="hs-dialog-overlay">
-  <div id="hs-dialog-box">
-    <div id="hs-dialog-title"></div>
-    <div id="hs-dialog-body"></div>
-    <input id="hs-dialog-input" type="text" style="display:none;" autocomplete="off"/>
-    <div id="hs-dialog-btns"></div>
+<!-- MENU PRINCIPAL -->
+<div class="container" id="main-menu">
+  <h2>HS Inventário</h2>
+  <p style="text-align:center;color:var(--dim);font-size:14px;margin-bottom:25px;">Selecione o modo de operação</p>
+  <div class="home-grid">
+    <div class="home-card" onclick="showScreen('master-login')"><i class="fas fa-user-shield"></i><div><h3>Painel Master</h3><p>Gestão completa pelo painel admin web.</p></div></div>
+    <button id="btn-open-conf" class="hidden"></button>
+    <div class="home-card" onclick="showConferentePanel()"><i class="fas fa-barcode"></i><div><h3>Iniciar Contagem</h3><p>Acesse um inventário aberto para bipar.</p></div></div>
+    <div class="home-card" id="card-continuar" onclick="continuarUltimaContagem()" style="display:none;"><i class="fas fa-rotate-left"></i><div><h3>Retomar Grupo Ativo</h3><p id="continuar-desc"></p></div></div>
   </div>
 </div>
 
-<div class="header">
-  <div><span class="live-dot"></span><span class="live-lbl">Ao vivo</span> <span class="header-title" style="margin-left:4px;">HS Inventário — Painel Admin Web</span></div>
-  <button class="refresh-btn" id="refresh-btn" onclick="loadData()" title="Atualizar">↻</button>
+<!-- MASTER LOGIN -->
+<div class="container hidden" id="master-login">
+  <h2>ACESSO MASTER</h2>
+  <div class="form-group"><label>Senha</label><input type="password" id="master-pass" placeholder="Senha master"/></div>
+  <button id="btn-master-login" onclick="doMasterLogin()">ENTRAR NO PAINEL</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
 </div>
 
-<!-- BOTÃO CONFRONTO -->
-<button class="btn-confronto" onclick="abrirConfronto()">
-  📊 Ver confronto com estoque
-</button>
-
-<!-- BOTÃO ETIQUETAS -->
-<button class="btn-confronto" style="background:rgba(0,188,212,.1);border-color:rgba(0,188,212,.4);color:#4dd0e1;margin-top:-8px;" onclick="abrirEtiquetas()">
-  🖨️ Imprimir etiquetas pendentes
-</button>
-
-<!-- BOTÃO ALERTAS -->
-<button class="btn-confronto" id="btn-alertas" style="display:none;background:rgba(255,171,64,.12);border-color:rgba(255,171,64,.45);color:#ffab40;margin-top:-8px;" onclick="abrirAlertas()">
-  ⚠️ Ver alertas de conferência
-</button>
-
-<!-- MODAL ALERTAS -->
-<div class="modal-overlay" id="modal-alertas">
-  <div class="modal-box" style="max-width:900px;max-height:95vh;">
-    <div class="modal-header">
-      <span class="modal-title">⚠️ Alertas de conferência</span>
-      <button class="modal-close" onclick="fecharAlertas()">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;align-items:center;">
-      <span id="alertas-count" style="font-size:12px;color:#8b90a0;flex:1;"></span>
-    </div>
-    <div class="conf-scroll" id="alertas-list"></div>
+<!-- MASTER PANEL -->
+<div class="container hidden" id="master-panel" style="max-width:800px;">
+  <div class="live-indicator"><div class="dot"></div>Monitoramento em Tempo Real</div>
+  <h2>PAINEL DO LEONARDO</h2>
+  <div class="stats-grid">
+    <div class="stat-box"><span id="stat-total">0</span><label>Consolidado</label></div>
+    <div class="stat-box"><span id="stat-aberto">0</span><label>Em Aberto</label></div>
   </div>
-</div>
-
-<!-- MODAL ETIQUETAS -->
-<div class="modal-overlay" id="modal-etiquetas">
-  <div class="modal-box" style="max-width:800px;max-height:95vh;">
-    <div class="modal-header">
-      <span class="modal-title">🖨️ Etiquetas para impressão</span>
-      <button class="modal-close" onclick="fecharEtiquetas()">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;align-items:center;">
-      <span id="etiq-count" style="font-size:12px;color:#8b90a0;flex:1;"></span>
-      <button class="btn btn-sm" style="background:#4dd0e1;color:#000;font-weight:600;padding:8px 18px;" onclick="imprimirEtiquetas()">🖨️ Imprimir</button>
-      <button class="btn btn-sm btn-d" onclick="limparEtiquetasPendentes()">🗑️ Limpar lista</button>
-    </div>
-    <div class="conf-scroll" id="etiquetas-grid"></div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;">
+    <button style="flex:1" onclick="showScreen('create-inv-screen')"><i class="fas fa-plus"></i> Novo Inventário</button>
+    <button style="flex:1;background:#2a2a2a" onclick="loadDashboard()"><i class="fas fa-sync"></i> Atualizar</button>
   </div>
-</div>
-
-<!-- MODAL CONFRONTO -->
-<div class="modal-overlay" id="modal-confronto">
-  <div class="modal-box">
-    <div class="modal-header">
-      <span class="modal-title">📊 Confronto com estoque</span>
-      <button class="modal-close" onclick="fecharConfronto()">✕</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;">
-      <select id="confronto-inv" class="search-bar" style="flex:1;padding:7px 10px;"></select>
-      <button class="btn btn-p btn-sm" style="padding:7px 16px;white-space:nowrap;" onclick="rodarConfronto()">▶ Calcular</button>
-      <button class="btn btn-sm" style="padding:7px 14px;white-space:nowrap;background:rgba(0,188,212,.15);border:1px solid rgba(0,188,212,.4);color:#4dd0e1;" onclick="gerarRelatorio()" id="btn-gerar-rel" disabled>📄 Gerar Relatório</button>
-    </div>
-    <div id="conf-filtro-clear-wrap" style="display:none;flex-shrink:0;">
-      <button class="conf-filtro-clear" onclick="limparFiltroConfronto()">← Ver todos os grupos</button>
-    </div>
-    <div class="conf-scroll" id="confronto-resultado"></div>
+  <div id="aguardando-box" style="display:none;background:#1a1200;border:2px solid var(--warning);border-radius:15px;padding:15px;margin-bottom:20px;">
+    <h3 style="font-size:15px;margin:0 0 8px;color:var(--warning);"><i class="fas fa-hourglass-half"></i> Aguardando Meta</h3>
+    <div class="hint" style="margin:0 0 10px;">Estas pessoas estão esperando você definir a meta.</div>
+    <div id="list-aguardando"></div>
   </div>
-</div>
-
-<div class="stats-row">
-  <div class="stat"><div class="stat-val" id="s-users">-</div><div class="stat-lbl">Usuários</div></div>
-  <div class="stat"><div class="stat-val" id="s-bipes">-</div><div class="stat-lbl">Em Aberto</div></div>
-  <div class="stat"><div class="stat-val" id="s-consol">-</div><div class="stat-lbl">Consolidado</div></div>
-  <div class="stat"><div class="stat-val" id="s-pct">-</div><div class="stat-lbl">% Consolidado</div></div>
-</div>
-
-<div class="layout">
-  <!-- COLUNA PRINCIPAL -->
-  <div class="col-main">
-    <div id="ag-section" class="ag-section" style="display:none;">
-      <div class="ag-title">⏳ Aguardando Meta</div>
-      <div id="list-ag"></div>
-    </div>
-    <div class="section-title">Usuários bipando</div>
-    <input class="search-bar" type="text" id="search-user" placeholder="🔍 Buscar usuário ou grupo..." oninput="renderUsuarios()"/>
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;margin-bottom:20px;">
+    <h3 style="font-size:16px;margin-top:0;color:var(--warning);"><i class="fas fa-user-clock"></i> Bipes em Aberto</h3>
     <div id="list-usuarios"></div>
   </div>
+  <div style="background:#1a1a1a;padding:15px;border-radius:15px;">
+    <h3 style="font-size:16px;margin-top:0;"><i class="fas fa-list-check"></i> Inventários</h3>
+    <div id="list-inventarios"></div>
+  </div>
+  <button class="btn-sec" style="margin-top:20px;" onclick="stopRealTime();showScreen('main-menu');">SAIR DO PAINEL</button>
 
-  <!-- COLUNA LATERAL -->
-  <div class="col-side">
+</div>
 
-    <!-- CRIAR INVENTÁRIO -->
-    <div class="side-card">
-      <h4>Novo inventário</h4>
-      <div class="inline-form" style="margin-bottom:6px;">
-        <input class="inline-input" type="text" id="novo-inv-nome" placeholder="Nome do inventário..."/>
-      </div>
-      <div class="inline-form">
-        <input class="inline-input" type="text" id="novo-inv-senha" placeholder="Senha dos conferentes..."/>
-        <button class="btn btn-p btn-sm" onclick="criarInventario()">Criar</button>
-      </div>
+<!-- MASTER PANEL IFRAME -->
+<div class="container hidden" id="master-iframe-panel" style="max-width:1200px;height:92vh;padding:0;overflow:hidden;">
+  <iframe id="admin-iframe" src="admin_fastapi_embutido.html" style="width:100%;height:calc(100% - 54px);border:none;background:#111318;"></iframe><div style="padding:10px 14px;background:#111318;border-top:1px solid #2e3140;"><button class="btn-sec" onclick="showScreen('main-menu')" style="margin:0;">VOLTAR</button></div>
+</div>
+
+<!-- CRIAR INVENTÁRIO -->
+
+<div class="container hidden" id="create-inv-screen">
+  <h2>NOVO INVENTÁRIO</h2>
+  <div class="form-group"><label>Nome</label><input type="text" id="inv-name" placeholder="Ex: Inventário Julho 2025"/></div>
+  <div class="form-group"><label>Senha para Conferentes</label><input type="text" id="inv-pass" placeholder="Crie uma senha"/></div>
+  <button id="btn-create-inv" onclick="doCreateInventory()">CRIAR AGORA</button>
+  <button class="btn-sec" onclick="showScreen('master-panel')">CANCELAR</button>
+</div>
+
+<!-- LOGIN CONFERENTE -->
+<div class="container hidden" id="conferente-login">
+  <h2>CONFERENTE</h2>
+  <div class="form-group"><label>Seu Nome</label><input type="text" id="conf-name"/></div>
+  <div class="form-group"><label>Inventário</label><select id="inv-select" onchange="onInvSelectChange()"></select></div>
+  <div class="form-group"><label>Senha</label><input type="password" id="conf-inv-pass"/></div>
+  <button id="btn-conf-login" onclick="doConferenteLogin()">AVANÇAR</button>
+  <button class="btn-sec" onclick="showScreen('main-menu')">VOLTAR</button>
+</div>
+
+<!-- ESCOLHA DE GRUPO -->
+<div class="container hidden" id="grupo-select-panel">
+  <h2>ESCOLHER GRUPO</h2>
+  <p id="debug-inv-id" style="text-align:center;color:var(--dim);font-size:11px;margin-bottom:16px;"></p>
+
+  <!-- Grupos disponíveis -->
+  <div id="grupos-disponiveis-wrap" style="margin-bottom:16px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:8px;font-weight:700;">Grupos disponíveis</div>
+    <div id="lista-grupos-disponiveis"></div>
+  </div>
+
+  <!-- Criar novo grupo manual -->
+  <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:14px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:10px;font-weight:700;">Criar novo grupo (sem meta pré-definida)</div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <input type="text" id="novo-grupo-nome" placeholder="Nome do grupo (ex: CORREDOR 3)" style="text-transform:uppercase;"/>
     </div>
+    <button id="btn-novo-grupo" onclick="doIniciarNovoGrupo()">+ CRIAR E ENTRAR</button>
+  </div>
 
-    <!-- INVENTÁRIOS -->
-    <div class="side-card">
-      <h4>Inventários</h4>
-      <div id="list-inventarios"></div>
+  <button class="btn-sec" style="margin-top:10px;" onclick="showScreen('conferente-login')">VOLTAR</button>
+</div>
+
+<!-- WAITING PANEL -->
+<div class="container hidden" id="waiting-panel">
+  <div style="text-align:center;">
+    <div class="wait-icon">⏳</div>
+    <div class="wait-title">Aguardando liberação</div>
+    <div class="wait-sub">O administrador vai contar fisicamente e definir a meta.<br>Você será liberado automaticamente.</div>
+    <div class="wait-grupo-box"><div class="lbl">Grupo</div><div class="val" id="wait-grupo-nome"></div></div>
+    <div class="wait-dots"><span></span><span></span><span></span></div>
+    <p style="font-size:11px;color:var(--dim);margin-top:16px;">Verificando a cada 5 segundos...</p>
+  </div>
+  <button class="btn-sec" style="margin-top:24px;" onclick="pararEspera();showScreen('main-menu');">CANCELAR E VOLTAR</button>
+</div>
+
+<!-- COUNTING PANEL -->
+<div class="container hidden" id="counting-panel">
+  <h2 id="active-inv-title" style="font-size:15px;margin-bottom:12px;">...</h2>
+
+  <!-- Status em tempo real -->
+  <div class="rt-bar">
+    <div class="rt-dot" id="rt-dot"></div>
+    <span id="rt-lbl">Sincronizado</span>
+    <span id="colab-badge" style="display:none;align-items:center;gap:5px;margin-left:10px;background:rgba(255,171,64,.15);border:1px solid rgba(255,171,64,.4);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--warning);">👥 COLABORATIVO</span>
+  </div>
+
+  <!-- Contador principal -->
+  <div class="count-hero">
+    <div class="count-hero-lbl">Peças bipadas</div>
+    <div class="count-hero-num" id="user-count">0</div>
+  </div>
+
+  <!-- Último EAN -->
+  <div class="last-ean-box">
+    <span class="last-ean-lbl">Último EAN</span>
+    <span class="last-ean-val" id="last-ean-val">—</span>
+    <span class="last-ean-badge" id="last-ean-badge" style="display:none">✓ EAN-13</span>
+  </div>
+
+  <div class="last-refs-box">
+    <div class="last-refs-title">Últimas peças</div>
+    <div class="last-ref-item" id="last-ref-1">—</div>
+    <div class="last-ref-item" id="last-ref-2">—</div>
+  </div>
+
+  <!-- Info -->
+  <div class="info-row">
+    <div class="info-chip"><div class="ic-lbl">Conferente</div><div class="ic-val" id="display-name">—</div></div>
+    <div class="info-chip"><div class="ic-lbl">Grupo</div><div class="ic-val" id="display-section">—</div></div>
+  </div>
+
+  <div id="queue-pill"></div>
+
+  <div id="contagem-nao-bate" style="background:#1a0a0a;border:2px solid var(--danger);border-radius:16px;padding:20px;margin:12px 0;text-align:center;display:none;">
+    <div style="font-size:36px;margin-bottom:8px;">⚠️</div>
+    <h3 style="color:var(--danger);margin:0 0 10px;font-size:18px;">Contagem divergente</h3>
+    <p style="font-size:13px;color:var(--dim);margin:0;line-height:1.7;">A quantidade bipada não confere com a meta.<br>Entre em contato com o administrador para<br><strong style="color:#fff;">concluir mesmo assim</strong> ou <strong style="color:#fff;">zerar para recontagem.</strong></p>
+  </div>
+
+  <div class="pend-estoque-box" id="pend-estoque-box">
+    <div class="ttl">Peça não encontrada no estoque</div>
+    <div class="ean" id="pend-estoque-ean">—</div>
+    <div class="sub">Confirme você mesmo se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua e continue a conferência.</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
+      <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
+        ✓ Considerar
+      </button>
+      <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
+        ✕ Excluir
+      </button>
     </div>
+  </div>
 
+  <button onclick="startScanner()" style="margin-bottom:10px;"><i class="fas fa-camera"></i> ABRIR SCANNER EAN-13</button>
+  <button class="btn-danger" id="btn-concluir" onclick="doConcluirSecao()"><i class="fas fa-check-double"></i> CONCLUIR GRUPO</button>
+  <button class="btn-sec" onclick="voltarSemPerderSessao()"><i class="fas fa-house"></i> VOLTAR AO MENU</button>
+</div>
 
-    <!-- GRUPOS PRÉ-CRIADOS -->
-    <div class="side-card">
-      <h4>Grupos pré-criados</h4>
-      <div style="margin-bottom:10px;">
-        <div style="font-size:10px;color:var(--dim);margin-bottom:6px;">Inventário</div>
-        <select id="grupo-inv-select" class="search-bar" style="margin-bottom:6px;padding:7px 10px;"></select>
-        <div class="inline-form" style="margin-bottom:6px;">
-          <input class="inline-input" type="text" id="novo-grupo-nome" placeholder="Nome do grupo..." style="text-transform:uppercase;"/>
-          <input class="inline-input inline-input-sm" type="number" id="novo-grupo-meta" placeholder="Meta" min="1"/>
+<!-- SCANNER OVERLAY -->
+<div id="scanner-overlay">
+  <div id="video-wrap">
+
+    <!-- html5-qrcode renderiza aqui -->
+    <div id="h5-reader" style="width:100%;height:100%;"></div>
+
+    <div id="scan-flash"></div>
+    <div id="scan-ean-popup"></div>
+
+    <div class="scan-pend-estoque" id="scan-pend-estoque">
+      <div class="scan-pend-card">
+        <div class="ttl">Peça fora da listagem de estoque</div>
+        <div class="ean" id="scan-pend-estoque-ean">—</div>
+        <div class="sub">Confirme se este é o código correto da peça. Se estiver certo, considere a leitura. Se estiver errado, exclua para continuar a conferência.</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
+          <button type="button" onclick="confirmarPecaForaEstoque('CONSIDERAR')" style="width:auto;background:var(--success);padding:12px 18px;">
+            ✓ Considerar
+          </button>
+          <button type="button" onclick="confirmarPecaForaEstoque('EXCLUIR')" style="width:auto;background:var(--danger);padding:12px 18px;">
+            ✕ Excluir
+          </button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);cursor:pointer;">
-            <input type="checkbox" id="novo-grupo-colab" style="width:auto;padding:0;"/>
-            Colaborativo
-          </label>
-          <input class="inline-input" type="number" id="novo-grupo-vagas" placeholder="Vagas" min="2" max="10" value="2" style="width:70px;display:none;padding:5px 8px;font-size:11px;"/>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-p btn-sm" onclick="criarGrupo()" style="flex:1;">+ Criar grupo</button>
-          <button class="btn btn-n btn-sm" id="btn-toggle-agrupador" onclick="toggleAgrupadorGrupos()" style="width:auto;min-width:92px;justify-content:center;">Agrupar</button>
-        </div>
-        <div id="agrupador-box" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--card2);"></div>
       </div>
-      <input class="search-bar" type="text" id="search-grupo" placeholder="🔍 Buscar grupo criado..." style="margin-bottom:8px;padding:7px 10px;" oninput="renderGrupos()"/>
-      <div id="list-grupos"></div>
     </div>
 
-    <!-- IMPORTAR ESTOQUE -->
-    <div class="side-card">
-      <h4>Importar estoque</h4>
-      <div style="font-size:11px;color:var(--dim);line-height:1.5;margin-bottom:10px;">
-        Envie um arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com as colunas:
-        <br>PRODUTO, COR_PRODU, FILIAL, TAMANHO, QUANTIDADE, GRADE, CODIGO_BARR
-      </div>
-      <input type="file" id="arquivo-estoque" accept=".xlsx,.csv" class="search-bar" style="padding:8px 10px;margin-bottom:8px;" />
-      <label style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--dim);cursor:pointer;margin-bottom:10px;">
-        <input type="checkbox" id="substituir-estoque" checked style="width:auto;padding:0;"/>
-        Substituir todo o estoque atual
-      </label>
-      <button class="btn btn-p btn-sm" onclick="importarEstoqueArquivo()" style="width:100%;justify-content:center;">📦 Importar estoque</button>
-      <div id="estoque-import-status" style="margin-top:10px;font-size:11px;color:var(--dim);line-height:1.5;"></div>
+    <!-- Overlay de prefixo suspeito — pausa o scanner até o usuário confirmar -->
+    <div id="scan-prefixo-alerta" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.92);z-index:10;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;">
+      <div style="font-size:40px;">⚠️</div>
+      <div style="color:#ff5252;font-size:16px;font-weight:500;">Código possivelmente incorreto</div>
+      <div style="font-family:monospace;font-size:22px;font-weight:700;color:#fff;letter-spacing:2px;background:rgba(255,82,82,.15);border:1px solid rgba(255,82,82,.4);border-radius:10px;padding:10px 20px;" id="scan-prefixo-ean"></div>
+      <div style="color:#888;font-size:13px;line-height:1.6;">Este código não pertence ao prefixo esperado<br><span style="color:#aaa;">(7909 / 7900 / 7890 / 7891 / 7892 / 7894 / 7895)</span>.<br>Verifique a peça e tente novamente.</div>
+      <button onclick="fecharAlertaPrefixo()" style="background:#ff5252;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:15px;font-weight:500;cursor:pointer;margin-top:8px;">OK — Entendido</button>
     </div>
 
+    <div class="scan-top-refs">
+      <div class="scan-top-ref">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#7fb8c7;margin-bottom:2px;">Última peça</div>
+        <div id="scanner-last-ref-1">—</div>
+      </div>
+      <div class="scan-top-ref">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#7fb8c7;margin-bottom:2px;">Penúltima peça</div>
+        <div id="scanner-last-ref-2">—</div>
+      </div>
+    </div>
+
+    <div class="scan-hud">
+      <div class="scan-hud-sub">Peças bipadas</div>
+      <div class="scan-hud-cnt" id="scanner-count-val">0</div>
+      <div class="scan-hud-grp" id="scanner-grp-lbl"></div>
+      <div id="scanner-colab-lbl" style="display:none;font-size:11px;color:var(--warning);font-weight:700;margin-top:2px;">👥 Grupo colaborativo</div>
+      <div class="scan-hud-pnd" id="scanner-pnd-lbl"></div>
+    </div>
+
+    <div id="btn-close-scan" onclick="stopScanner()">✕</div>
   </div>
 </div>
 
-<div id="toast"></div>
+
+<div class="sync-overlay" id="sync-overlay">
+  <div class="sync-box">
+    <div class="ico"><i class="fas fa-boxes-stacked"></i></div>
+    <div class="ttl">Sincronizando peças</div>
+    <div class="sub">Aguarde enquanto o sistema sincroniza as referências do inventário.</div>
+    <div class="mini" id="sync-mini">Preparando dados...</div>
+    <div class="loading-spinner" style="margin:16px auto 0;"></div>
+  </div>
+</div>
 
 <script>
-const API_BASE='https://inventario-backend-production-ae13.up.railway.app';
-async function apiUpload(path, formData){
-  const res=await fetch(API_BASE+path,{method:'POST',body:formData});
-  const txt=await res.text();
-  let data={};
-  try{ data = txt ? JSON.parse(txt) : {}; }catch(_){ data = { raw: txt }; }
-  if(!res.ok){
-    const msg=(data&&data.detail)||data.message||('HTTP '+res.status);
-    throw new Error(msg);
-  }
-  return data;
+const API_BASE=(localStorage.getItem('HS_API_BASE')||'https://inventario-backend-production-ae13.up.railway.app').replace(/\/$/,'');
+const APP_VERSION="2.7.1";
+const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
+let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
+let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
+const CHAVE_LOCAL="HS_INV_SESSAO_03";
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(
+  navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1
+);
+
+const CHAVE_ESTOQUE_PREFIX='HS_ESTOQUE_MINI_';
+let _estoqueMiniMapa={};
+let _estoqueMiniInvId='';
+let _ultimasRefs=[];
+let _pendenciaEstoqueAtiva=null;
+let _pendenciaEstoqueRegistrada=false;
+let _estoqueSyncFeitoNestaPagina=false;
+let _semGrupoTransitCount=0;
+
+// pendentes de envio
+let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
+let loteEmAndamento=null,requestIdEmAndamento='';
+const MAX_TENTATIVAS=5;
+
+function enqueue(ean){
+  queue.push(ean);totalLocal++;
+  updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-let _data={inventarios:[],metas:[],usuarios:[],totalConsolidado:0,totalEstoque:0,percentualConsolidado:0,grupos:[]};
-let _pausarRefresh=false;
-let _loadingData=false;
-let _pendingReload=false;
-let _open={};
-let _forcaAberta={};  // preserva qual card tem o campo de senha aberto
-let _forcaSenha={};   // preserva o que foi digitado antes do refresh
-let _metaAberta={};
-let _metaValor={};
-let _alertasData=[];
-let _agrupadorAtivo=false;
-let _criandoGrupos=false;
-let _loadingAlertas=false;
-let _lastAlertasAt=0;
-let _pollTimer=null;
-const ADMIN_POLL_MS=1000;
-const ALERTAS_POLL_MS=90000;
-const _agrupadorLetras=['A','B','C','D','E'];
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,300);}
+async function flushQueue(){
+  if(enviando||queue.length===0)return;
+  enviando=true;setRT('warn');
+  if(!loteEmAndamento||!Array.isArray(loteEmAndamento)||loteEmAndamento.length===0){
+    loteEmAndamento=queue.slice();
+    requestIdEmAndamento='REQ_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+  }
+  const batch=loteEmAndamento;
+  try{
+    const res=await callGAS({api:'registrarBipeLote',requestId:requestIdEmAndamento,eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
+    if(res&&res.success){
+      queue=queue.slice(batch.length);
+      totalServidor=res.count||0;
+      totalLocal=totalServidor+queue.length;
+      loteEmAndamento=null;requestIdEmAndamento='';
+      _tentativas=0;setRT('ok');
+      try{localStorage.setItem('HS_ADMIN_PULSE', String(Date.now()));}catch(_){}
+      if(queue.length>0)scheduleFlush();
+    }else{
+      setRT('err');
+      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}stopScanner();showScreen('main-menu');atualizarMenu();}
+      else if(res&&res.code==='SECAO_FECHADA'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;grupoEncerrado(res.message);}
+      else if(_tentativas<MAX_TENTATIVAS){
+        _tentativas++;
+        const delay=1500*_tentativas;
+        enviando=false;updateCounterUI();updateQueueUI();
+        timerEnvio=setTimeout(flushQueue,delay);
+        return;
+      }
+    }
+  }catch(e){
+    setRT('err');
+    if(_tentativas<MAX_TENTATIVAS){
+      _tentativas++;
+      enviando=false;updateCounterUI();updateQueueUI();
+      timerEnvio=setTimeout(flushQueue,1500*_tentativas);
+      return;
+    }
+  }
+  enviando=false;updateCounterUI();updateQueueUI();
+}
 
-function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
+function setRT(s){
+  const d=document.getElementById('rt-dot'),l=document.getElementById('rt-lbl');
+  if(!d)return;
+  d.className='rt-dot'+(s==='err'?' err':s==='warn'?' warn':'');
+  l.textContent=s==='err'?'Reconectando...':s==='warn'?'Sincronizando...':'Sincronizado';
+}
 
+function updateCounterUI(newEan){
+  const v=String(totalLocal);
+  document.getElementById('user-count').textContent=v;
+  document.getElementById('scanner-count-val').textContent=v;
+  if(newEan){
+    const n=document.getElementById('user-count');
+    n.classList.remove('bump');void n.offsetWidth;n.classList.add('bump');
+    setTimeout(()=>n.classList.remove('bump'),220);
+    const ev=document.getElementById('last-ean-val');
+    const eb=document.getElementById('last-ean-badge');
+    if(ev){ev.textContent=newEan;ev.classList.remove('flash');void ev.offsetWidth;ev.classList.add('flash');}
+    if(eb)eb.style.display='inline-block';
+    registrarUltimaRefPorEan(newEan);
+  } else {
+    renderUltimasRefs();
+  }
+}
+function updateQueueUI(){
+  const pnd=queue.length;
+  const pill=document.getElementById('queue-pill'),pndl=document.getElementById('scanner-pnd-lbl');
+  if(pnd>0){const t=`Enviando ${pnd} bipe${pnd>1?'s':''}...`;if(pill){pill.textContent=t;pill.style.display='block';}if(pndl)pndl.textContent=t;setRT('warn');}
+  else{if(pill)pill.style.display='none';if(pndl)pndl.textContent='';if(!enviando)setRT('ok');}
+}
 
+// atualização em tempo real
+let _redirecionando=false;
+let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
+function startRT(){
+  stopRT();
+  _redirecionando=false;
+  const tkAtual=++_tokenSessao;
+  timerRT=setInterval(async()=>{
+    if(!currentInvId||!currentUser||_redirecionando)return;
+    try{
+      const r=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+      if(tkAtual!==_tokenSessao)return; // resposta de sessão anterior — descarta
+      if(!r||!r.success)return;
+
+      if(r.status==='SECAO_BLOQUEADA'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        setTimeout(()=>{
+          alert(msg+'\nEscolha um novo grupo para continuar.');
+          telaGrupos();
+        },100);
+        return;
+      }
+
+      if(r.status==='INVENTARIO_ENCERRADO'){
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        limparCacheEstoqueInventario(currentInvId);
+        atualizarMenu();
+        showScreen('main-menu');
+        setTimeout(()=>alert(r.message||'O inventário foi encerrado pelo administrador.'),100);
+        return;
+      }
+
+      if(r.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+        mostrarPendenciaEstoque(r.pendencia&&r.pendencia.ean?r.pendencia.ean:'', true);
+        setRT('warn');
+        if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
+          totalServidor=r.count;totalLocal=r.count;updateCounterUI();
+        }
+        return;
+      }
+
+      if(r.status==='SEM_GRUPO'){
+        if(_pendenciaEstoqueAtiva || currentSection){
+          _semGrupoTransitCount++;
+          _scannerTravado=true;
+          setRT('warn');
+          if(_semGrupoTransitCount < 4) return;
+        }
+
+        if(_redirecionando)return;
+        _redirecionando=true;
+        stopRT();
+        try{stopScanner();}catch(_){}
+        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+        updateCounterUI();updateQueueUI();
+        setTimeout(()=>{
+          alert('Seu grupo foi resetado ou excluído pelo administrador. Escolha outro grupo para continuar.');
+          telaGrupos();
+        },100);
+        return;
+      }
+
+      _semGrupoTransitCount=0;
+      if(_pendenciaEstoqueAtiva) {
+        if(_pendenciaEstoqueRegistrada){
+          esconderPendenciaEstoque();
+        }else{
+          _scannerTravado=true;
+          setRT('warn');
+        }
+      }
+
+      if(queue.length===0&&r.count!==undefined&&r.count!==totalServidor){
+        const prev=totalServidor;
+        totalServidor=r.count;totalLocal=r.count;
+        updateCounterUI();
+        if(r.count<prev){
+          const n=document.getElementById('user-count');
+          if(n){n.style.color='var(--warning)';setTimeout(()=>n.style.color='',900);}
+        }
+      }
+      setRT('ok');
+    }catch(_){setRT('err');}
+  },3000);
+}
+function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
+
+// ── AUDIO ──────────────────────────────────────────────────────────────────
+let actx=null;
+function bip(ok=true){
+  try{
+    if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=ok?'square':'sawtooth';
+    o.frequency.value=ok?1046:280;
+    const t=actx.currentTime,dur=ok?.08:.11;
+    g.gain.setValueAtTime(ok?.07:.04,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start();o.stop(t+dur);
+  }catch(_){}
+}
+
+// troca de telas
+let _timerGrupos=null;
+function showScreen(id){
+  _entrando=false;
+  document.querySelectorAll('.container').forEach(c=>c.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='master-panel')startRealTime();else stopRealTime();
+  if(id==='counting-panel')startRT();else stopRT();
+  if(id!=='waiting-panel')pararEspera();
+  // Auto-refresh da lista de grupos enquanto na tela de seleção
+  if(_timerGrupos){clearInterval(_timerGrupos);_timerGrupos=null;}
+  if(id==='grupo-select-panel'){
+    _timerGrupos=setInterval(()=>listarGrupos(),15000);
+  }
+}
+function startRealTime(){loadDashboard();if(!timerDash)timerDash=setInterval(loadDashboard,10000);}
+function stopRealTime(){if(timerDash){clearInterval(timerDash);timerDash=null;}}
+function setBtnLoading(id,l,t){const b=document.getElementById(id);if(!b)return;b.disabled=l;b.innerHTML=l?'<div class="loading-spinner"></div>':(t||b.innerHTML);}
+
+// chamada para o backend (FastAPI local / Railway)
 async function apiFetch(path, options={}, retries=1){
   let lastErr=null;
   for(let attempt=0; attempt<=retries; attempt++){
@@ -432,7 +754,7 @@ async function apiFetch(path, options={}, retries=1){
       }, options));
       const txt=await res.text();
       let data={};
-      try{ data = txt ? JSON.parse(txt) : {}; }catch(_ ){ data = { raw: txt }; }
+      try{ data = txt ? JSON.parse(txt) : {}; }catch(_){ data = { raw: txt }; }
       if(!res.ok){
         const msg=(data&&data.detail)||data.message||('HTTP '+res.status);
         throw new Error(msg);
@@ -445,1335 +767,970 @@ async function apiFetch(path, options={}, retries=1){
   }
   throw lastErr||new Error('Erro de conexão');
 }
-function logPainel(){}
-function makeId(prefix='id'){ return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
-
-function normKey(v){return String(v||'').trim().replace(/\s+/g,' ').toUpperCase();}
-function getGrupoInfoByNome(idInventario,nomeGrupo){
-  const alvoInv=String(idInventario||'');
-  const alvoNome=normKey(String(nomeGrupo||'').replace(/_/g,' '));
-  return (_data.grupos||[]).find(g=>{
-    return String(g.idInventario||g.id_inventario||'')===alvoInv &&
-           normKey(String(g.nome||'').replace(/_/g,' '))===alvoNome;
-  }) || null;
+function makeId(prefix='id'){
+  return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 }
-async function refreshPainelData(){
-  await loadData(true);
+async function getAdminPainelFast(){
+  return await apiFetch('/admin/painel',{method:'GET'},1);
 }
-
-function transformPainelData(p){
-  const inventarios=(p.inventarios||[]).map(i=>({id:i.id,nome:i.nome,status:i.status}));
-  const grupos=(p.grupos||[]).map(g=>({
-    id:g.id,idInventario:g.id_inventario,nome:g.nome,meta:g.meta||0,status:g.status||'DISPONIVEL',
-    colaborativo:!!g.colaborativo,vagas:(g.vagas||1),membros:(g.membros||[]).join(','),usuario:(g.membros&&g.membros[0])||''
-  }));
-  const usuarios=(p.usuarios_ativos||[]).map(u=>{
-    const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
-    const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
-      ean:b.ean||'',
-      labelCompact:b.label_compact||b.labelCompact||'',
-      ref:b.ref||'',
-      cor:b.cor||'',
-      tamanho:b.tamanho||'',
-      grade:b.grade||'',
-      refCor:b.ref_cor||b.refCor||'',
-      secao:(g&&g.nome)||u.grupo_nome||'',
-      dataHora:b.hora||'',
-      rowIndex:idx+1,
-      naoEncontrado:!!b.nao_encontrado
-    }));
-    return {
-      nome:u.usuario,nomeReal:u.usuario,idInventario:u.id_inventario,idGrupo:u.id_grupo,grupo:(g&&g.nome)||u.grupo_nome||'',
-      bipes:items.length,meta:(g&&g.meta)||0,status:'LIBERADO',items:items,isGrp:!!(g&&g.colaborativo),
-      membros:((g&&g.membros)||[]).join(',')
-    };
-  });
-  return {
-    success:true,
-    inventarios:inventarios,
-    grupos:grupos,
-    usuarios:usuarios,
-    metas:[],
-    totalConsolidado:(p.bipes||[]).length,
-    totalEstoque:0,
-    percentualConsolidado:0
-  };
-}
-
-async function callGAS(p){
-  const api=p&&p.api?String(p.api):'';
+async function callGAS(params,retries=1){
+  const api=params&&params.api?String(params.api):'';
   try{
     switch(api){
-      case 'registrarLogPainel':
-        return {success:true};
-      case 'getSheetsData': {
-        const painel=await apiFetch('/admin/painel',{method:'GET'},1);
-        return transformPainelData(painel);
+      case 'masterLogin': {
+        const senha=String(params.senha||'');
+        return senha==='hs1001'
+          ? {success:true,user:'LEONARDO'}
+          : {success:false,message:'Senha incorreta.'};
       }
       case 'criarNovoInventario': {
-        const id=makeId('inv');
-        await apiFetch('/inventarios',{method:'POST',body:JSON.stringify({id,nome:String(p.nome||'').trim(),senha:String(p.senha||'').trim()})},1);
-        return {success:true,id};
+        const payload={id:makeId('inv'),nome:String(params.nome||'').trim(),senha:String(params.senha||'').trim()};
+        await apiFetch('/inventarios',{method:'POST',body:JSON.stringify(payload)},retries);
+        return {success:true,id:payload.id};
       }
-      case 'criarGrupo': {
-        const id=makeId('grp');
-        await apiFetch('/grupos',{method:'POST',body:JSON.stringify({
-          id,id_inventario:String(p.idInventario||''),nome:String(p.nomeGrupo||'').trim().toUpperCase(),meta:parseInt(p.meta||0,10)||0,
-          colaborativo:String(p.colaborativo||'false')==='true',vagas:parseInt(p.vagas||1,10)||1
-        })},1);
-        return {success:true,nomeGrupo:String(p.nomeGrupo||'').trim().toUpperCase(),colaborativo:String(p.colaborativo||'false')==='true',vagas:parseInt(p.vagas||1,10)||1};
+      case 'listarInventariosAbertos': {
+        const r=await apiFetch('/inventarios',{method:'GET'},retries);
+        const lista=(r.inventarios||[]).filter(i=>String(i.status||'')==='ABERTO').map(i=>({id:i.id,nome:i.nome,senha:i.senha,status:i.status}));
+        return lista;
+      }
+      case 'validarAcessoInventario': {
+        const r=await apiFetch('/inventarios',{method:'GET'},retries);
+        const inv=(r.inventarios||[]).find(i=>String(i.id)===String(params.idInventario));
+        if(!inv) return {success:false,message:'Inventário não encontrado.'};
+        if(String(inv.status||'')!=='ABERTO') return {success:false,code:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.',nomeInventario:inv.nome};
+        if(String(inv.senha||'')!==String(params.senhaDigitada||'')) return {success:false,message:'Senha incorreta.'};
+        return {success:true,nomeInventario:inv.nome};
+      }
+      case 'usuarioAtivo': {
+        const r=await apiFetch('/usuario/ativo?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
+        return {
+          success:true,
+          ativo:!!r.ativo,
+          idGrupo:r.id_grupo||'',
+          grupo:r.grupo_nome||'',
+          meta:r.meta||0,
+          count:r.bipes||0,
+          colaborativo:!!r.colaborativo
+        };
+      }
+      case 'listarGruposDisponiveis': {
+        const r=await apiFetch('/grupos/'+encodeURIComponent(params.idInventario),{method:'GET'},retries);
+        const grupos=(r.grupos||[]).filter(g=>{
+          const membros=(g.membros||[]);
+          if(String(g.status||'')==='DISPONIVEL') return true;
+          if(g.colaborativo && String(g.status||'')==='RESERVADO' && membros.length < (parseInt(g.vagas||1,10)||1)) return true;
+          return false;
+        }).map(g=>({
+          id:g.id,
+          nome:g.nome,
+          meta:g.meta||0,
+          colaborativo:!!g.colaborativo,
+          vagas:parseInt(g.vagas||1,10)||1,
+          vagasOcupadas:(g.membros||[]).length,
+          vagasRestantes:Math.max(0,(parseInt(g.vagas||1,10)||1)-(g.membros||[]).length)
+        }));
+        return {success:true,grupos};
+      }
+      case 'pegarGrupo': {
+        const r=await apiFetch('/grupos/entrar',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:String(params.idGrupo||'')
+          })
+        },retries);
+        return {
+          success:true,
+          nomeGrupo:r.grupo,
+          meta:r.meta||0,
+          colaborativo:!!r.colaborativo,
+          membros:r.membros||[]
+        };
+      }
+      case 'iniciarSecaoNova': {
+        const idGrupo=makeId('grp');
+        await apiFetch('/grupos',{
+          method:'POST',
+          body:JSON.stringify({
+            id:idGrupo,
+            id_inventario:String(params.idInventario||''),
+            nome:String(params.secao||'').trim().toUpperCase(),
+            meta:0,
+            colaborativo:false,
+            vagas:1
+          })
+        },retries);
+        await apiFetch('/grupos/entrar',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:idGrupo
+          })
+        },retries);
+        return {success:true,idGrupo};
+      }
+      case 'getStatusSecao': {
+        const lista=await apiFetch('/inventarios',{method:'GET'},retries);
+        const inv=(lista.inventarios||[]).find(i=>String(i.id)===String(params.idInventario));
+        if(!inv || String(inv.status||'')!=='ABERTO'){
+          return {success:true,status:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.'};
+        }
+        const r=await apiFetch('/usuario/ativo?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
+        if(!r.ativo) return {success:true,status:'SEM_GRUPO'};
+        return {
+          success:true,
+          status:'LIBERADO',
+          idGrupo:r.id_grupo||'',
+          grupo:r.grupo_nome||'',
+          meta:r.meta||0,
+          count:r.bipes||0,
+          colaborativo:!!r.colaborativo,
+          membros:r.membros||[]
+        };
+      }
+      case 'registrarBipeLote': {
+        const eans=JSON.parse(String(params.eans||'[]'));
+        const sessaoAtual=lerSessao();
+        const grupoId=String(
+          window._grupoIdAtual||
+          (sessaoAtual&&sessaoAtual.groupId)||''
+        );
+        if(!grupoId){
+          return {success:false,message:'Grupo não identificado para envio do bipe.'};
+        }
+        let ultimoTotal=totalServidor||0;
+        for(const ean of eans){
+          const resp=await apiFetch('/bipes/manual',{
+            method:'POST',
+            body:JSON.stringify({
+              usuario:String(params.usuario||''),
+              id_inventario:String(params.idInventario||''),
+              id_grupo:grupoId,
+              ean:String(ean||'')
+            })
+          },0);
+          ultimoTotal=(resp&&resp.total_grupo!=null)?resp.total_grupo:ultimoTotal;
+        }
+        return {success:true,count:ultimoTotal};
+      }
+      case 'getDashboardData': {
+        const painel=await getAdminPainelFast();
+        const usuarios=(painel.usuarios_ativos||[]).map(u=>{
+          const g=(painel.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
+          const count=(painel.bipes||[]).filter(b=>String(b.id_grupo)===String(u.id_grupo) && String(b.id_inventario)===String(u.id_inventario)).length;
+          return {
+            nome:u.usuario,
+            idInventario:u.id_inventario,
+            grupo:(g&&g.nome)||u.grupo_nome||'',
+            bipes:count,
+            meta:(g&&g.meta)||0,
+            status:'LIBERADO'
+          };
+        });
+        return {
+          success:true,
+          totalConsolidado:(painel.bipes||[]).length,
+          totalEmAberto:(painel.bipes||[]).length,
+          aguardando:[],
+          usuariosAtivos:usuarios,
+          inventarios:(painel.inventarios||[]).map(i=>({id:i.id,nome:i.nome,status:i.status}))
+        };
+      }
+      case 'getMapaEstoqueMini': {
+        const r=await apiFetch('/estoque/mapa-mini',{method:'GET'},retries);
+        return {success:!!(r&&r.success),mapa:(r&&r.mapa)||{},total:(r&&r.total)||0,geradoEm:new Date().toISOString()};
+      }
+      case 'registrarEanSuspeito':
+      case 'registrarPecaNaoEncontrada': {
+        return {success:true,count:totalServidor||0};
       }
       case 'masterAddManualCode': {
-        let idGrupo=String(p.idGrupo||'');
-        if(!idGrupo){
-          const atual=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(p.usuario||'') && String(x.idInventario||'')===String(p.idInventario||''));
-          idGrupo=String((atual&&atual.idGrupo)||'');
-        }
-        if(!idGrupo){
-          const painel=await apiFetch('/admin/painel',{method:'GET'},1);
-          const ua=(painel.usuarios_ativos||[]).find(x=>String(x.usuario)===String(p.usuario) && String(x.id_inventario)===String(p.idInventario));
-          idGrupo=String((ua&&ua.id_grupo)||'');
-        }
-        if(!idGrupo) return {success:false,message:'Usuário não está ativo em grupo no backend novo.'};
-        const r=await apiFetch('/bipes/manual',{method:'POST',body:JSON.stringify({
-          usuario:String(p.usuario||''),id_inventario:String(p.idInventario||''),id_grupo:idGrupo,ean:String(p.ean||''),secao:String(p.secao||'MANUAL')
-        })},1);
-        return {success:true,newCount:r.total_grupo||0};
+        const grupoId=(window._grupoIdAtual||'');
+        if(!grupoId) return {success:false,message:'Sem grupo ativo no backend local.'};
+        await apiFetch('/bipes/manual',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||''),
+            id_inventario:String(params.idInventario||''),
+            id_grupo:grupoId,
+            ean:String(params.ean||'')
+          })
+        },retries);
+        const painel=await getAdminPainelFast();
+        const count=(painel.bipes||[]).filter(b=>String(b.id_inventario)===String(params.idInventario) && String(b.id_grupo)===String(grupoId)).length;
+        return {success:true,newCount:count};
       }
-      case 'buscarInfoEANEstoque': {
-        const ean=String(p.ean||'').trim();
-        const r=await apiFetch('/estoque/validar?ean='+encodeURIComponent(ean),{method:'GET'},1);
-        return (r&&r.success&&r.encontrado&&r.info) ? {success:true,info:r.info} : {success:false,message:'EAN não encontrado no estoque'};
+      case 'concluirSecao':
+      case 'masterConcluirSecao': {
+        const grupoId=String(params.idGrupo||window._grupoIdAtual||'');
+        if(!grupoId) return {success:false,message:'Grupo não identificado.'};
+        const r=await apiFetch('/grupos/concluir',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||currentUser||''),
+            id_inventario:String(params.idInventario||currentInvId||''),
+            id_grupo:grupoId
+          })
+        },retries);
+        return {success:true,count:r.count||0};
       }
-      case 'getAlertas':
-        return {success:true,alertas:[]};
-      case 'getEtiquetas': {
-        const q=String(p.idInventario||'').trim();
-        const r=await apiFetch('/etiquetas'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'GET'},1);
-        return {success:true,etiquetas:r.etiquetas||[]};
-      }
-      case 'limparEtiquetas': {
-        const q=String(p.idInventario||'').trim();
-        const r=await apiFetch('/etiquetas'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'DELETE'},1);
-        return {success:true,removidas:r.removidas||0};
+      case 'definirMeta':
+      case 'finalizarInventario':
+      case 'excluirInventario': {
+        return {success:false,message:'Essa ação ainda não foi ligada ao backend Python nesta etapa.'};
       }
       default:
-        return {success:false,message:'Ação ainda não ligada ao backend Python nesta etapa: '+api};
+        return {success:false,message:'API não mapeada no backend Python: '+api};
     }
   }catch(err){
     return {success:false,message:(err&&err.message)||String(err||'Erro')};
   }
 }
 
+// salva sessão local
+function salvarSessao(){try{localStorage.setItem(CHAVE_LOCAL,JSON.stringify({user:currentUser,section:currentSection,groupId:(window._grupoIdAtual||''),invId:currentInvId,invName:currentInvName,ts:Date.now(),appVersion:APP_VERSION}));atualizarMenu();}catch(_){}}
+function lerSessao(){try{const r=localStorage.getItem(CHAVE_LOCAL);if(!r)return null;const o=JSON.parse(r);if(!o||!o.invId||!o.user)return null;if(o.appVersion&&o.appVersion!==APP_VERSION)return null;return o;}catch(_){return null;}}
+function atualizarMenu(){
+  const s=lerSessao();
+  document.getElementById('card-continuar').style.display=s?'flex':'none';
+  if(s)document.getElementById('continuar-desc').textContent=`${s.invName} · ${s.user} · ${s.section}`;
+}
+
+function chaveEstoqueMini_(invId){return CHAVE_ESTOQUE_PREFIX+String(invId||'')+'_'+APP_VERSION;}
 
 
-async function importarEstoqueArquivo(){
-  const input=document.getElementById('arquivo-estoque');
-  const status=document.getElementById('estoque-import-status');
-  const substituir=!!document.getElementById('substituir-estoque')?.checked;
+function normalizarEANChaveLocal(v){
+  let s=String(v==null?'':v).trim();
+  if(!s)return '';
+  s=s.replace(/\.0+$/,'');
+  s=s.replace(/[^0-9]/g,'');
+  return s;
+}
 
-  if(!input || !input.files || !input.files.length){
-    if(status) status.textContent='Selecione um arquivo primeiro.';
-    return;
-  }
-
-  const file=input.files[0];
-  const nome=(file.name||'').toLowerCase();
-  if(!(nome.endsWith('.xlsx') || nome.endsWith('.csv'))){
-    if(status) status.textContent='Envie um arquivo .xlsx ou .csv.';
-    return;
-  }
-
-  const form=new FormData();
-  form.append('arquivo', file);
-  if(status) status.textContent='Importando estoque...';
-
+function limparCachesAntigosVersao_(){
   try{
-    const r=await apiUpload('/estoque/importar?substituir_tudo=' + (substituir ? 'true' : 'false'), form);
-    if(status) status.textContent=`Importação concluída. Inseridos: ${r.inseridos||0} | Ignorados: ${r.ignorados||0} | Total no banco: ${r.total_estoque||0}`;
-    input.value='';
-    toast('Estoque importado com sucesso.');
-  }catch(err){
-    if(status) status.textContent='Erro ao importar: '+((err&&err.message)||String(err||'Erro'));
-    toast('Falha ao importar estoque.',4000);
+    const remover=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k)continue;
+      if(k.startsWith(CHAVE_ESTOQUE_PREFIX) && !k.endsWith('_'+APP_VERSION)) remover.push(k);
+    }
+    remover.forEach(k=>localStorage.removeItem(k));
+  }catch(_){}
+}
+function aplicarControleDeVersao(){
+  try{
+    const versaoSalva=localStorage.getItem(CHAVE_APP_VERSION)||'';
+    if(versaoSalva!==APP_VERSION){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      try{
+        const remover=[];
+        for(let i=0;i<localStorage.length;i++){
+          const k=localStorage.key(i);
+          if(!k)continue;
+          if(k.startsWith(CHAVE_ESTOQUE_PREFIX)) remover.push(k);
+        }
+        remover.forEach(k=>localStorage.removeItem(k));
+      }catch(_){}
+      localStorage.setItem(CHAVE_APP_VERSION,APP_VERSION);
+      return true;
+    }
+    limparCachesAntigosVersao_();
+    return false;
+  }catch(_){
+    return false;
+  }
+}
+function limparCacheEstoqueInventario(invId){
+  try{
+    localStorage.removeItem(chaveEstoqueMini_(invId));
+  }catch(_){}
+  if(String(_estoqueMiniInvId)===String(invId||'')){
+    _estoqueMiniInvId='';
+    _estoqueMiniMapa={};
+  }
+}
+function abrirSyncOverlay(msg){
+  const ov=document.getElementById('sync-overlay');
+  const mini=document.getElementById('sync-mini');
+  if(mini)mini.textContent=msg||'Preparando dados...';
+  if(ov)ov.style.display='flex';
+}
+function fecharSyncOverlay(){
+  const ov=document.getElementById('sync-overlay');
+  if(ov)ov.style.display='none';
+}
+function renderUltimasRefs(){
+  const a=document.getElementById('last-ref-1');
+  const b=document.getElementById('last-ref-2');
+  const sa=document.getElementById('scanner-last-ref-1');
+  const sb=document.getElementById('scanner-last-ref-2');
+  const v1=_ultimasRefs[0]||'—';
+  const v2=_ultimasRefs[1]||'—';
+  if(a)a.textContent=v1;
+  if(b)b.textContent=v2;
+  if(sa)sa.textContent=v1;
+  if(sb)sb.textContent=v2;
+}
+
+function mostrarPendenciaEstoque(ean, registrada=false){
+  _pendenciaEstoqueAtiva=String(ean||'');
+  if(registrada)_pendenciaEstoqueRegistrada=true;
+  _scannerTravado=true;
+  const box=document.getElementById('pend-estoque-box');
+  const el=document.getElementById('pend-estoque-ean');
+  const scanBox=document.getElementById('scan-pend-estoque');
+  const scanEl=document.getElementById('scan-pend-estoque-ean');
+  if(el)el.textContent=_pendenciaEstoqueAtiva||'—';
+  if(box)box.style.display='block';
+  if(scanEl)scanEl.textContent=_pendenciaEstoqueAtiva||'—';
+  if(scanBox)scanBox.style.display='flex';
+}
+function esconderPendenciaEstoque(){
+  _pendenciaEstoqueAtiva=null;
+  _pendenciaEstoqueRegistrada=false;
+  _scannerTravado=false;
+  _travas.clear();
+  const box=document.getElementById('pend-estoque-box');
+  const el=document.getElementById('pend-estoque-ean');
+  const scanBox=document.getElementById('scan-pend-estoque');
+  const scanEl=document.getElementById('scan-pend-estoque-ean');
+  if(el)el.textContent='—';
+  if(box)box.style.display='none';
+  if(scanEl)scanEl.textContent='—';
+  if(scanBox)scanBox.style.display='none';
+}
+function confirmarPecaForaEstoque(acao){
+  if(!_pendenciaEstoqueAtiva)return;
+
+  const ean=normalizarEANChaveLocal(_pendenciaEstoqueAtiva);
+  const ac=String(acao||'').toUpperCase();
+
+  if(ac==='CONSIDERAR'){
+    enqueue(ean);
+  }
+
+  esconderPendenciaEstoque();
+  setRT('ok');
+
+  if(h5scanner){
+    setTimeout(()=>{ _scannerTravado=false; },180);
+  }
+}
+function registrarUltimaRefPorEan(ean){
+  const eanKey=normalizarEANChaveLocal(ean);
+  const texto=_estoqueMiniMapa[eanKey]||('EAN '+String(ean||'').trim());
+  _ultimasRefs.unshift(texto);
+  _ultimasRefs=_ultimasRefs.filter(Boolean).slice(0,2);
+  renderUltimasRefs();
+}
+async function garantirEstoqueMiniPronto(force=false){
+  const invId=String(currentInvId||'');
+  if(!invId){
+    _estoqueMiniInvId='';
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return true;
+  }
+
+  const cacheKey=chaveEstoqueMini_(invId);
+  const agora=Date.now();
+  const TTL_MS=5*60*1000;
+
+  if(!force && _estoqueMiniInvId===invId && _estoqueMiniMapa && Object.keys(_estoqueMiniMapa).length){
+    _estoqueSyncFeitoNestaPagina=true;
+    return true;
+  }
+
+  if(!force){
+    try{
+      const raw=localStorage.getItem(cacheKey);
+      if(raw){
+        const cache=JSON.parse(raw);
+        if(cache && cache.ts && (agora-cache.ts)<TTL_MS && cache.mapa && typeof cache.mapa==='object'){
+          _estoqueMiniInvId=invId;
+          _estoqueMiniMapa=cache.mapa||{};
+          _estoqueSyncFeitoNestaPagina=true;
+          return true;
+        }
+      }
+    }catch(_){}
+  }
+
+  abrirSyncOverlay('Baixando estoque do servidor...');
+  try{
+    const r=await callGAS({api:'getMapaEstoqueMini',idInventario:invId});
+    if(r && r.success && r.mapa && typeof r.mapa==='object'){
+      _estoqueMiniInvId=invId;
+      _estoqueMiniMapa=r.mapa||{};
+      try{
+        localStorage.setItem(cacheKey, JSON.stringify({ts:agora,mapa:_estoqueMiniMapa,total:r.total||0,geradoEm:r.geradoEm||new Date().toISOString()}));
+      }catch(_){}
+      _estoqueSyncFeitoNestaPagina=true;
+      return true;
+    }
+    _estoqueMiniInvId=invId;
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return false;
+  }catch(_){
+    _estoqueMiniInvId=invId;
+    _estoqueMiniMapa={};
+    _estoqueSyncFeitoNestaPagina=true;
+    return false;
+  }finally{
+    fecharSyncOverlay();
   }
 }
 
+function voltarSemPerderSessao(){stopScanner();showScreen('main-menu');atualizarMenu();}
 
-window.onerror=function(){return false;};
-
-window.onunhandledrejection=function(){};
-
-async function loadData(force=false){
-  if(document.hidden && !force) return;
-  if(!force){
-    if(_pausarRefresh) return;
-    if(Object.keys(_forcaAberta).length>0) return;
-    if(Object.values(_metaAberta).some(Boolean)) return;
-    if(_loadingData) return;
-  }
-  _loadingData=true;
-  const btn=document.getElementById('refresh-btn');if(btn) btn.classList.add('spinning');
+// ── ESPERA ─────────────────────────────────────────────────────────────────
+let _verif=false;
+function iniciarEspera(){document.getElementById('wait-grupo-nome').textContent=currentSection;showScreen('waiting-panel');pararEspera();timerEspera=setInterval(verificarLiberacao,3000);verificarLiberacao();}
+function pararEspera(){if(timerEspera){clearInterval(timerEspera);timerEspera=null;}_verif=false;}
+async function verificarLiberacao(){
+  if(_verif)return;_verif=true;
   try{
-    const r=await callGAS({api:'getSheetsData'});
-    if(r&&r.success){
-      _data=r;
-      updateStats();
-      renderAguardando();
-      renderUsuarios();
-      renderInventarios();
-      renderGrupos();
-      renderGrupoInvSelect();
-      const itensTodos=_data.usuarios.flatMap(u=>u.items||[]);
-      if(itensTodos.length){
-        enriquecerEANs(itensTodos).then(()=>{ if(!document.hidden) renderUsuarios(); }).catch(()=>{});
+    const res=await callGAS({api:'getStatusSecao',idInventario:currentInvId,usuario:currentUser});
+    if(!res||!res.success){_verif=false;return;}
+    if(res.status==='LIBERADO'){
+      pararEspera();currentMeta=res.meta||null;
+      esconderPendenciaEstoque();
+      iniciarTela(res.count||0,res.colaborativo||false);
+      return;
+    }
+    if(res.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+      pararEspera();currentMeta=res.meta||null;
+      iniciarTela(res.count||0,res.colaborativo||false);
+      mostrarPendenciaEstoque(res.pendencia&&res.pendencia.ean?res.pendencia.ean:'');
+      return;
+    }
+    if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
+    if(res.status==='SECAO_BLOQUEADA'){
+      pararEspera();
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
+      showScreen('main-menu');atualizarMenu();
+      setTimeout(()=>alert(msg),100);
+      return;
+    }
+  }catch(_){}
+  _verif=false;
+}
+let grupoColab=false;
+function iniciarTela(count,colaborativo){
+  if(!window._grupoIdAtual){
+    const s=lerSessao();
+    if(s && String(s.invId||'')===String(currentInvId||'')){
+      window._grupoIdAtual=String(s.groupId||'');
+    }
+  }
+  grupoColab=!!colaborativo;
+  document.getElementById('display-name').textContent=currentUser;
+  document.getElementById('display-section').textContent=currentSection;
+  document.getElementById('active-inv-title').textContent=currentInvName;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('contagem-nao-bate').style.display='none';
+  document.getElementById('last-ean-val').textContent='—';
+  document.getElementById('last-ean-badge').style.display='none';
+  _pendenciaEstoqueRegistrada=false;
+  // Badge colaborativo
+  const badge=document.getElementById('colab-badge');
+  if(badge)badge.style.display=grupoColab?'flex':'none';
+  totalServidor=count;totalLocal=count;updateCounterUI();updateQueueUI();
+  showScreen('counting-panel');salvarSessao();
+}
+
+// painel master
+async function doMasterLogin(){
+  setBtnLoading('btn-master-login',true);
+  try{
+    const r=await callGAS({api:'masterLogin',senha:document.getElementById('master-pass').value});
+    if(r.success){
+      const ifr=document.getElementById('admin-iframe');
+      if(ifr && ifr.contentWindow){
+        try{ ifr.contentWindow.postMessage({type:'HS_ADMIN_AUTH',senha:'hs1001'}, '*'); }catch(_){}
       }
-      if((Date.now()-_lastAlertasAt)>=ALERTAS_POLL_MS){
-        carregarAlertas(false);
+      showScreen('master-iframe-panel');
+    }else alert(r.message);
+  }catch(e){alert(e);}
+  setBtnLoading('btn-master-login',false,'ENTRAR NO PAINEL');
+}
+let invNameById={};
+async function loadDashboard(){
+  try{
+    const res=await callGAS({api:'getDashboardData'});if(!res.success)return;
+    document.getElementById('stat-total').textContent=res.totalConsolidado;
+    document.getElementById('stat-aberto').textContent=res.totalEmAberto;
+    invNameById={};(res.inventarios||[]).forEach(i=>{invNameById[String(i.id)]=i.nome;});
+    const ag=res.aguardando||[],boxAg=document.getElementById('aguardando-box');
+    if(ag.length>0){
+      boxAg.style.display='block';
+      const su=s=>String(s||'').replace(/'/g,"\\'");
+      document.getElementById('list-aguardando').innerHTML=ag.map(a=>`<div class="list-item" style="border-left-color:var(--warning);"><span style="flex:1;"><i class="fas fa-user" style="color:var(--warning)"></i> <strong>${a.usuario}</strong><small style="color:var(--dim);display:block;font-size:11px;">${invNameById[String(a.idInventario)]||a.idInventario} · Grupo: <strong style="color:#fff">${a.grupo}</strong></small></span><div style="display:flex;gap:6px;align-items:center;"><span class="badge badge-espera">AGUARDANDO</span><button class="mini-btn" onclick="promptMeta('${su(a.usuario)}','${su(a.idInventario)}','${su(a.grupo)}')"><i class="fas fa-lock-open"></i> Definir Meta</button></div></div>`).join('');
+    }else boxAg.style.display='none';
+    const ativos=(res.usuariosAtivos||[]).filter(u=>u.status!=='AGUARDANDO_META');
+    const su=s=>String(s||'').replace(/'/g,"\\'");
+    document.getElementById('list-usuarios').innerHTML=ativos.length?ativos.map(u=>`<div class="list-item"><span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1;font-size:13px;"><i class="fas fa-user"></i> <strong>${u.nome}</strong> <small style="color:var(--dim);font-size:11px;">(${invNameById[String(u.idInventario)]||u.idInventario})</small>${u.grupo?`<small style="color:var(--dim);">[${u.grupo}]</small>`:''}</span><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><span class="badge">${u.bipes} bipes</span><button class="mini-btn" onclick="masterConcluirUsuario('${su(u.nome)}','${su(u.idInventario)}')">Finalizar</button><button class="mini-btn s" onclick="masterAddManual('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}')">Manual</button></div></div>`).join(''):'<p style="font-size:12px;color:gray;text-align:center">Nenhum bipe em aberto.</p>';
+    document.getElementById('list-inventarios').innerHTML=(res.inventarios||[]).map(i=>`<div class="list-item" style="border-left-color:${i.status==='ABERTO'?'var(--success)':'#555'}"><div><strong>${i.nome}</strong><br><small>${i.status} · ID: ${i.id}</small></div><div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="mini-btn" onclick="finalizarInv('${i.id}')">Fechar</button>`:''}<button class="mini-btn d" onclick="excluirInv('${i.id}')">X</button></div></div>`).join('')||'<p style="font-size:12px;color:gray;text-align:center">Nenhum inventario.</p>';
+  }catch(e){console.error(e);}
+}
+async function promptMeta(u,id,g){const m=prompt(`Meta para "${u}" (Grupo: ${g}):`);if(!m)return;const r=await callGAS({api:'definirMeta',idInventario:id,usuario:u,meta:m});if(r&&r.success){alert(`Meta de ${r.meta} pecas definida! ${u} foi liberado.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterConcluirUsuario(u,id){if(!confirm(`Finalizar secao de "${u}"?`))return;const r=await callGAS({api:'masterConcluirSecao',usuario:u,idInventario:id});if(r&&r.success){alert(`Finalizado! ${r.count||0} itens.`);loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function masterAddManual(u,id,g){const ean=prompt(`EAN manual para "${u}":`);if(!ean)return;const r=await callGAS({api:'masterAddManualCode',usuario:u,idInventario:id,ean,secao:g||'MANUAL'});if(r&&r.success){alert("Incluido! Total: "+(r.newCount||'?'));loadDashboard();}else alert((r&&r.message)||"Erro.");}
+async function finalizarInv(id){if(!confirm("Fechar este inventario?"))return;const r=await callGAS({api:'finalizarInventario',id});if(r&&r.success)alert(`${r.message}\nItens: ${r.itensMovidos||0}`);else alert((r&&r.message)||"Erro.");loadDashboard();}
+async function excluirInv(id){if(!confirm("EXCLUIR permanentemente?"))return;const r=await callGAS({api:'excluirInventario',id});alert(r&&r.success?"Excluido.":((r&&r.message)||"Erro."));loadDashboard();}
+async function doCreateInventory(){const nome=document.getElementById('inv-name').value,senha=document.getElementById('inv-pass').value;if(!nome||!senha)return alert("Preencha nome e senha.");setBtnLoading('btn-create-inv',true);const r=await callGAS({api:'criarNovoInventario',nome,senha});if(r.success){alert("Criado! ID: "+r.id);showScreen('master-panel');}else alert(r.message);setBtnLoading('btn-create-inv',false,'CRIAR AGORA');}
+
+// ── CONFERENTE ─────────────────────────────────────────────────────────────
+let _invAtual='', _invNome='';
+
+function onInvSelectChange(){ /* placeholder para eventos futuros */ }
+
+async function showConferentePanel(){
+  // Se tem sessão salva, verifica no servidor se o grupo ainda está ativo
+  const s=lerSessao();
+  if(s&&s.user&&s.invId){
+    setBtnLoading('btn-open-conf',true);
+    try{
+      const list=await callGAS({api:'listarInventariosAbertos'});
+      if(list&&list.some(i=>String(i.id)===String(s.invId))){
+        const sr=await callGAS({api:'getStatusSecao',idInventario:s.invId,usuario:s.user});
+        if(sr&&sr.success&&sr.grupo&&(sr.status==='LIBERADO'||sr.status==='AGUARDANDO_META'||sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE')){
+          currentUser=s.user;currentInvId=s.invId;currentInvName=s.invName;
+          _invAtual=s.invId;_invNome=s.invName;
+          setBtnLoading('btn-open-conf',false,'');
+          const okEstoque=await garantirEstoqueMiniPronto(true);
+          if(!okEstoque){setBtnLoading('btn-open-conf',false,'');return;}
+          if(sr.status==='LIBERADO'){
+            currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+            updateCounterUI();updateQueueUI();
+            iniciarTela(totalServidor,sr.colaborativo||false);
+          } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+            window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
+            currentSection=sr.grupo||s.section||'';currentMeta=sr.meta||null;
+            queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+            updateCounterUI();updateQueueUI();
+            iniciarTela(totalServidor,sr.colaborativo||false);
+            mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
+          } else {
+            window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
+            currentSection=sr.grupo||s.section||'';
+            iniciarEspera();
+          }
+          return;
+        }
       }
-    } else {
-      logPainel('FRONT_LOADDATA_RESPOSTA', ((r&&r.message)||'resposta inválida'));
-      toast('Erro ao carregar: '+((r&&r.message)||'resposta inválida'),4000);
+    }catch(_){ }
+    setBtnLoading('btn-open-conf',false,'');
+  }
+
+  // Sem grupo ativo — mostra tela de login normalmente
+  setBtnLoading('btn-open-conf',true);
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    setBtnLoading('btn-open-conf',false,'');
+    if(!list||!list.length)return alert("Nenhum inventario aberto.");
+    document.getElementById('inv-select').innerHTML=list.map(i=>`<option value="${i.id}">${i.nome}</option>`).join('');
+    const sess=lerSessao();
+    if(sess&&list.some(i=>String(i.id)===String(sess.invId))){
+      document.getElementById('inv-select').value=sess.invId;
+      document.getElementById('conf-name').value=sess.user||'';
+    }
+    showScreen('conferente-login');
+  }catch(e){setBtnLoading('btn-open-conf',false,'');alert("Erro: "+e);}
+}
+
+
+async function doConferenteLogin(){
+  const name=document.getElementById('conf-name').value.trim();
+  const invId=document.getElementById('inv-select').value;
+  const invPass=document.getElementById('conf-inv-pass').value;
+  if(!name||!invPass)return alert("Preencha nome e senha.");
+  setBtnLoading('btn-conf-login',true);
+  try{
+    const res=await callGAS({api:'validarAcessoInventario',idInventario:invId,senhaDigitada:invPass});
+    if(res&&res.code==='INVENTARIO_ENCERRADO'){alert(res.message);showScreen('main-menu');setBtnLoading('btn-conf-login',false,'AVANÇAR');return;}
+    if(res&&res.success){
+      currentUser=name;currentInvId=invId;currentInvName=res.nomeInventario;
+      _invAtual=invId;_invNome=res.nomeInventario;
+
+      const sr=await callGAS({api:'getStatusSecao',idInventario:invId,usuario:name});
+      if(sr&&sr.success&&sr.grupo){
+        if(sr.status==='LIBERADO'){
+          const okEstoque=await garantirEstoqueMiniPronto(true);
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          if(!okEstoque)return;
+          window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
+          currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+          queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+          updateCounterUI();updateQueueUI();
+          iniciarTela(totalServidor,sr.colaborativo||false);
+          return;
+        } else if(sr.status==='AGUARDANDO_META'){
+          const okEstoque=await garantirEstoqueMiniPronto(true);
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          if(!okEstoque)return;
+          window._grupoIdAtual=sr.idGrupo||sr.id_grupo||window._grupoIdAtual||'';
+          currentSection=sr.grupo||'';
+          alert(`Você já tem o grupo "${sr.grupo}" aguardando liberação pelo administrador.`);
+          iniciarEspera();
+          return;
+        } else if(sr.status==='AGUARDANDO_VALIDACAO_ESTOQUE'){
+          const okEstoque=await garantirEstoqueMiniPronto(true);
+          setBtnLoading('btn-conf-login',false,'AVANÇAR');
+          if(!okEstoque)return;
+          currentSection=sr.grupo||'';currentMeta=sr.meta||null;
+          queue=[];totalServidor=sr.count||0;totalLocal=totalServidor;
+          updateCounterUI();updateQueueUI();
+          iniciarTela(totalServidor,sr.colaborativo||false);
+          mostrarPendenciaEstoque(sr.pendencia&&sr.pendencia.ean?sr.pendencia.ean:'');
+          return;
+        }
+      }
+
+      const okEstoque=await garantirEstoqueMiniPronto(true);
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+      if(!okEstoque)return;
+      await telaGrupos();
+    }else{
+      alert(res&&res.message?res.message:"Senha incorreta.");
+      setBtnLoading('btn-conf-login',false,'AVANÇAR');
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-conf-login',false,'AVANÇAR');}
+}
+
+
+async function telaGrupos(){
+  _entrando=false;
+  showScreen('grupo-select-panel');
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+  document.getElementById('debug-inv-id').textContent='Inventário: '+_invAtual+' ('+_invNome+')';
+  await listarGrupos();
+}
+
+async function listarGrupos(){
+  if(!_invAtual)return;
+  const elLista=document.getElementById('lista-grupos-disponiveis');
+  if(!elLista)return;
+  
+  if(!elLista.querySelector('.grupo-card'))
+    elLista.innerHTML='<div class="grupo-empty">Carregando grupos...</div>';
+  try{
+    const r=await callGAS({api:'listarGruposDisponiveis',idInventario:_invAtual});
+    if(!r||!r.success){
+      elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro ao carregar grupos.</div>`;
+      return;
+    }
+    const grupos=(r.grupos||[]).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+    if(!grupos.length){
+      elLista.innerHTML='<div class="grupo-empty">Nenhum grupo disponível.</div>';
+    }else{
+      elLista.innerHTML=grupos.map(g=>`
+        <div class="grupo-card" onclick="doUsarGrupo('${g.id}','${String(g.nome).replace(/'/g,"\\'")}',${g.meta})">
+          <div>
+            <div class="grupo-card-nome">${g.nome}</div>
+            ${g.colaborativo?`<div style="font-size:10px;color:var(--warning);margin-top:3px;font-weight:700;">👥 COLABORATIVO · ${g.vagasRestantes} vaga${g.vagasRestantes!==1?'s':''} restante${g.vagasRestantes!==1?'s':''}</div>`:''}
+          </div>
+          <span class="grupo-card-badge">${g.colaborativo?'ENTRAR ›':'DISPONÍVEL ›'}</span>
+        </div>`).join('');
     }
   }catch(e){
-    logPainel('FRONT_LOADDATA_CATCH', String(e||''));
-    toast('Erro: '+e,4000);
-  }
-  finally{
-    _loadingData=false;
-    if(btn) btn.classList.remove('spinning');
-    if(_pendingReload){
-      _pendingReload=false;
-      setTimeout(()=>loadData(true),300);
-    }
+    elLista.innerHTML=`<div class="grupo-empty" style="color:var(--danger)">Erro de conexão.</div>`;
   }
 }
 
-function updateStats(){
-  const b=_data.usuarios.filter(u=>u.status!=='AGUARDANDO_META').reduce((s,u)=>s+(u.bipes||0),0);
-  document.getElementById('s-users').textContent=_data.usuarios.length;
-  document.getElementById('s-bipes').textContent=b;
-  document.getElementById('s-consol').textContent=_data.totalConsolidado||0;
-  const pct = typeof _data.percentualConsolidado === 'number' ? _data.percentualConsolidado : 0;
-  const elPct=document.getElementById('s-pct');
-  if(elPct) elPct.textContent=String(pct).replace('.', ',')+'%';
-}
 
-function renderGrupoInvSelect(){
-  const sel=document.getElementById('grupo-inv-select');
-  const invs=(_data.inventarios||[]).filter(i=>i.status==='ABERTO');
-  sel.innerHTML=invs.length?invs.map(i=>`<option value="${i.id}">${i.nome}</option>`).join(''):'<option value="">Nenhum inventário aberto</option>';
-}
+let _entrando=false;
+async function doUsarGrupo(idGrupo, nomeGrupo, meta){
+  if(_entrando)return;
+  _entrando=true;
 
-function renderAguardando(){
-  const lista=(_data.usuarios||[]).filter(u=>u.status==='AGUARDANDO_META'&&!u.bloqueado);
-  const sec=document.getElementById('ag-section');
-  if(!lista.length){sec.style.display='none';return;}
-  sec.style.display='block';
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  document.getElementById('list-ag').innerHTML=lista.map(u=>{
-    const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
-    // Usa nome+grupo como chave única para evitar conflito quando mesmo usuário tem 2 grupos
-    const uid=encodeKey(u.nome+'_'+u.grupo);
-    return `<div class="ag-card">
-      <div class="ag-top">
-        <div>
-          <div class="ag-nome">👤 ${u.nome}</div>
-          <div class="ag-grupo">📦 ${u.grupo} <small style="color:var(--dim)">(${inv?inv.nome:u.idInventario})</small></div>
-        </div>
-      </div>
-      <div class="ag-form">
-        <input class="ag-input" type="number" id="mi-${uid}" placeholder="Qtd fisica..." min="1"/>
-        <button class="ag-btn" onclick="definirMeta('${su(u.nome)}','${su(u.idInventario)}','${su(u.grupo)}','${uid}')">Liberar</button>
-      </div>
-    </div>`;
-  }).join('');
-}
+  const lista=document.getElementById('lista-grupos-disponiveis');
+  if(lista){lista.style.opacity='0.5';lista.style.pointerEvents='none';}
 
-function renderUsuarios(){
-  // Salva o que foi digitado nos campos de senha/meta ANTES de destruir o DOM
-  document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
-    const key=inp.id.replace('forca-senha-','');
-    if(inp.value) _forcaSenha[key]=inp.value;
-  });
-  document.querySelectorAll('[id^="nova-meta-"]').forEach(inp=>{
-    const key=inp.id.replace('nova-meta-','');
-    _metaValor[key]=inp.value||'';
-  });
-
-  const q=(document.getElementById('search-user').value||'').toLowerCase();
-  const list=(_data.usuarios||[])
-    .filter(u=>u.status!=='AGUARDANDO_META')
-    .filter(u=>!q||u.nome.toLowerCase().includes(q)||(u.grupo||'').toLowerCase().includes(q))
-    .filter((u,i,arr)=>{
-      return arr.findIndex(x=>x.nome===u.nome&&x.grupo===u.grupo&&x.idInventario===u.idInventario)===i;
-    });
-  const el=document.getElementById('list-usuarios');
-  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';return;}
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  el.innerHTML=list.map(u=>{
-    const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
-    const pct=u.meta?Math.min(100,Math.round((u.bipes/u.meta)*100)):null;
-    const ini=u.nome.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
-    let bc='b-cnt',bt=u.bipes+(u.meta?'/'+u.meta:'')+' pcs';
-    if(u.meta){if(u.bipes===u.meta){bc='b-ok';bt='✓ '+bt;}else if(u.bipes>u.meta){bc='b-err';}else{bc='b-warn';}}
-    let bf='f-warn';if(pct!==null){if(pct>=100)bf=pct>100?'f-err':'f-ok';}
-    const oc=_open[u.nome]?'open':'';
-    const forcaAberta=!!_forcaAberta[u.nome];
-    const apiNome=u.nomeReal||u.nome;
-    const su2=s=>String(s||'').replace(/'/g,"\\'");
-    const membrosArr=u.isGrp&&u.membros?u.membros.split(',').filter(m=>m.trim()):[];
-    // Busca idGrupo para o botão de tornar colaborativo
-    const gInfo=(_data.grupos||[]).find(g=>String(g.idInventario)===String(u.idInventario)&&String(g.nome||'').replace(/_/g,' ').toUpperCase()===String(u.grupo||'').replace(/_/g,' ').toUpperCase()&&!g.colaborativo&&g.status!=='CONCLUIDO');
-    const btnColab=(!u.isGrp&&gInfo)?`<button class="btn btn-n btn-sm" style="font-size:9px;" onclick="promptTornarColab('${su2(u.idInventario)}','${su2(gInfo.id)}','${su2(u.grupo)}')">👥 Colab</button>`:'';
-    const grupoAtivoInfo=(_data.grupos||[]).find(g=>String(g.idInventario)===String(u.idInventario)&&String(g.nome||'').replace(/_/g,' ').toUpperCase()===String(u.grupo||'').replace(/_/g,' ').toUpperCase()&&g.status!=='CONCLUIDO');
-    const btnRenGrupo=(u.grupo&&grupoAtivoInfo)?`<button class="btn btn-sm" style="background:#35506b;color:#9fd1ff;border:1px solid #4d6f92;" onclick="promptRenomearGrupo('${su2(u.idInventario)}','${su2(grupoAtivoInfo.id)}','${su2(u.grupo)}')">✏️ Grupo</button>`:'';
-    return `<div class="user-card">
-      <div class="uch" onclick="toggleItems('${su2(u.nome)}')">
-        <div class="u-avatar">${ini}</div>
-        <div class="u-info">
-          <div class="u-name">${u.nome}${u.isGrp?'<span style="font-size:9px;background:rgba(255,171,64,.2);color:var(--warn);border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:middle;">COLAB</span>':''}</div>
-          <div class="u-meta">${inv?inv.nome:u.idInventario}${u.grupo?' · '+u.grupo:''}</div>
-          ${membrosArr.length?`<div style="font-size:9px;color:var(--info);margin-top:1px;">${membrosArr.join(' · ')}</div>`:''}
-        </div>
-        <div class="u-badges"><span class="badge ${bc}">${bt}</span>${u.bloqueado?'<span class="badge b-err" style="font-size:9px">BLOQ</span>':''}<span style="color:var(--dim);font-size:11px">${_open[u.nome]?'▲':'▼'}</span></div>
-      </div>
-      ${u.meta!==null&&u.meta!==undefined?`<div class="prog-wrap"><div class="prog-info"><span>Progresso</span><strong>${pct!==null?pct+'%':'—'}</strong></div><div class="prog-bg"><div class="prog-fill ${bf}" style="width:${Math.min(pct||0,100)}%"></div></div></div>`:''}
-      ${u.pendingEstoque?`<div style="padding:8px 12px;border-top:1px solid var(--border);background:rgba(255,171,64,.08);font-size:11px;color:var(--warn);"><strong>Peça fora do estoque:</strong> <span style="font-family:'Courier New',monospace;color:#9fd1ff;">${u.pendingEstoque.ean}</span> · aguardando decisão do admin</div>`:''}
-      <div class="u-actions">
-        <button class="btn btn-w btn-sm" onclick="addManual('${su2(apiNome)}','${su2(u.idInventario)}','${su2(u.grupo)}')">+ Manual</button>
-        <button class="btn btn-d btn-sm" onclick="zerarUsuario('${su2(apiNome)}','${su2(u.idInventario)}')">Zerar</button>
-        <button class="btn btn-n btn-sm" onclick="finalizarUsuario('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Finalizar</button>
-        <button class="btn btn-sm" style="background:#2a3a5c;color:#7eb3ff;border:1px solid #3a5a8c;" onclick="toggleAlterarMeta('${su2(u.nome)}')">✏️ Meta</button>
-        ${btnRenGrupo}
-        ${u.pendingEstoque?`<button class="btn btn-w btn-sm" style="font-size:9px;" onclick="resolverPendenciaEstoqueUI('${su2(u.pendingEstoque.id)}','CONSIDERAR')">✓ Considerar</button><button class="btn btn-d btn-sm" style="font-size:9px;" onclick="resolverPendenciaEstoqueUI('${su2(u.pendingEstoque.id)}','REMOVER')">✕ Remover</button>`:''}
-        ${u.isGrp&&membrosArr.length>1
-          ? membrosArr.map(m=>`<button class="btn btn-sm" style="background:#444;color:#fff;font-size:9px;" onclick="removerDoGrupo('${su2(u.nome)}','${su2(m.trim())}','${su2(u.idInventario)}')">↩ ${m.trim()}</button>`).join('')
-          : `<button class="btn btn-sm" style="background:#444;color:#fff;" onclick="removerDoGrupo('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">↩ Remover</button>`
-        }
-        ${btnColab}
-      </div>
-      <div id="alterar-meta-${encodeKey(u.nome)}" style="display:${_metaAberta[u.nome]?'block':'none'};" class="forca-box">
-        <p>✏️ Nova meta para <strong>${u.nome}</strong> (atual: ${u.meta||'sem meta'}):</p>
-        <div class="ag-form">
-          <input class="ag-input" type="number" min="1" id="nova-meta-${encodeKey(u.nome)}" placeholder="Nova meta..."/>
-          <button class="ag-btn" style="background:#2a3a5c;color:#7eb3ff;" onclick="alterarMeta('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Salvar</button>
-        </div>
-      </div>
-      <div id="forca-${encodeKey(u.nome)}" style="display:${forcaAberta?'block':'none'};" class="forca-box">
-        <p>⚠️ Contagem divergente. Digite a senha para forçar conclusão:</p>
-        <div class="ag-form">
-          <input class="ag-input" type="password" id="forca-senha-${encodeKey(u.nome)}" placeholder="Senha de autorização"/>
-          <button class="ag-btn" style="background:var(--err);color:#fff;" onclick="finalizarUsuarioForca('${su2(u.nome)}','${su2(apiNome)}','${su2(u.idInventario)}')">Forçar</button>
-        </div>
-      </div>
-      <div class="items-panel ${oc}" id="items-${encodeKey(u.nome)}">${renderItems(u)}</div>
-    </div>`;
-  }).join('');
-
-  // Restaura o texto digitado nos campos de senha via JS (value no HTML não funciona em type=password)
-  Object.keys(_forcaSenha).forEach(key=>{
-    const inp=document.getElementById('forca-senha-'+key);
-    if(inp&&_forcaSenha[key]) inp.value=_forcaSenha[key];
-  });
-  Object.keys(_metaValor).forEach(key=>{
-    const inp=document.getElementById('nova-meta-'+key);
-    if(inp) inp.value=_metaValor[key]||'';
-  });
-}
-
-function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
-
-function renderItems(u){
-  if(!u.items||!u.items.length)return '<div class="empty" style="padding:10px">Sem itens</div>';
-  const su=s=>String(s||'').replace(/'/g,"\'");
-  const apiNome=u.nomeReal||u.nome;
-  return u.items.map(item=>{
-    const dt=item.dataHora?new Date(item.dataHora):null;
-    const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-    const cache=_cacheEAN[String(item.ean||'')]||null;
-    const texto=item.labelCompact||(cache&&cache.labelCompact)||(cache&&cache.label)||'';
-    const tamanho=item.tamanho||(cache&&cache.tamanho)||'';
-    const infoHtml=texto
-      ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
-           <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
-           ${tamanho?`<span style="font-size:10px;color:#c7cedb;font-weight:700;">TAM: ${tamanho}</span>`:''}
-         </div>`
-      : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
-    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
-  }).join('');
-}
-
-function toggleItems(nome){_open[nome]=!_open[nome];renderUsuarios();}
-
-function renderInventarios(){
-  const el=document.getElementById('list-inventarios');
-  if(!_data.inventarios||!_data.inventarios.length){el.innerHTML='<div class="empty">Nenhum inventário.</div>';return;}
-  const su=s=>String(s||'').replace(/'/g,"\\'");
-  el.innerHTML=_data.inventarios.map(i=>`
-    <div class="inv-row">
-      <div><div class="inv-nome">${i.nome}</div><div class="inv-id">ID: ${i.id} · <span style="color:${i.status==='ABERTO'?'var(--ok)':'var(--dim)'}">${i.status}</span></div></div>
-      <div style="display:flex;gap:5px;">${i.status==='ABERTO'?`<button class="btn btn-w btn-sm" onclick="fecharInventario('${su(i.id)}','${su(i.nome)}')">Fechar</button>`:''}<button class="btn btn-d btn-sm" onclick="excluirInventario('${su(i.id)}')">✕</button></div>
-    </div>`).join('');
-}
-
-function renderGrupos(){
-  const el=document.getElementById('list-grupos');
-  const invAbertos=(_data.inventarios||[]).filter(i=>i.status==='ABERTO').map(i=>String(i.id));
-  const busca=((document.getElementById('search-grupo')||{}).value||'').trim().toLowerCase();
-  const invPorId=new Map((_data.inventarios||[]).map(i=>[String(i.id),i]));
-  const filtrarGrupo=g=>{
-    if(!invAbertos.includes(String(g.idInventario))) return false;
-    if(!busca) return true;
-    const inv=invPorId.get(String(g.idInventario));
-    const nomeGrupo=String(g.nome||'').toLowerCase();
-    const nomeInv=String(inv&&inv.nome||'').toLowerCase();
-    const usuario=String(g.usuario||'').toLowerCase();
-    const membros=String(g.membros||'').toLowerCase();
-    return nomeGrupo.includes(busca) || nomeInv.includes(busca) || usuario.includes(busca) || membros.includes(busca);
-  };
-  const ordenar=(a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'});
-  const grupos=(_data.grupos||[]).filter(g=>g.status!=='CONCLUIDO'&&filtrarGrupo(g)).sort(ordenar);
-  const concluidos=(_data.grupos||[]).filter(g=>g.status==='CONCLUIDO'&&filtrarGrupo(g)).sort(ordenar);
-  const su=s=>String(s||'').replace(/'/g,"\'");
-
-  const renderGrupoRow=(g,isConcluido)=>{
-    const inv=invPorId.get(String(g.idInventario));
-    const statusCls=g.status==='DISPONIVEL'?'g-disp':g.status==='RESERVADO'?'g-res':'g-done';
-    const membros=g.membros?g.membros.split(',').filter(m=>m.trim()):[];
-    const vagasRestantes=Math.max(0,(parseInt(g.vagas)||1)-membros.length);
-    const statusLbl=g.colaborativo
-      ? (g.status==='DISPONIVEL'?'LIVRE':isConcluido?'CONCLUÍDO':`${membros.length}/${g.vagas} membros`)
-      : (g.status==='DISPONIVEL'?'LIVRE':g.status==='RESERVADO'?`${g.usuario||'?'}`:g.status);
-    return `<div class="grupo-row"${isConcluido?' style="opacity:0.65"':''}>
-      <div style="flex:1;min-width:0;">
-        <div class="grupo-nome">${g.colaborativo?'👥 ':''} ${String(g.nome||'—')}</div>
-        <div class="grupo-info">${inv?inv.nome:g.idInventario} · Meta: ${g.meta&&g.meta>0?g.meta+' pcs':'a definir'}${g.colaborativo&&!isConcluido?' · '+vagasRestantes+' vaga(s)':''}</div>
-        ${membros.length&&!isConcluido?`<div class="grupo-info" style="color:var(--info);">${membros.join(', ')}</div>`:''}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-        <span class="g-badge ${statusCls}">${statusLbl}</span>
-        ${!isConcluido?`<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-          <button class="btn btn-sm" style="font-size:9px;background:#2a3a5c;color:#7eb3ff;border:1px solid #3a5a8c;" onclick="promptRenomearGrupo('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}')">✏️ Nome</button>
-          <button class="btn btn-sm" style="font-size:9px;background:#35506b;color:#9fd1ff;border:1px solid #4d6f92;" onclick="promptAlterarMetaGrupo('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}','${su(String(g.meta||''))}')">✏️ Meta</button>
-          ${!g.colaborativo?`<button class="btn btn-n btn-sm" style="font-size:9px;" onclick="promptTornarColab('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}')">👥 Colab</button>`:''}
-          ${g.status==='DISPONIVEL'?`<button class="btn btn-d btn-sm" onclick="excluirGrupo('${su(g.idInventario)}','${su(g.id)}')">✕</button>`:''}
-          ${g.status==='RESERVADO'?`<button class="btn btn-sm" style="background:#555;color:#fff;font-size:9px;" onclick="resetarGrupo('${su(g.idInventario)}','${su(g.id)}','${su(g.nome)}')">↺ Reset</button>`:''}
-        </div>`:''}
-      </div>
-    </div>`;
-  };
-
-  let html='';
-  if(grupos.length){
-    html+=grupos.map(g=>renderGrupoRow(g,false)).join('');
-  } else {
-    html+= busca ? '<div class="empty">Nenhum grupo encontrado.</div>' : '<div class="empty">Nenhum grupo ativo.</div>';
-  }
-  if(concluidos.length){
-    html+=`<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px;font-weight:700;">✓ Concluídos</div>`;
-    html+=concluidos.map(g=>renderGrupoRow(g,true)).join('');
-  }
-  if(!grupos.length && !concluidos.length && busca){
-    html='<div class="empty">Nenhum grupo encontrado.</div>';
-  }
-  el.innerHTML=html;
-}
-
-// ── AÇÕES ──────────────────────────────────────────────────────────────────
-
-async function criarInventario(){
-  const nome=document.getElementById('novo-inv-nome').value.trim();
-  const senha=document.getElementById('novo-inv-senha').value.trim();
-  if(!nome||!senha)return toast('Preencha nome e senha.');
   try{
-    const r=await callGAS({api:'criarNovoInventario',nome,senha});
+    const r=await callGAS({api:'pegarGrupo',idInventario:_invAtual,usuario:currentUser,idGrupo});
     if(r&&r.success){
-      toast(`Inventário "${nome}" criado! ID: ${r.id}`);
-      document.getElementById('novo-inv-nome').value='';
-      document.getElementById('novo-inv-senha').value='';
-      await loadData();
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-
-// Toggle campo de vagas ao marcar colaborativo
-document.addEventListener('DOMContentLoaded',()=>{
-  const chk=document.getElementById('novo-grupo-colab');
-  const vagasEl=document.getElementById('novo-grupo-vagas');
-  const nomeEl=document.getElementById('novo-grupo-nome');
-  if(chk&&vagasEl)chk.addEventListener('change',()=>{vagasEl.style.display=chk.checked?'block':'none';});
-  if(nomeEl){
-    nomeEl.addEventListener('input',()=>{ if(_agrupadorAtivo) renderAgrupadorGrupos(); });
+      // Restaura ANTES de mudar de tela
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      window._grupoIdAtual=idGrupo;
+      currentSection=r.nomeGrupo||nomeGrupo;
+      currentMeta=r.meta||meta;
+      queue=[];totalServidor=0;totalLocal=0;updateCounterUI();updateQueueUI();
+      iniciarTela(0,r&&r.colaborativo||false);
+      salvarSessao();
+    }else{
+      if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+      alert(r&&r.message?r.message:"Erro ao reservar grupo.");
+      await telaGrupos();
+    }
+  }catch(e){
+    if(lista){lista.style.opacity='';lista.style.pointerEvents='';}
+    alert("Erro: "+e);
   }
-});
-
-function nomeGrupoAgrupado(base,letra){
-  const texto=String(base||'').trim().toUpperCase().replace(/\s+/g,' ');
-  if(!texto) return `${letra}`;
-  const m=texto.match(/^(\d+)\s*[-–—]?\s*(.+)$/);
-  if(m){
-    const numero=m[1];
-    const resto=String(m[2]||'').trim();
-    return resto ? `${numero}${letra} ${resto}` : `${numero}${letra}`;
-  }
-  return `${letra} ${texto}`.trim();
-}
-
-function renderAgrupadorGrupos(){
-  const box=document.getElementById('agrupador-box');
-  if(!box) return;
-  if(!_agrupadorAtivo){ box.style.display='none'; box.innerHTML=''; return; }
-
-  const base=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
-  if(!base){
-    box.style.display='block';
-    box.innerHTML='<div style="font-size:11px;color:var(--dim);">Digite primeiro o nome base do grupo para gerar os grupos agrupados.</div>';
-    return;
-  }
-
-  box.style.display='block';
-  const primeiro=nomeGrupoAgrupado(base,_agrupadorLetras[0]);
-  const ultimo=nomeGrupoAgrupado(base,_agrupadorLetras[_agrupadorLetras.length-1]);
-  box.innerHTML=`
-    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Grupos agrupados (${primeiro} até ${ultimo})</div>
-    <div style="display:grid;gap:6px;">
-      ${_agrupadorLetras.map(letra=>`
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:6px;align-items:center;">
-          <input class="inline-input" type="text" value="${nomeGrupoAgrupado(base,letra)}" id="agrupado-nome-${letra}" readonly style="font-size:11px;"/>
-          <input class="inline-input" type="number" min="1" placeholder="Meta" id="agrupado-meta-${letra}" style="font-size:11px;padding:7px 8px;"/>
-        </div>
-      `).join('')}
-    </div>
-    <div style="display:flex;gap:6px;margin-top:8px;">
-      <button class="btn btn-p btn-sm" id="btn-criar-agrupados" onclick="criarGruposAgrupados()" style="flex:1;justify-content:center;">Criar agrupados</button>
-      <button class="btn btn-n btn-sm" onclick="fecharAgrupadorGrupos()" style="width:auto;justify-content:center;">Fechar</button>
-    </div>
-  `;
-}
-
-function toggleAgrupadorGrupos(){
-  if(_criandoGrupos) return;
-  _agrupadorAtivo=!_agrupadorAtivo;
-  renderAgrupadorGrupos();
+  _entrando=false;
 }
 
 
-function setCriandoGruposUI(ativo, texto){
-  _criandoGrupos=!!ativo;
-  const btnAgr=document.getElementById('btn-criar-agrupados');
-  const btnSimples=document.getElementById('btn-criar-grupo');
-  const btnToggle=document.getElementById('btn-toggle-agrupador');
-  const nome=document.getElementById('novo-grupo-nome');
-  const meta=document.getElementById('novo-grupo-meta');
-  const colab=document.getElementById('novo-grupo-colab');
-  const vagas=document.getElementById('novo-grupo-vagas');
-  const inv=document.getElementById('grupo-inv-select');
-
-  if(btnAgr){
-    btnAgr.disabled=!!ativo;
-    btnAgr.textContent=ativo?(texto||'Criando grupos... aguarde'):'Criar agrupados';
-  }
-  if(btnSimples){
-    btnSimples.disabled=!!ativo;
-    btnSimples.textContent=ativo?'Criando... aguarde':'+ Criar grupo';
-  }
-  if(btnToggle) btnToggle.disabled=!!ativo;
-  [nome,meta,colab,vagas,inv].forEach(el=>{ if(el) el.disabled=!!ativo; });
-  document.querySelectorAll('[id^="agrupado-meta-"]').forEach(el=>el.disabled=!!ativo);
-}
-
-function fecharAgrupadorGrupos(){
-  if(_criandoGrupos) return;
-  _agrupadorAtivo=false;
-  renderAgrupadorGrupos();
-}
-
-async function criarGruposAgrupados(){
-  if(_criandoGrupos) return;
-  const invId=document.getElementById('grupo-inv-select').value;
-  const base=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
-  const colab=document.getElementById('novo-grupo-colab').checked;
-  const vagas=document.getElementById('novo-grupo-vagas').value||'2';
-  if(!invId||!base) return toast('Preencha o inventário e o nome base.');
-
-  const grupos=_agrupadorLetras.map(letra=>({
-    letra,
-    nome:(document.getElementById(`agrupado-nome-${letra}`)?.value||nomeGrupoAgrupado(base,letra)).trim().toUpperCase(),
-    meta:(document.getElementById(`agrupado-meta-${letra}`)?.value||'').trim()
-  }));
-
-  const faltando=grupos.filter(g=>!g.meta || parseInt(g.meta,10)<=0);
-  if(faltando.length) return toast('Preencha a meta de todos os grupos agrupados.');
-
-  setCriandoGruposUI(true,'Criando grupos... aguarde');
+async function doIniciarNovoGrupo(){
+  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
+  if(!nome)return alert("Digite o nome do grupo.");
+  setBtnLoading('btn-novo-grupo',true);
   try{
-    for(const g of grupos){
-      const r=await callGAS({api:'criarGrupo',idInventario:invId,nomeGrupo:g.nome,meta:g.meta,colaborativo:colab?'true':'false',vagas});
-      if(!(r&&r.success)){
-        toast('Erro ao criar '+g.nome+': '+((r&&r.message)||'?'),4500);
+    const r2=await callGAS({api:'iniciarSecaoNova',usuario:currentUser,idInventario:_invAtual,secao:nome});
+    if(r2&&!r2.success){alert(r2.message||"Erro.");setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');return;}
+    const grupos=await callGAS({api:'listarGruposDisponiveis',idInventario:_invAtual});
+    const criado=(grupos.grupos||[]).find(g=>String(g.nome||'')===nome);
+    currentSection=nome;currentMeta=0;
+    queue=[];totalLocal=0;totalServidor=0;updateCounterUI();updateQueueUI();
+    setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');
+    if(criado){
+      await doUsarGrupo(criado.id, criado.nome, criado.meta||0);
+    }else{
+      window._grupoIdAtual=r2.idGrupo||window._grupoIdAtual||'';
+      iniciarTela(0,false);
+      salvarSessao();
+    }
+  }catch(e){alert("Erro: "+e);setBtnLoading('btn-novo-grupo',false,'+ CRIAR E ENTRAR');}
+}
+
+
+
+async function continuarUltimaContagem(){
+  const s=lerSessao();
+  if(!s)return alert("Nao existe sessao salva.");
+  const card=document.getElementById('card-continuar');
+  const orig=card.innerHTML;
+  card.innerHTML='<i class="fas fa-spinner fa-spin"></i><div><h3>Verificando...</h3></div>';
+  try{
+    const list=await callGAS({api:'listarInventariosAbertos'});
+    if(!list||!list.some(i=>String(i.id)===String(s.invId))){
+      card.innerHTML=orig;
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      atualizarMenu();
+      return alert("O inventario desta sessao foi encerrado.");
+    }
+    currentUser=s.user;currentSection=s.section;currentInvId=s.invId;currentInvName=s.invName;
+    _invAtual=s.invId;_invNome=s.invName;
+
+    const ativo=await callGAS({api:'usuarioAtivo',idInventario:s.invId,usuario:s.user});
+    card.innerHTML=orig;
+    if(ativo&&ativo.success&&ativo.ativo){
+      const okEstoque=await garantirEstoqueMiniPronto(true);
+      if(!okEstoque)return;
+      window._grupoIdAtual=ativo.idGrupo||s.groupId||'';
+      currentSection=ativo.grupo||s.section||'';
+      currentMeta=ativo.meta||null;
+      queue=[];totalServidor=ativo.count||0;totalLocal=totalServidor;
+      updateCounterUI();updateQueueUI();iniciarTela(totalServidor,ativo.colaborativo||false);salvarSessao();return;
+    }
+
+    try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+    atualizarMenu();
+    return alert("Nao foi encontrado grupo ativo para esta sessao.");
+  }catch(e){
+    card.innerHTML=orig;
+    alert("Erro ao retomar: "+e);
+  }
+}
+
+// valida código de barras
+function validarEAN13(code){
+  if(!/^\d{13}$/.test(code))return false;
+  let s=0;
+  for(let i=0;i<12;i++)s+=parseInt(code[i])*(i%2===0?1:3);
+  return (10-(s%10))%10===parseInt(code[12]);
+}
+
+// leitor de código de barras
+let h5scanner=null;
+let _scannerTravado=false;
+const LOCK_MS=1500;
+const _travas=new Map();
+function _podeAceitar(raw){
+  const now=Date.now();
+  if((now-(_travas.get(raw)||0))<LOCK_MS)return false;
+  _travas.set(raw,now);
+  if(_travas.size>50){const c=now-LOCK_MS*3;_travas.forEach((t,k)=>{if(t<c)_travas.delete(k);});}
+  return true;
+}
+
+function startScanner(){
+  if(_pendenciaEstoqueAtiva){alert('Há uma peça fora do estoque aguardando sua confirmação.');return;}
+  document.getElementById('scanner-overlay').style.display='flex';
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  const sc=document.getElementById('scanner-colab-lbl');
+  if(sc)sc.style.display=grupoColab?'block':'none';
+
+  if(h5scanner){try{h5scanner.stop().catch(()=>{});}catch(_){} h5scanner=null;}
+  _travas.clear();
+  _scannerTravado=false;
+  const rd=document.getElementById('h5-reader');
+  if(rd)rd.innerHTML='';
+
+  h5scanner=new Html5Qrcode('h5-reader');
+
+  const cameraConfig={facingMode:'environment'};
+  const scanConfig=IS_IOS
+    ? {
+        fps:10,
+        qrbox:{width:320,height:110},
+        aspectRatio:16/9,
+        formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+      }
+    : {
+        fps:15,
+        qrbox:{width:260,height:80},
+        formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],
+        experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+      };
+
+  h5scanner.start(
+    cameraConfig,
+    scanConfig,
+    (decodedText)=>{
+      if(_scannerTravado)return;
+      const raw=(decodedText||'').trim();
+      if(raw.length!==13)return;
+      if(!validarEAN13(raw)){
+        if(_podeAceitar('__inv__')){showEANPopup(raw,false);bip(false);if(navigator.vibrate)navigator.vibrate([40,20,40]);}
         return;
       }
-    }
-    const primeiroCriado=grupos[0]?.nome||'';
-    const ultimoCriado=grupos[grupos.length-1]?.nome||'';
-    toast(`Grupos ${primeiroCriado} até ${ultimoCriado} criados com sucesso.`);
-    document.getElementById('novo-grupo-nome').value='';
-    document.getElementById('novo-grupo-meta').value='';
-    document.getElementById('novo-grupo-colab').checked=false;
-    document.getElementById('novo-grupo-vagas').style.display='none';
-    _agrupadorAtivo=false;
-    renderAgrupadorGrupos();
-    await loadData();
-  }catch(e){toast('Erro: '+e);}
-  finally{
-    setCriandoGruposUI(false);
-  }
-}
-
-async function criarGrupo(){
-  if(_criandoGrupos) return;
-  const invId=document.getElementById('grupo-inv-select').value;
-  const nome=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
-  const meta=document.getElementById('novo-grupo-meta').value.trim();
-  const colab=document.getElementById('novo-grupo-colab').checked;
-  const vagas=document.getElementById('novo-grupo-vagas').value||'2';
-  if(!invId||!nome||!meta)return toast('Preencha todos os campos.');
-  setCriandoGruposUI(true,'Criando grupo... aguarde');
-  try{
-    const r=await callGAS({api:'criarGrupo',idInventario:invId,nomeGrupo:nome,meta,colaborativo:colab?'true':'false',vagas});
-    if(r&&r.success){
-      toast(`Grupo "${r.nomeGrupo}" criado${r.colaborativo?' (colaborativo, '+r.vagas+' vagas)':''}.`);
-      document.getElementById('novo-grupo-nome').value='';
-      document.getElementById('novo-grupo-meta').value='';
-      document.getElementById('novo-grupo-colab').checked=false;
-      document.getElementById('novo-grupo-vagas').style.display='none';
-      _agrupadorAtivo=false;
-      renderAgrupadorGrupos();
-      await loadData();
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-  finally{
-    setCriandoGruposUI(false);
-  }
-}
-
-// ── DIALOGS CUSTOMIZADOS ───────────────────────────────────────────────────
-function hsConfirm(title,body='',danger=false){
-  return new Promise(resolve=>{
-    _pausarRefresh=true; // pausa auto-refresh enquanto dialog aberto
-    document.getElementById('hs-dialog-title').textContent=title;
-    document.getElementById('hs-dialog-body').textContent=body;
-    document.getElementById('hs-dialog-input').style.display='none';
-    const btns=document.getElementById('hs-dialog-btns');
-    btns.innerHTML='';
-    const bc=document.createElement('button');bc.className='hs-dialog-btn cancel';bc.textContent='Cancelar';
-    const bo=document.createElement('button');bo.className='hs-dialog-btn '+(danger?'danger':'confirm');bo.textContent='Confirmar';
-    const close=(v)=>{_pausarRefresh=false;document.getElementById('hs-dialog-overlay').classList.remove('show');resolve(v);};
-    bc.onclick=()=>close(false);bo.onclick=()=>close(true);
-    btns.appendChild(bc);btns.appendChild(bo);
-    document.getElementById('hs-dialog-overlay').classList.add('show');
-    setTimeout(()=>bo.focus(),50);
-  });
-}
-function hsPrompt(title,body='',placeholder='',type='text'){
-  return new Promise(resolve=>{
-    _pausarRefresh=true;
-    document.getElementById('hs-dialog-title').textContent=title;
-    document.getElementById('hs-dialog-body').textContent=body;
-    const inp=document.getElementById('hs-dialog-input');
-    inp.style.display='block';inp.type=type;inp.placeholder=placeholder;inp.value='';
-    const btns=document.getElementById('hs-dialog-btns');
-    btns.innerHTML='';
-    const bc=document.createElement('button');bc.className='hs-dialog-btn cancel';bc.textContent='Cancelar';
-    const bo=document.createElement('button');bo.className='hs-dialog-btn confirm';bo.textContent='OK';
-    const close=(v)=>{_pausarRefresh=false;document.getElementById('hs-dialog-overlay').classList.remove('show');resolve(v);};
-    bc.onclick=()=>close(null);bo.onclick=()=>close(inp.value.trim()||null);
-    inp.onkeydown=(e)=>{if(e.key==='Enter')close(inp.value.trim()||null);if(e.key==='Escape')close(null);};
-    btns.appendChild(bc);btns.appendChild(bo);
-    document.getElementById('hs-dialog-overlay').classList.add('show');
-    setTimeout(()=>inp.focus(),50);
-  });
-}
-
-
-async function promptTornarColab(idInventario,idGrupo,nomeGrupo){
-  try{
-    const vagasTxt=await hsPrompt('Tornar grupo colaborativo', `Grupo: ${nomeGrupo}\nInforme a quantidade de vagas:`, '2');
-    if(vagasTxt===null) return;
-    const vagas=parseInt(vagasTxt,10);
-    if(!vagas || vagas<2) return toast('Informe pelo menos 2 vagas.');
-    await apiFetch('/grupos/tornar-colaborativo',{method:'POST',body:JSON.stringify({id_inventario:String(idInventario||''),id_grupo:String(idGrupo||''),vagas})},1);
-    toast('Grupo colaborativo atualizado com sucesso.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao tornar colaborativo: '+((e&&e.message)||e),4000);
-  }
-}
-
-async function resetarGrupo(idInventario,idGrupo,nomeGrupo){
-  try{
-    const ok=await hsConfirm('Resetar grupo', `Deseja resetar o grupo ${nomeGrupo}?\nTodos os bipes desse grupo serão apagados e ele voltará para disponível.`);
-    if(!ok) return;
-    await apiFetch('/grupos/resetar',{
-      method:'POST',
-      body:JSON.stringify({
-        usuario:'ADMIN',
-        id_inventario:String(idInventario||''),
-        id_grupo:String(idGrupo||'')
-      })
-    },1);
-    toast('Grupo resetado com sucesso.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao resetar grupo: '+((e&&e.message)||e),4000);
-  }
-}
-
-function excluirGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-
-async function definirMeta(nome,idInventario,grupo,uid){
-  try{
-    const input=document.getElementById('mi-'+uid);
-    const novaMeta=parseInt((input&&input.value)||'0',10);
-    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
-    const gInfo=getGrupoInfoByNome(idInventario,grupo);
-    if(!gInfo) return toast('Grupo não encontrado para definir meta.');
-    await apiFetch('/grupos/editar-meta',{
-      method:'POST',
-      body:JSON.stringify({
-        id_inventario:String(idInventario||''),
-        id_grupo:String(gInfo.id||''),
-        nova_meta:novaMeta
-      })
-    },1);
-    toast('Meta definida com sucesso.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao definir meta: '+((e&&e.message)||e),4000);
-  }
-}
-
-async function removerDoGrupo(nomePainel,nomeReal,idInventario){
-  try{
-    const ok=await hsConfirm('Remover do grupo', `Deseja remover ${nomeReal} do grupo ativo?\nOs bipes já feitos serão mantidos.`);
-    if(!ok) return;
-    const r=await apiFetch('/grupos/remover-do-grupo',{method:'POST',body:JSON.stringify({usuario:String(nomeReal||''),id_inventario:String(idInventario||'')})},1);
-    toast(`Usuário removido. Bipes mantidos: ${r.bipes_mantidos||0}`);
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao remover do grupo: '+((e&&e.message)||e),4000);
-  }
-}
-
-function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-
-async function zerarUsuario(nomeReal,idInventario){
-  try{
-    const u=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(nomeReal||'') && String(x.idInventario||'')===String(idInventario||''));
-    const grupoNome=u&&u.grupo?u.grupo:'';
-    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
-    if(!gInfo) return toast('Grupo não encontrado para reset.');
-    const ok=await hsConfirm('Resetar grupo / recontagem', `Grupo: ${grupoNome}\nTodos os bipes desse grupo serão apagados e o grupo voltará para disponível.`);
-    if(!ok) return;
-    const r=await apiFetch('/grupos/resetar',{
-      method:'POST',
-      body:JSON.stringify({
-        usuario:String(nomeReal||''),
-        id_inventario:String(idInventario||''),
-        id_grupo:String(gInfo.id||'')
-      })
-    },1);
-    toast(`Grupo resetado. Bipes apagados: ${r.bipes_apagados||0}`);
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao resetar grupo: '+((e&&e.message)||e),4000);
-  }
-}
-
-async function finalizarUsuario(nomePainel,nomeReal,idInventario){
-  try{
-    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
-    const grupoNome=u&&u.grupo?u.grupo:'';
-    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
-    if(!gInfo) return toast('Grupo não encontrado para conclusão.');
-    const ok=await hsConfirm('Concluir grupo', `Deseja concluir o grupo ${grupoNome}?`);
-    if(!ok) return;
-    await apiFetch('/grupos/concluir',{
-      method:'POST',
-      body:JSON.stringify({
-        usuario:String(nomeReal||''),
-        id_inventario:String(idInventario||''),
-        id_grupo:String(gInfo.id||'')
-      })
-    },1);
-    toast('Grupo concluído com sucesso.');
-    _forcaAberta[nomePainel]=false;
-    delete _forcaSenha[encodeKey(nomePainel)];
-    await refreshPainelData();
-  }catch(e){
-    const msg=((e&&e.message)||String(e||''));
-    if(msg==='CONTAGEM_NAO_BATE' || msg.toLowerCase().includes('contagem_nao_bate') || msg.toLowerCase().includes('divergência de meta') || msg.toLowerCase().includes('divergencia de meta')){
-      _forcaAberta[nomePainel]=true;
-      renderUsuarios();
-      toast('Contagem divergente. Ajuste a meta, force a conclusão ou resete para recontagem.',4500);
-      return;
-    }
-    toast('Erro ao concluir grupo: '+msg,4000);
-  }
-}
-
-async function finalizarUsuarioForca(nomePainel,nomeReal,idInventario){
-  try{
-    const key=encodeKey(nomePainel);
-    const senha=(document.getElementById('forca-senha-'+key)?.value||'').trim();
-    if(senha!=='hs1001') return toast('Senha incorreta para conclusão forçada.');
-    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
-    const grupoNome=u&&u.grupo?u.grupo:'';
-    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
-    if(!gInfo) return toast('Grupo não encontrado para conclusão forçada.');
-    const ok=await hsConfirm('Concluir grupo com divergência', `Forçar conclusão do grupo ${grupoNome} mesmo com diferença de meta?`);
-    if(!ok) return;
-    await apiFetch('/grupos/concluir-forcado',{
-      method:'POST',
-      body:JSON.stringify({
-        usuario:String(nomeReal||''),
-        id_inventario:String(idInventario||''),
-        id_grupo:String(gInfo.id||'')
-      })
-    },1);
-    _forcaAberta[nomePainel]=false;
-    delete _forcaSenha[key];
-    toast('Grupo concluído com força.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao forçar conclusão: '+((e&&e.message)||e),4000);
-  }
-}
-
-let _confrontoData=null,_confrontoFiltro=null;
-
-function _fmtPct(v){
-  const n=Number(v||0);
-  return Number.isFinite(n)?`${Math.round(n)}%`:'0%';
-}
-
-function _escapeHtml(v){
-  return String(v??'').replace(/[&<>"']/g,ch=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[ch]||ch));
-}
-
-function _resumoConfrontoHtml(r){
-  return `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
-    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalEstoque||0}</div><div class="stat-lbl">Total estoque</div></div>
-    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalConsolidado||0}</div><div class="stat-lbl">Total consolidado</div></div>
-    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${_fmtPct(r.percentualConsolidado||0)}</div><div class="stat-lbl">Consolidado</div></div>
-  </div>`;
-}
-
-function abrirConfronto(){
-  const sel=document.getElementById('confronto-inv');
-  const invs=(_data.inventarios||[]);
-  if(!invs.length){
-    // Dados ainda não carregados — força um loadData e tenta de novo
-    loadData().then(()=>{abrirConfronto();});
-    return;
-  }
-  sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.nome}${i.status!=='ABERTO'?' ('+i.status+')':''}</option>`).join('');
-  document.getElementById('confronto-resultado').innerHTML='';
-  document.getElementById('conf-filtro-clear-wrap').style.display='none';
-  _confrontoFiltro=null;_confrontoData=null;
-  document.getElementById('modal-confronto').classList.add('open');
-}
-function fecharConfronto(){document.getElementById('modal-confronto').classList.remove('open');}
-
-function clicarCategoria(cat){
-  if(_confrontoFiltro===cat){
-    limparFiltroConfronto();
-  } else {
-    _confrontoFiltro=cat;
-    document.getElementById('conf-filtro-clear-wrap').style.display='block';
-    renderConfronto();
-  }
-}
-
-function limparFiltroConfronto(){
-  _confrontoFiltro=null;
-  document.getElementById('conf-filtro-clear-wrap').style.display='none';
-  renderConfronto();
-}
-
-function _itemHtml(i,tipo){
-  const label=_escapeHtml(i.label||i.refCor||i.ref||i.ean||'—');
-  if(tipo==='acima'){
-    const ex=Number(i.qtdBipada||0)-Number(i.qtdEstoque||0);
-    return `<div class="conf-item" style="background:rgba(255,82,82,.1);">
-      <div><div class="conf-label" style="color:var(--err)">${label}</div>
-      <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque}</div></div>
-      <span class="conf-badge" style="background:rgba(255,82,82,.2);color:var(--err)">+${ex} a mais</span></div>`;
-  }
-  if(tipo==='proximo' || tipo==='abaixo50'){
-    const faltam=Number(i.qtdEstoque||0)-Number(i.qtdBipada||0);
-    const pct=Math.max(0,Math.min(100,Number(i.pct||0)));
-    const cor=tipo==='proximo'?'var(--warn)':'#64b5f6';
-    const fundo=tipo==='proximo'?'rgba(255,171,64,.08)':'rgba(100,181,246,.08)';
-    const badge=tipo==='proximo'?'rgba(255,171,64,.2)':'rgba(100,181,246,.2)';
-    return `<div class="conf-item" style="background:${fundo};">
-      <div style="flex:1;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:8px;">
-          <div class="conf-label">${label}</div>
-          <span class="conf-badge" style="background:${badge};color:${cor}">${_fmtPct(i.pct)}</span>
-        </div>
-        <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque} · faltam: <strong style="color:#e8eaf0">${faltam}</strong></div>
-        <div class="conf-bar"><div class="conf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
-      </div></div>`;
-  }
-  if(tipo==='naoEncontrados'){
-    return `<div class="conf-item" style="background:rgba(124,77,255,.08);">
-      <div style="flex:1;min-width:0;">
-        <div class="conf-label" style="color:#c7b6ff">${_escapeHtml(i.ean||'—')}</div>
-        <div class="conf-qty">bipado: ${i.qtdBipada||0} · não encontrado no estoque</div>
-      </div>
-      <span class="conf-badge" style="background:rgba(124,77,255,.2);color:#c7b6ff;">Sem estoque</span></div>`;
-  }
-  return `<div class="conf-item" style="background:rgba(67,217,138,.07);">
-    <div class="conf-label" style="color:var(--ok)">${label}</div>
-    <div class="conf-qty">${i.qtdBipada} pcs ✓</div></div>`;
-}
-
-function renderConfronto(){
-  if(!_confrontoData)return;
-  const r=_confrontoData,f=_confrontoFiltro;
-  const res=document.getElementById('confronto-resultado');
-  let html='';
-
-  html+=_resumoConfrontoHtml(r);
-  html+=`<div class="conf-stats">
-    <div class="conf-stat${f==='acima'?' ativo':''}" style="background:rgba(255,82,82,.1);" onclick="clicarCategoria('acima')">
-      <div class="conf-stat-val" style="color:var(--err)">${r.acima.length}</div>
-      <div class="conf-stat-lbl">Acima estoque</div>
-    </div>
-    <div class="conf-stat${f==='proximo'?' ativo':''}" style="background:rgba(255,171,64,.1);" onclick="clicarCategoria('proximo')">
-      <div class="conf-stat-val" style="color:var(--warn)">${r.proximo.length}</div>
-      <div class="conf-stat-lbl">≥50% bipado</div>
-    </div>
-    <div class="conf-stat${f==='exato'?' ativo':''}" style="background:rgba(67,217,138,.08);" onclick="clicarCategoria('exato')">
-      <div class="conf-stat-val" style="color:var(--ok)">${r.exato.length}</div>
-      <div class="conf-stat-lbl">Exato</div>
-    </div>
-  </div>`;
-
-  if(f==='acima'){
-    html += r.acima.length ? r.acima.map(i=>_itemHtml(i,'acima')).join('') : '<div class="conf-empty">Nenhum item acima do estoque.</div>';
-  } else if(f==='proximo'){
-    html += r.proximo.length ? r.proximo.map(i=>_itemHtml(i,'proximo')).join('') : '<div class="conf-empty">Nenhum item próximo de fechar.</div>';
-  } else if(f==='exato'){
-    html += r.exato.length ? r.exato.map(i=>_itemHtml(i,'exato')).join('') : '<div class="conf-empty">Nenhum item exato ainda.</div>';
-  } else {
-    if(r.acima.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;}
-    if(r.proximo.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;}
-    if(r.exato.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;}
-    if(!r.acima.length && !r.proximo.length && !r.exato.length){
-      html += '<div class="conf-empty">Nenhum item atingiu 50% ainda. Continue bipando!</div>';
-    }
-  }
-  res.innerHTML=html;
-}
-
-async function rodarConfronto(){
-  const sel=document.getElementById('confronto-inv');
-  const btn=document.getElementById('btn-gerar-rel');
-  const res=document.getElementById('confronto-resultado');
-  const idInventario=String((sel&&sel.value)||'').trim();
-  if(!idInventario){
-    toast('Selecione um inventário para confrontar.',3500);
-    return;
-  }
-  if(btn) btn.disabled=true;
-  if(res) res.innerHTML='<div class="conf-empty">Calculando confronto...</div>';
-  try{
-    const r=await apiFetch('/estoque/confronto?id_inventario='+encodeURIComponent(idInventario),{method:'GET'},1);
-    if(!r||!r.success) throw new Error((r&&r.message)||'Falha ao confrontar estoque.');
-    _confrontoData=r;
-    _confrontoFiltro=null;
-    document.getElementById('conf-filtro-clear-wrap').style.display='none';
-    renderConfronto();
-    if(btn) btn.disabled=false;
-    toast('Confronto calculado com sucesso.');
-  }catch(e){
-    if(res) res.innerHTML='<div class="conf-empty">Erro ao calcular confronto.</div>';
-    toast('Erro no confronto: '+((e&&e.message)||e),4500);
-  }
-}
-
-// ── ETIQUETAS ──────────────────────────────────────────────────────────────
-let _etiquetas=[];
-
-// Gera barras EAN-13 em SVG puro
-function ean13svg(code,w,h){
-  const enc={'0':'0001101','1':'0011001','2':'0010011','3':'0111101','4':'0100011',
-             '5':'0110001','6':'0101111','7':'0111011','8':'0110111','9':'0001011'};
-  const encR={'0':'1110010','1':'1100110','2':'1101100','3':'1000010','4':'1011100',
-              '5':'1001110','6':'1010000','7':'1000100','8':'1001000','9':'1110100'};
-  const paridade=[
-    [0,0,0,0,0,0],[0,0,1,0,1,1],[0,0,1,1,0,1],[0,0,1,1,1,0],[0,1,0,0,1,1],
-    [0,1,1,0,0,1],[0,1,1,1,0,0],[0,1,0,1,0,1],[0,1,0,1,1,0],[0,1,1,0,1,0]
-  ];
-  const d=code.padStart(13,'0').split('').map(Number);
-  const p=paridade[d[0]];
-  let bits='101'; // guard start
-  for(let i=0;i<6;i++) bits+=p[i]?encR[d[i+1]]:enc[d[i+1]];
-  bits+='01010'; // guard center
-  for(let i=7;i<13;i++) bits+=encR[d[i]];
-  bits+='101'; // guard end
-  const bw=w/bits.length;
-  let rects='';
-  bits.split('').forEach((b,i)=>{
-    if(b==='1') rects+=`<rect x="${(i*bw).toFixed(2)}" y="0" width="${bw.toFixed(2)}" height="${h}" fill="#000"/>`;
-  });
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${rects}</svg>`;
-}
-
-function etiqHTML(e, cls='etiq'){
-  const svg=ean13svg(e.ean,130,50);
-  const isPreview = cls==='etiq';
-  if(isPreview){
-    return `<div class="etiq">
-      <div class="etiq-top">
-        <div class="etiq-grade-box"><div class="etiq-grade">${e.grade||'?'}</div></div>
-        <div class="etiq-refcor">${e.refCor||'—'}</div>
-      </div>
-      <div class="etiq-barras">
-        ${svg}
-        <div class="etiq-ean-num">${e.ean}</div>
-      </div>
-    </div>`;
-  } else {
-    // versão impressão
-    return `<div class="etiq-print">
-      <div class="ep-top">
-        <div class="ep-grade-box"><div class="ep-grade">${e.grade||'?'}</div></div>
-        <div class="ep-refcor">${e.refCor||'—'}</div>
-      </div>
-      <div class="ep-barras">
-        ${svg}
-        <div class="ep-ean">${e.ean}</div>
-      </div>
-    </div>`;
-  }
-}
-
-function toggleAlterarMeta(nome){
-  const key=encodeKey(nome);
-  const el=document.getElementById('alterar-meta-'+key);
-  if(!el)return;
-  const aberto=!!_metaAberta[nome];
-  if(aberto){
-    delete _metaAberta[nome];
-    el.style.display='none';
-  }else{
-    _metaAberta[nome]=true;
-    el.style.display='block';
-    setTimeout(()=>{const inp=document.getElementById('nova-meta-'+key);if(inp){inp.value=_metaValor[key]||inp.value||'';inp.focus();}},50);
-  }
-}
-
-async function alterarMeta(nomePainel,nomeReal,idInventario){
-  try{
-    const key=encodeKey(nomePainel);
-    const inp=document.getElementById('nova-meta-'+key);
-    const novaMeta=parseInt((inp&&inp.value)||'0',10);
-    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
-    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
-    const grupoNome=u&&u.grupo?u.grupo:'';
-    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
-    if(!gInfo) return toast('Grupo não encontrado para alterar meta.');
-    await apiFetch('/grupos/editar-meta',{
-      method:'POST',
-      body:JSON.stringify({
-        id_inventario:String(idInventario||''),
-        id_grupo:String(gInfo.id||''),
-        nova_meta:novaMeta
-      })
-    },1);
-    const box=document.getElementById('alterar-meta-'+key);
-    delete _metaAberta[nomePainel];
-    delete _metaValor[key];
-    if(box) box.style.display='none';
-    toast('Meta alterada com sucesso.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao alterar meta: '+((e&&e.message)||e),4000);
-  }
-}
-
-async function addManual(usuario,idInventario,grupo){
-  const ean=await hsPrompt(`EAN manual para "${usuario}"`,`Grupo: ${grupo}`,'Código EAN-13');
-  if(!ean)return;
-  try{
-    const atual=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(usuario||'') && String(x.idInventario||'')===String(idInventario||''));
-    const r=await callGAS({api:'masterAddManualCode',usuario,idInventario,idGrupo:(atual&&atual.idGrupo)||'',ean,secao:grupo||'MANUAL'});
-    if(r&&r.success){
-      toast('Incluído! Total: '+(r.newCount||'?'));
-      triggerAdminRefreshSoon();
-      await loadData(true);
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
-}
-function fecharInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-function excluirInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-
-// alertas de EAN suspeito desativados
-
-// Cache de ref+cor+tamanho por EAN
-const _cacheEAN={};
-async function enriquecerEANs(items){
-  const eans=items.map(i=>String(i.ean||'')).filter(e=>e&&!_cacheEAN[e]);
-  if(!eans.length)return;
-  const chunks=[];
-  for(let i=0;i<eans.length;i+=5)chunks.push(eans.slice(i,i+5));
-  for(const chunk of chunks){
-    await Promise.all(chunk.map(async ean=>{
-      try{
-        const r=await callGAS({api:'buscarInfoEANEstoque',ean});
-        if(r&&r.success&&r.info) _cacheEAN[ean]=r.info;
-        else _cacheEAN[ean]=null;
-      }catch(_){_cacheEAN[ean]=null;}
-    }));
-  }
-}
-
-async function promptRenomearGrupo(idInventario,idGrupo,nomeAtual){
-  try{
-    const novo=await hsPrompt('Renomear grupo', `Nome atual: ${nomeAtual}`, nomeAtual||'');
-    if(novo===null) return;
-    const nome=String(novo||'').trim().toUpperCase();
-    if(!nome) return toast('Informe um nome válido.');
-    if(nome===String(nomeAtual||'').trim().toUpperCase()) return;
-    await apiFetch('/grupos/renomear',{method:'POST',body:JSON.stringify({id_inventario:String(idInventario||''),id_grupo:String(idGrupo||''),novo_nome:nome})},1);
-    toast('Grupo renomeado com sucesso.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao renomear grupo: '+((e&&e.message)||e),4000);
-  }
-}
-
-function resolverPendenciaEstoqueUI(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-
-async function promptAlterarMetaGrupo(idInventario,idGrupo,nomeGrupo,metaAtual){
-  try{
-    const valor=await hsPrompt(`Nova meta para ${nomeGrupo}`, `Meta atual: ${metaAtual||0}`, String(metaAtual||''));
-    if(valor===null || valor==='') return;
-    const novaMeta=parseInt(valor,10);
-    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
-    await apiFetch('/grupos/editar-meta',{
-      method:'POST',
-      body:JSON.stringify({
-        id_inventario:String(idInventario||''),
-        id_grupo:String(idGrupo||''),
-        nova_meta:novaMeta
-      })
-    },1);
-    toast('Meta do grupo alterada.');
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao alterar meta do grupo: '+((e&&e.message)||e),4000);
-  }
-}
-
-async function gerarRelatorio(){
-  const sel=document.getElementById('confronto-inv');
-  const idInventario=String((sel&&sel.value)||'').trim();
-  if(!idInventario){
-    toast('Selecione um inventário para gerar o relatório.',3500);
-    return;
-  }
-  try{
-    const url=(API_BASE||'').replace(/\/$/,'') + '/estoque/confronto/relatorio?id_inventario=' + encodeURIComponent(idInventario);
-    const resp=await fetch(url,{method:'GET'});
-    if(!resp.ok) throw new Error('Falha ao gerar relatório.');
-    const blob=await resp.blob();
-    const dl=window.URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    const disp=resp.headers.get('content-disposition')||'';
-    const m=disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-    const nome=decodeURIComponent((m&& (m[1]||m[2])) || `relatorio_confronto_${idInventario}.xlsx`);
-    a.href=dl;
-    a.download=nome;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(dl);
-    toast('Relatório gerado com sucesso.');
-  }catch(e){
-    toast('Erro ao gerar relatório: '+((e&&e.message)||e),4500);
-  }
-}
-
-function getEtiquetasFiltroInventario(){
-  const sel=document.getElementById('confronto-inv');
-  const valor=String((sel&&sel.value)||'').trim();
-  if(valor) return valor;
-  if((_data.inventarios||[]).length===1) return String(_data.inventarios[0].id||'').trim();
-  return '';
-}
-
-async function abrirEtiquetas(){
-  try{
-    const idInventario=getEtiquetasFiltroInventario();
-    const r=await callGAS({api:'getEtiquetas',idInventario});
-    _etiquetas=(r&&r.success&&Array.isArray(r.etiquetas))?r.etiquetas:[];
-    renderEtiquetas();
-    document.getElementById('modal-etiquetas').classList.add('open');
-  }catch(e){
-    toast('Erro ao carregar etiquetas: '+((e&&e.message)||e),4500);
-  }
-}
-
-function fecharEtiquetas(){document.getElementById('modal-etiquetas').classList.remove('open');}
-
-function renderEtiquetas(){
-  const grid=document.getElementById('etiquetas-grid');
-  document.getElementById('etiq-count').textContent=`${_etiquetas.length} etiqueta${_etiquetas.length!==1?'s':''} pendente${_etiquetas.length!==1?'s':''}`;
-  if(!_etiquetas.length){grid.innerHTML='<div class="conf-empty">Nenhuma etiqueta pendente.<br>Adicione EANs manualmente em algum grupo.</div>';return;}
-  grid.innerHTML=`<div class="etiq-grid">${_etiquetas.map(e=>etiqHTML(e,'etiq')).join('')}</div>`;
-}
-
-async function imprimirEtiquetas(){
-  if(!_etiquetas.length)return toast('Nenhuma etiqueta para imprimir.');
-  try{
-    const idInventario=getEtiquetasFiltroInventario();
-    const url=(API_BASE||'').replace(/\/$/,'') + '/etiquetas/pdf' + (idInventario?'?id_inventario='+encodeURIComponent(idInventario):'');
-    const resp=await fetch(url,{method:'GET'});
-    if(!resp.ok) throw new Error('Falha ao gerar PDF de etiquetas.');
-    const blob=await resp.blob();
-    const dl=window.URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    const disp=resp.headers.get('content-disposition')||'';
-    const m=disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-    const nome=decodeURIComponent((m&&(m[1]||m[2])) || `etiquetas_${idInventario||'geral'}.pdf`);
-    a.href=dl;a.download=nome;document.body.appendChild(a);a.click();a.remove();
-    window.URL.revokeObjectURL(dl);
-    toast('PDF de etiquetas gerado com sucesso.');
-  }catch(e){
-    toast('Erro ao gerar PDF de etiquetas: '+((e&&e.message)||e),4500);
-  }
-}
-
-async function limparEtiquetasPendentes(){
-  try{
-    const idInventario=getEtiquetasFiltroInventario();
-    const r=await callGAS({api:'limparEtiquetas',idInventario});
-    if(!(r&&r.success)) throw new Error((r&&r.message)||'Falha ao limpar etiquetas');
-    _etiquetas=[];
-    renderEtiquetas();
-    toast('Etiquetas pendentes removidas: '+(r.removidas||0));
-  }catch(e){
-    toast('Erro ao limpar etiquetas: '+((e&&e.message)||e),4500);
-  }
-}
-
-
-async function carregarAlertas(force=false){
-  if(document.hidden && !force) return;
-  if(_loadingAlertas && !force) return;
-  if(!force && (Date.now()-_lastAlertasAt)<ALERTAS_POLL_MS) return;
-  _loadingAlertas=true;
-  try{
-    const r=await callGAS({api:'getAlertas'});
-    _lastAlertasAt=Date.now();
-    const btn=document.getElementById('btn-alertas');
-    const lista=document.getElementById('alertas-list');
-    const countEl=document.getElementById('alertas-count');
-    _alertasData=(r&&r.success&&r.alertas)?r.alertas:[];
-    if(!_alertasData.length){
-      if(btn) btn.style.display='none';
-      if(lista) lista.innerHTML='<div class="empty" style="padding:8px 0;">Sem alertas.</div>';
-      if(countEl) countEl.textContent='Nenhum alerta pendente.';
-      return;
-    }
-    if(btn){
-      btn.style.display='flex';
-      btn.innerHTML='⚠️ Ver alertas de conferência <span class="btn-alerta-count">'+_alertasData.length+'</span>';
-    }
-    if(countEl){
-      countEl.textContent=_alertasData.length+' alerta'+(_alertasData.length!==1?'s':'')+' pendente'+(_alertasData.length!==1?'s':'');
-    }
-    if(lista){
-      lista.innerHTML=_alertasData.map(a=>{
-        const tipo=String(a.tipo||'');
-        const rotulo=tipo==='EAN_NAO_ENCONTRADO'?'EAN não encontrado no estoque':'Alerta';
-        return `<div class="alerta-item">
-          <div class="alerta-info">
-            <div style="font-weight:700;color:var(--warn);margin-bottom:3px;">${rotulo}</div>
-            <span class="alerta-ean">${a.ean||''}</span> · <strong>${a.conferente||''}</strong> · grupo <strong>${a.grupo||''}</strong> · ${a.inventario||''}
-          </div>
-          <button class="alerta-close" onclick="fecharAlertaUI('${a.id}',this)">✕ Ciente</button>
-        </div>`;
-      }).join('');
-    }
-  }catch(e){}
-  finally{
-    _loadingAlertas=false;
-  }
-}
-
-function abrirAlertas(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-
-function fecharAlertas(){
-  document.getElementById('modal-alertas').classList.remove('open');
-}
-
-function scheduleAdminPoll(){
-  clearTimeout(_pollTimer);
-  _pollTimer=setTimeout(async ()=>{
-    try{
-      if(!document.hidden && !_pausarRefresh && !Object.keys(_forcaAberta).length){
-        await loadData();
+      // Verifica prefixo — pausa scanner e mostra overlay se suspeito
+      if(!['7909','7900','7890','7891','7892','7894','7895'].some(p=>raw.startsWith(p))){
+        _scannerTravado=true;
+        document.getElementById('scan-prefixo-ean').textContent=raw;
+        document.getElementById('scan-prefixo-alerta').style.display='flex';
+        bip(false);
+        if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+        // Notifica o admin mesmo sem registrar o bipe
+        callGAS({api:'registrarEanSuspeito',ean:raw,usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId}).catch(()=>{});
+        return;
       }
-    } finally {
-      scheduleAdminPoll();
+      if(!_podeAceitar(raw))return;
+
+      const rawKey=normalizarEANChaveLocal(raw);
+      if(!_estoqueMiniMapa[rawKey]){
+        showEANPopup(raw,false);doFlash();bip(false);
+        if(navigator.vibrate)navigator.vibrate([80,40,80]);
+        _pendenciaEstoqueRegistrada=false;
+        mostrarPendenciaEstoque(rawKey || raw, false);
+        return;
+      }
+      _scannerTravado=true;
+      setTimeout(()=>{_scannerTravado=false;},LOCK_MS);
+      showEANPopup(raw,true);doFlash();bip(true);
+      if(navigator.vibrate)navigator.vibrate(55);
+      enqueue(rawKey || raw);
+    },
+    ()=>{}
+  ).then(()=>{
+    if(IS_IOS){
+      setTimeout(()=>{
+        const video=document.querySelector('#h5-reader video');
+        if(video){
+          video.setAttribute('playsinline','true');
+          video.setAttribute('webkit-playsinline','true');
+          video.style.objectFit='contain';
+        }
+      },250);
     }
-  },ADMIN_POLL_MS);
+  }).catch((err)=>{
+    alert('Erro ao abrir câmera: '+err);
+    stopScanner();
+  });
 }
 
-document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden){
-    loadData(true);
-    scheduleAdminPoll();
+function stopScanner(){
+  if(h5scanner){
+    h5scanner.stop().catch(()=>{});
+    h5scanner=null;
   }
-});
-
-window.onload=function(){
-  loadData(true);
-  carregarAlertas(true);
-  scheduleAdminPoll();
-};
-
-function triggerAdminRefreshSoon(){
-  clearTimeout(window.__hsAdminRefreshTimer);
-  window.__hsAdminRefreshTimer=setTimeout(()=>{
-    loadData(true).catch(()=>{});
-  },30);
+  document.getElementById('scanner-overlay').style.display='none';
+  // limpa o div para o próximo uso
+  const r=document.getElementById('h5-reader');
+  if(r)r.innerHTML='';
 }
 
-window.addEventListener('message', (ev)=>{
-  if(!(ev && ev.data)) return;
-  if(ev.data.type==='HS_ADMIN_AUTH'){
-    toast('Painel admin liberado.');
-    return;
-  }
-  if(ev.data.type==='HS_BIPE_EVENT' || ev.data.type==='HS_FORCE_REFRESH' || ev.data.type==='HS_GROUP_FINISHED'){
-    triggerAdminRefreshSoon();
-  }
-});
+function doFlash(){
+  const f=document.getElementById('scan-flash');
+  f.classList.remove('blink');void f.offsetWidth;f.classList.add('blink');
+}
 
-window.addEventListener('storage',(ev)=>{
-  if(ev && ev.key==='HS_ADMIN_PULSE' && ev.newValue){
-    triggerAdminRefreshSoon();
+function showEANPopup(text,ok){
+  const el=document.getElementById('scan-ean-popup');
+  el.textContent=ok?text:'✕ '+text;
+  el.className='';void el.offsetWidth;
+  el.className=ok?'ok':'inv';
+}
+
+function fecharAlertaPrefixo(){
+  document.getElementById('scan-prefixo-alerta').style.display='none';
+  _travas.clear(); // limpa locks para próximo código ser aceito imediatamente
+  _scannerTravado=false;
+}
+
+function grupoEncerrado(msg){
+  try{stopScanner();}catch(_){}
+  alert(msg||"Sua seção foi finalizada. Escolha um novo grupo.");
+  telaGrupos();
+}
+
+// finalizar contagem
+
+async function doConcluirSecao(){
+  if(queue.length>0){
+    if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir o grupo?`))return;
+    if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
+    for(let t=0;t<3;t++){
+      await flushQueue();
+      if(queue.length===0)break;
+      if(t<2)await new Promise(r=>setTimeout(r,1200));
+    }
+    if(queue.length>0){alert("Não foi possível enviar todos os bipes. Verifique a conexão e tente novamente.");return;}
   }
-});
+  if(!confirm(`Deseja concluir o grupo "${currentSection}"?`)) return;
+  const btn=document.getElementById('btn-concluir');
+  const old=btn.innerHTML;
+  btn.disabled=true;
+  btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
+  try{
+    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
+    if(r&&r.success){
+      try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+      currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
+      renderUltimasRefs();
+      atualizarMenu();
+      stopScanner();
+      alert('Grupo concluído com sucesso.');
+      await telaGrupos();
+      return;
+    }
+    alert(r&&r.message?r.message:'Erro ao concluir grupo.');
+  }catch(e){
+    alert('Erro ao concluir: '+e);
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=old;
+  }
+}
+
+(function boot(){
+  _estoqueSyncFeitoNestaPagina=false;
+  const precisaRecarregar=aplicarControleDeVersao();
+  atualizarMenu();
+  if(precisaRecarregar){
+    const url=new URL(window.location.href);
+    url.searchParams.set('v',APP_VERSION);
+    setTimeout(()=>window.location.replace(url.toString()),80);
+  }
+})();
 </script>
 </body>
 </html>
