@@ -902,7 +902,7 @@ async function callGAS(params,retries=1){
         }
         let ultimoTotal=totalServidor||0;
         for(const ean of eans){
-          const resp=await apiFetch('/bipes/manual',{
+          const resp=await apiFetch('/bipes',{
             method:'POST',
             body:JSON.stringify({
               usuario:String(params.usuario||''),
@@ -949,7 +949,7 @@ async function callGAS(params,retries=1){
       case 'masterAddManualCode': {
         const grupoId=(window._grupoIdAtual||'');
         if(!grupoId) return {success:false,message:'Sem grupo ativo no backend local.'};
-        await apiFetch('/bipes/manual',{
+        await apiFetch('/bipes',{
           method:'POST',
           body:JSON.stringify({
             usuario:String(params.usuario||''),
@@ -1712,9 +1712,19 @@ async function doConcluirSecao(){
       await telaGrupos();
       return;
     }
-    alert(r&&r.message?r.message:'Erro ao concluir grupo.');
+    const msg = String((r&&r.message)||'');
+    if(msg.includes('CONTAGEM_NAO_BATE')){
+      document.getElementById('contagem-nao-bate').style.display='block';
+      return;
+    }
+    alert(msg||'Erro ao concluir grupo.');
   }catch(e){
-    alert('Erro ao concluir: '+e);
+    const msg = String(e&&e.message?e.message:e||'');
+    if(msg.includes('CONTAGEM_NAO_BATE')){
+      document.getElementById('contagem-nao-bate').style.display='block';
+      return;
+    }
+    alert('Erro ao concluir: '+msg);
   }finally{
     btn.disabled=false;
     btn.innerHTML=old;
