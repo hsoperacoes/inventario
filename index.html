@@ -535,72 +535,108 @@ let queue=[],totalLocal=0,totalServidor=0,enviando=false,_tentativas=0;
 let loteEmAndamento=null,requestIdEmAndamento='';
 const MAX_TENTATIVAS=5;
 
-const HS_ADMIN_BC=('BroadcastChannel' in window)?new BroadcastChannel('hs_inventario_admin_live'):null;
-function notifyAdminRealtime(payload={}){
-  const msg=Object.assign({
-    type:'HS_BIPE_EVENT',
-    ts:Date.now(),
-    invId:currentInvId||'',
-    grupo:currentSection||'',
-    groupId:(window._grupoIdAtual||''),
-    usuario:currentUser||''
-  }, payload||{});
-  try{
-    if(HS_ADMIN_BC) HS_ADMIN_BC.postMessage(msg);
-  }catch(_){ }
-  try{
-    localStorage.setItem('HS_ADMIN_LIVE_PULSE', JSON.stringify(msg));
-  }catch(_){ }
-  try{
-    const ifr=document.getElementById('admin-iframe');
-    if(ifr && ifr.contentWindow) ifr.contentWindow.postMessage(msg,'*');
-  }catch(_){ }
-}
 function enqueue(ean){
   queue.push(ean);totalLocal++;
   updateCounterUI(ean);updateQueueUI();scheduleFlush();
 }
-function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,180);}
+function scheduleFlush(){if(timerEnvio)clearTimeout(timerEnvio);timerEnvio=setTimeout(flushQueue,150);}
+
+function avisarPainelAdminAtualizacao(tipo='HS_FORCE_REFRESH'){
+  try{
+    const payload={type:tipo,ts:Date.now(),idInventario:currentInvId||'',idGrupo:(window._grupoIdAtual||''),usuario:currentUser||''};
+    const ifr=document.getElementById('admin-iframe');
+    if(ifr && ifr.contentWindow){
+      try{ifr.contentWindow.postMessage(payload,'*');}catch(_){}
+    }
+    try{
+      localStorage.setItem('HS_ADMIN_PULSE', JSON.stringify(payload));
+      setTimeout(()=>{ try{ localStorage.removeItem('HS_ADMIN_PULSE'); }catch(_){} }, 300);
+    }catch(_){}
+  }catch(_){}
+}
+
 async function flushQueue(){
   if(enviando||queue.length===0)return;
-  enviando=true;setRT('warn');
-  if(!loteEmAndamento||!Array.isArray(loteEmAndamento)||loteEmAndamento.length===0){
-    loteEmAndamento=queue.slice();
-    requestIdEmAndamento='REQ_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+  if(!window._grupoIdAtual){
+    setRT('err');
+    return;
   }
-  const batch=loteEmAndamento;
+
+  enviando=true;
+  setRT('warn');
+
+  let enviadosAgora=0;
+
   try{
-    const res=await callGAS({api:'registrarBipeLote',requestId:requestIdEmAndamento,eans:JSON.stringify(batch),usuario:currentUser,secao:currentSection,nomeInventario:currentInvName,idInventario:currentInvId});
-    if(res&&res.success){
-      queue=queue.slice(batch.length);
-      totalServidor=res.count||0;
-      totalLocal=totalServidor+queue.length;
-      loteEmAndamento=null;requestIdEmAndamento='';
-      _tentativas=0;setRT('ok');
-      notifyAdminRealtime({batchSize:batch.length,count:totalServidor,ultimoEan:batch[batch.length-1]||''});
-      if(queue.length>0)scheduleFlush();
-    }else{
-      setRT('err');
-      if(res&&res.code==='INVENTARIO_ENCERRADO'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}stopScanner();showScreen('main-menu');atualizarMenu();}
-      else if(res&&res.code==='SECAO_FECHADA'){queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalLocal=totalServidor;grupoEncerrado(res.message);}
-      else if(_tentativas<MAX_TENTATIVAS){
-        _tentativas++;
-        const delay=900*_tentativas;
-        enviando=false;updateCounterUI();updateQueueUI();
-        timerEnvio=setTimeout(flushQueue,delay);
-        return;
+    while(queue.length){
+      const ean=queue[0];
+      try{
+        await apiFetch('/bipes',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(currentUser||''),
+            id_inventario:String(currentInvId||''),
+            id_grupo:String(window._grupoIdAtual||''),
+            ean:String(ean||'')
+          })
+        },0);
+
+        queue.shift();
+        totalServidor++;
+        enviadosAgora++;
+        totalLocal=totalServidor+queue.length;
+        _tentativas=0;
+        updateCounterUI();
+        updateQueueUI();
+      }catch(err){
+        const msg=String(err&&err.message||err||'');
+        if(/Grupo concluído/i.test(msg)){
+          queue=[];loteEmAndamento=null;requestIdEmAndamento='';
+          totalLocal=totalServidor;
+          grupoEncerrado(msg||'Grupo concluído.');
+        }else if(/Usuário não está ativo nesse grupo/i.test(msg)){
+          queue=[];loteEmAndamento=null;requestIdEmAndamento='';
+          totalLocal=totalServidor;
+          try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+          stopScanner();
+          showScreen('main-menu');
+          atualizarMenu();
+          alert('Sua sessão neste grupo não está mais ativa. Entre novamente.');
+        }else{
+          throw err;
+        }
+        break;
       }
+    }
+
+    loteEmAndamento=null;
+    requestIdEmAndamento='';
+
+    if(enviadosAgora>0){
+      avisarPainelAdminAtualizacao('HS_BIPE_EVENT');
+      setRT(queue.length?'warn':'ok');
+    }else if(queue.length===0){
+      setRT('ok');
     }
   }catch(e){
     setRT('err');
     if(_tentativas<MAX_TENTATIVAS){
       _tentativas++;
-      enviando=false;updateCounterUI();updateQueueUI();
-      timerEnvio=setTimeout(flushQueue,900*_tentativas);
+      enviando=false;
+      updateCounterUI();
+      updateQueueUI();
+      timerEnvio=setTimeout(flushQueue, 800*_tentativas);
       return;
     }
   }
-  enviando=false;updateCounterUI();updateQueueUI();
+
+  enviando=false;
+  updateCounterUI();
+  updateQueueUI();
+
+  if(queue.length>0){
+    timerEnvio=setTimeout(flushQueue,300);
+  }
 }
 
 function setRT(s){
@@ -987,7 +1023,6 @@ async function callGAS(params,retries=1){
             id_grupo:grupoId
           })
         },retries);
-        notifyAdminRealtime({type:'HS_GROUP_FINISHED',count:r.count||0,groupId:grupoId});
         return {success:true,count:r.count||0};
       }
       case 'definirMeta':
