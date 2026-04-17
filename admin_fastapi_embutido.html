@@ -416,28 +416,11 @@ let _criandoGrupos=false;
 let _loadingAlertas=false;
 let _lastAlertasAt=0;
 let _pollTimer=null;
-let _panelScroll={};
 const ADMIN_POLL_MS=1000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
 
 function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
-
-function saveItemsScrollState(){
-  document.querySelectorAll('.items-panel').forEach(el=>{
-    if(el && el.id) _panelScroll[el.id]=el.scrollTop||0;
-  });
-}
-
-function restoreItemsScrollState(){
-  requestAnimationFrame(()=>{
-    document.querySelectorAll('.items-panel').forEach(el=>{
-      if(el && el.id && Object.prototype.hasOwnProperty.call(_panelScroll, el.id)){
-        el.scrollTop=_panelScroll[el.id]||0;
-      }
-    });
-  });
-}
 
 
 async function apiFetch(path, options={}, retries=1){
@@ -487,7 +470,6 @@ function transformPainelData(p){
   const usuarios=(p.usuarios_ativos||[]).map(u=>{
     const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
     const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
-      itemId:b.id,
       ean:b.ean||'',
       labelCompact:b.label_compact||b.labelCompact||'',
       ref:b.ref||'',
@@ -703,7 +685,6 @@ function renderAguardando(){
 }
 
 function renderUsuarios(){
-  saveItemsScrollState();
   // Salva o que foi digitado nos campos de senha/meta ANTES de destruir o DOM
   document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
     const key=inp.id.replace('forca-senha-','');
@@ -722,7 +703,7 @@ function renderUsuarios(){
       return arr.findIndex(x=>x.nome===u.nome&&x.grupo===u.grupo&&x.idInventario===u.idInventario)===i;
     });
   const el=document.getElementById('list-usuarios');
-  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';restoreItemsScrollState();return;}
+  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';return;}
   const su=s=>String(s||'').replace(/'/g,"\\'");
   el.innerHTML=list.map(u=>{
     const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
@@ -793,7 +774,6 @@ function renderUsuarios(){
     const inp=document.getElementById('nova-meta-'+key);
     if(inp) inp.value=_metaValor[key]||'';
   });
-  restoreItemsScrollState();
 }
 
 function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
@@ -807,12 +787,14 @@ function renderItems(u){
     const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
     const cache=_cacheEAN[String(item.ean||'')]||null;
     const texto=item.labelCompact||(cache&&cache.labelCompact)||(cache&&cache.label)||'';
+    const tamanho=item.tamanho||(cache&&cache.tamanho)||'';
     const infoHtml=texto
       ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
            <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
+           ${tamanho?`<span style="font-size:10px;color:#c7cedb;font-weight:700;">TAM: ${tamanho}</span>`:''}
          </div>`
       : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
-    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}','${su(item.itemId||'')}')">✕</button></div>`;
+    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
   }).join('');
 }
 
@@ -921,7 +903,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 function nomeGrupoAgrupado(base,letra){
-  return `1${letra} - ${String(base||'').trim().toUpperCase()}`;
+  const texto=String(base||'').trim().toUpperCase().replace(/\s+/g,' ');
+  if(!texto) return `${letra}`;
+  const m=texto.match(/^(\d+)\s*[-–—]?\s*(.+)$/);
+  if(m){
+    const numero=m[1];
+    const resto=String(m[2]||'').trim();
+    return resto ? `${numero}${letra} ${resto}` : `${numero}${letra}`;
+  }
+  return `${letra} ${texto}`.trim();
 }
 
 function renderAgrupadorGrupos(){
@@ -932,13 +922,15 @@ function renderAgrupadorGrupos(){
   const base=document.getElementById('novo-grupo-nome').value.trim().toUpperCase();
   if(!base){
     box.style.display='block';
-    box.innerHTML='<div style="font-size:11px;color:var(--dim);">Digite primeiro o nome base do grupo para gerar 1A até 1E.</div>';
+    box.innerHTML='<div style="font-size:11px;color:var(--dim);">Digite primeiro o nome base do grupo para gerar os grupos agrupados.</div>';
     return;
   }
 
   box.style.display='block';
+  const primeiro=nomeGrupoAgrupado(base,_agrupadorLetras[0]);
+  const ultimo=nomeGrupoAgrupado(base,_agrupadorLetras[_agrupadorLetras.length-1]);
   box.innerHTML=`
-    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Grupos agrupados (1A até 1E)</div>
+    <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Grupos agrupados (${primeiro} até ${ultimo})</div>
     <div style="display:grid;gap:6px;">
       ${_agrupadorLetras.map(letra=>`
         <div style="display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:6px;align-items:center;">
@@ -1017,7 +1009,9 @@ async function criarGruposAgrupados(){
         return;
       }
     }
-    toast(`Grupos 1A até 1E de "${base}" criados com sucesso.`);
+    const primeiroCriado=grupos[0]?.nome||'';
+    const ultimoCriado=grupos[grupos.length-1]?.nome||'';
+    toast(`Grupos ${primeiroCriado} até ${ultimoCriado} criados com sucesso.`);
     document.getElementById('novo-grupo-nome').value='';
     document.getElementById('novo-grupo-meta').value='';
     document.getElementById('novo-grupo-colab').checked=false;
@@ -1166,25 +1160,7 @@ async function removerDoGrupo(nomePainel,nomeReal,idInventario){
   }
 }
 
-async function excluirItem(nomeReal,idInventario,itemId){
-  try{
-    if(!itemId) return toast('Item inválido para exclusão.');
-    const ok=await hsConfirm('Excluir referência bipada', 'Deseja excluir esta leitura já bipada?');
-    if(!ok) return;
-    const r=await apiFetch('/bipes/excluir',{
-      method:'POST',
-      body:JSON.stringify({
-        usuario:String(nomeReal||''),
-        id_inventario:String(idInventario||''),
-        id_bipe:String(itemId||'')
-      })
-    },1);
-    toast(`Leitura excluída. Total no grupo: ${r.total_grupo||0}`);
-    await refreshPainelData();
-  }catch(e){
-    toast('Erro ao excluir item: '+((e&&e.message)||e),4000);
-  }
-}
+function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
 async function zerarUsuario(nomeReal,idInventario){
   try{
@@ -1271,6 +1247,26 @@ async function finalizarUsuarioForca(nomePainel,nomeReal,idInventario){
 
 let _confrontoData=null,_confrontoFiltro=null;
 
+function _fmtPct(v){
+  const n=Number(v||0);
+  return Number.isFinite(n)?`${Math.round(n)}%`:'0%';
+}
+
+function _escapeHtml(v){
+  return String(v??'').replace(/[&<>"']/g,ch=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]||ch));
+}
+
+function _resumoConfrontoHtml(r){
+  return `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalEstoque||0}</div><div class="stat-lbl">Total estoque</div></div>
+    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalConsolidado||0}</div><div class="stat-lbl">Total consolidado</div></div>
+    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${_fmtPct(r.percentualConsolidado||0)}</div><div class="stat-lbl">Consolidado</div></div>
+    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalBipados||0}</div><div class="stat-lbl">EANs bipados</div></div>
+  </div>`;
+}
+
 function abrirConfronto(){
   const sel=document.getElementById('confronto-inv');
   const invs=(_data.inventarios||[]);
@@ -1304,27 +1300,40 @@ function limparFiltroConfronto(){
 }
 
 function _itemHtml(i,tipo){
+  const label=_escapeHtml(i.label||i.refCor||i.ref||i.ean||'—');
   if(tipo==='acima'){
-    const ex=i.qtdBipada-i.qtdEstoque;
+    const ex=Number(i.qtdBipada||0)-Number(i.qtdEstoque||0);
     return `<div class="conf-item" style="background:rgba(255,82,82,.1);">
-      <div><div class="conf-label" style="color:var(--err)">${i.label}</div>
+      <div><div class="conf-label" style="color:var(--err)">${label}</div>
       <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque}</div></div>
       <span class="conf-badge" style="background:rgba(255,82,82,.2);color:var(--err)">+${ex} a mais</span></div>`;
   }
-  if(tipo==='proximo'){
-    const faltam=i.qtdEstoque-i.qtdBipada;
-    return `<div class="conf-item" style="background:rgba(255,171,64,.08);">
+  if(tipo==='proximo' || tipo==='abaixo50'){
+    const faltam=Number(i.qtdEstoque||0)-Number(i.qtdBipada||0);
+    const pct=Math.max(0,Math.min(100,Number(i.pct||0)));
+    const cor=tipo==='proximo'?'var(--warn)':'#64b5f6';
+    const fundo=tipo==='proximo'?'rgba(255,171,64,.08)':'rgba(100,181,246,.08)';
+    const badge=tipo==='proximo'?'rgba(255,171,64,.2)':'rgba(100,181,246,.2)';
+    return `<div class="conf-item" style="background:${fundo};">
       <div style="flex:1;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
-          <div class="conf-label">${i.label}</div>
-          <span class="conf-badge" style="background:rgba(255,171,64,.2);color:var(--warn)">${i.pct}%</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:8px;">
+          <div class="conf-label">${label}</div>
+          <span class="conf-badge" style="background:${badge};color:${cor}">${_fmtPct(i.pct)}</span>
         </div>
         <div class="conf-qty">bipado: ${i.qtdBipada} · estoque: ${i.qtdEstoque} · faltam: <strong style="color:#e8eaf0">${faltam}</strong></div>
-        <div class="conf-bar"><div class="conf-bar-fill" style="width:${i.pct}%;background:var(--warn)"></div></div>
+        <div class="conf-bar"><div class="conf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
       </div></div>`;
   }
+  if(tipo==='naoEncontrados'){
+    return `<div class="conf-item" style="background:rgba(124,77,255,.08);">
+      <div style="flex:1;min-width:0;">
+        <div class="conf-label" style="color:#c7b6ff">${_escapeHtml(i.ean||'—')}</div>
+        <div class="conf-qty">bipado: ${i.qtdBipada||0} · não encontrado no estoque</div>
+      </div>
+      <span class="conf-badge" style="background:rgba(124,77,255,.2);color:#c7b6ff;">Sem estoque</span></div>`;
+  }
   return `<div class="conf-item" style="background:rgba(67,217,138,.07);">
-    <div class="conf-label" style="color:var(--ok)">${i.label}</div>
+    <div class="conf-label" style="color:var(--ok)">${label}</div>
     <div class="conf-qty">${i.qtdBipada} pcs ✓</div></div>`;
 }
 
@@ -1334,7 +1343,7 @@ function renderConfronto(){
   const res=document.getElementById('confronto-resultado');
   let html='';
 
-  // Cards de resumo — sempre visíveis, clicável para filtrar
+  html+=_resumoConfrontoHtml(r);
   html+=`<div class="conf-stats">
     <div class="conf-stat${f==='acima'?' ativo':''}" style="background:rgba(255,82,82,.1);" onclick="clicarCategoria('acima')">
       <div class="conf-stat-val" style="color:var(--err)">${r.acima.length}</div>
@@ -1344,33 +1353,66 @@ function renderConfronto(){
       <div class="conf-stat-val" style="color:var(--warn)">${r.proximo.length}</div>
       <div class="conf-stat-lbl">≥50% bipado</div>
     </div>
+    <div class="conf-stat${f==='abaixo50'?' ativo':''}" style="background:rgba(100,181,246,.1);" onclick="clicarCategoria('abaixo50')">
+      <div class="conf-stat-val" style="color:#64b5f6">${r.abaixo50.length}</div>
+      <div class="conf-stat-lbl">Abaixo de 50%</div>
+    </div>
     <div class="conf-stat${f==='exato'?' ativo':''}" style="background:rgba(67,217,138,.08);" onclick="clicarCategoria('exato')">
       <div class="conf-stat-val" style="color:var(--ok)">${r.exato.length}</div>
       <div class="conf-stat-lbl">Exato</div>
     </div>
+    <div class="conf-stat${f==='naoEncontrados'?' ativo':''}" style="background:rgba(124,77,255,.1);" onclick="clicarCategoria('naoEncontrados')">
+      <div class="conf-stat-val" style="color:#c7b6ff">${r.naoEncontrados.length}</div>
+      <div class="conf-stat-lbl">Não encontrados</div>
+    </div>
   </div>`;
 
-  // Lista filtrada ou completa
   if(f==='acima'){
-    if(r.acima.length)html+=r.acima.map(i=>_itemHtml(i,'acima')).join('');
-    else html+='<div class="conf-empty">Nenhum item acima do estoque.</div>';
+    html += r.acima.length ? r.acima.map(i=>_itemHtml(i,'acima')).join('') : '<div class="conf-empty">Nenhum item acima do estoque.</div>';
   } else if(f==='proximo'){
-    if(r.proximo.length)html+=r.proximo.map(i=>_itemHtml(i,'proximo')).join('');
-    else html+='<div class="conf-empty">Nenhum item próximo de fechar.</div>';
+    html += r.proximo.length ? r.proximo.map(i=>_itemHtml(i,'proximo')).join('') : '<div class="conf-empty">Nenhum item próximo de fechar.</div>';
+  } else if(f==='abaixo50'){
+    html += r.abaixo50.length ? r.abaixo50.map(i=>_itemHtml(i,'abaixo50')).join('') : '<div class="conf-empty">Nenhum item abaixo de 50%.</div>';
   } else if(f==='exato'){
-    if(r.exato.length)html+=r.exato.map(i=>_itemHtml(i,'exato')).join('');
-    else html+='<div class="conf-empty">Nenhum item exato ainda.</div>';
+    html += r.exato.length ? r.exato.map(i=>_itemHtml(i,'exato')).join('') : '<div class="conf-empty">Nenhum item exato ainda.</div>';
+  } else if(f==='naoEncontrados'){
+    html += r.naoEncontrados.length ? r.naoEncontrados.map(i=>_itemHtml(i,'naoEncontrados')).join('') : '<div class="conf-empty">Nenhuma referência fora do estoque neste confronto.</div>';
   } else {
-    // Tudo
-    if(r.acima.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;}
-    if(r.proximo.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;}
-    if(r.exato.length){html+=`<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;}
-    if(!r.acima.length&&!r.proximo.length&&!r.exato.length)html+='<div class="conf-empty">Nenhum item atingiu 50% ainda. Continue bipando!</div>';
+    if(r.acima.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;
+    if(r.proximo.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;
+    if(r.abaixo50.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:#64b5f6">🔵 Abaixo de 50%</div>${r.abaixo50.map(i=>_itemHtml(i,'abaixo50')).join('')}</div>`;
+    if(r.exato.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;
+    if(r.naoEncontrados.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:#c7b6ff">🟣 Não encontrados no estoque</div>${r.naoEncontrados.map(i=>_itemHtml(i,'naoEncontrados')).join('')}</div>`;
+    if(!r.acima.length&&!r.proximo.length&&!r.abaixo50.length&&!r.exato.length&&!r.naoEncontrados.length) html += '<div class="conf-empty">Nenhum item encontrado para o inventário selecionado.</div>';
   }
   res.innerHTML=html;
 }
 
-function rodarConfronto(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function rodarConfronto(){
+  const sel=document.getElementById('confronto-inv');
+  const btn=document.getElementById('btn-gerar-rel');
+  const res=document.getElementById('confronto-resultado');
+  const idInventario=String((sel&&sel.value)||'').trim();
+  if(!idInventario){
+    toast('Selecione um inventário para confrontar.',3500);
+    return;
+  }
+  if(btn) btn.disabled=true;
+  if(res) res.innerHTML='<div class="conf-empty">Calculando confronto...</div>';
+  try{
+    const r=await apiFetch('/estoque/confronto?id_inventario='+encodeURIComponent(idInventario),{method:'GET'},1);
+    if(!r||!r.success) throw new Error((r&&r.message)||'Falha ao confrontar estoque.');
+    _confrontoData=r;
+    _confrontoFiltro=null;
+    document.getElementById('conf-filtro-clear-wrap').style.display='none';
+    renderConfronto();
+    if(btn) btn.disabled=false;
+    toast('Confronto calculado com sucesso.');
+  }catch(e){
+    if(res) res.innerHTML='<div class="conf-empty">Erro ao calcular confronto.</div>';
+    toast('Erro no confronto: '+((e&&e.message)||e),4500);
+  }
+}
 
 // ── ETIQUETAS ──────────────────────────────────────────────────────────────
 let _etiquetas=[];
@@ -1547,7 +1589,34 @@ async function promptAlterarMetaGrupo(idInventario,idGrupo,nomeGrupo,metaAtual){
   }
 }
 
-function gerarRelatorio(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function gerarRelatorio(){
+  const sel=document.getElementById('confronto-inv');
+  const idInventario=String((sel&&sel.value)||'').trim();
+  if(!idInventario){
+    toast('Selecione um inventário para gerar o relatório.',3500);
+    return;
+  }
+  try{
+    const url=(API_BASE||'').replace(/\/$/,'') + '/estoque/confronto/relatorio?id_inventario=' + encodeURIComponent(idInventario);
+    const resp=await fetch(url,{method:'GET'});
+    if(!resp.ok) throw new Error('Falha ao gerar relatório.');
+    const blob=await resp.blob();
+    const dl=window.URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const disp=resp.headers.get('content-disposition')||'';
+    const m=disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+    const nome=decodeURIComponent((m&& (m[1]||m[2])) || `relatorio_confronto_${idInventario}.xlsx`);
+    a.href=dl;
+    a.download=nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(dl);
+    toast('Relatório gerado com sucesso.');
+  }catch(e){
+    toast('Erro ao gerar relatório: '+((e&&e.message)||e),4500);
+  }
+}
 
 function abrirEtiquetas(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
