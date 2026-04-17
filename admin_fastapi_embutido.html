@@ -414,7 +414,7 @@ let _criandoGrupos=false;
 let _loadingAlertas=false;
 let _lastAlertasAt=0;
 let _pollTimer=null;
-const ADMIN_POLL_MS=3000;
+const ADMIN_POLL_MS=1000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
 
@@ -1036,7 +1036,19 @@ function hsPrompt(title,body='',placeholder='',type='text'){
 }
 
 
-function promptTornarColab(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function promptTornarColab(idInventario,idGrupo,nomeGrupo){
+  try{
+    const vagasTxt=await hsPrompt('Tornar grupo colaborativo', `Grupo: ${nomeGrupo}\nInforme a quantidade de vagas:`, '2');
+    if(vagasTxt===null) return;
+    const vagas=parseInt(vagasTxt,10);
+    if(!vagas || vagas<2) return toast('Informe pelo menos 2 vagas.');
+    await apiFetch('/grupos/tornar-colaborativo',{method:'POST',body:JSON.stringify({id_inventario:String(idInventario||''),id_grupo:String(idGrupo||''),vagas})},1);
+    toast('Grupo colaborativo atualizado com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao tornar colaborativo: '+((e&&e.message)||e),4000);
+  }
+}
 
 async function resetarGrupo(idInventario,idGrupo,nomeGrupo){
   try{
@@ -1081,7 +1093,17 @@ async function definirMeta(nome,idInventario,grupo,uid){
   }
 }
 
-function removerDoGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function removerDoGrupo(nomePainel,nomeReal,idInventario){
+  try{
+    const ok=await hsConfirm('Remover do grupo', `Deseja remover ${nomeReal} do grupo ativo?\nOs bipes já feitos serão mantidos.`);
+    if(!ok) return;
+    const r=await apiFetch('/grupos/remover-do-grupo',{method:'POST',body:JSON.stringify({usuario:String(nomeReal||''),id_inventario:String(idInventario||'')})},1);
+    toast(`Usuário removido. Bipes mantidos: ${r.bipes_mantidos||0}`);
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao remover do grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
 function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
@@ -1130,10 +1152,10 @@ async function finalizarUsuario(nomePainel,nomeReal,idInventario){
     await refreshPainelData();
   }catch(e){
     const msg=((e&&e.message)||String(e||''));
-    if(msg.toLowerCase().includes('divergência de meta') || msg.toLowerCase().includes('divergencia de meta')){
+    if(msg==='CONTAGEM_NAO_BATE' || msg.toLowerCase().includes('contagem_nao_bate') || msg.toLowerCase().includes('divergência de meta') || msg.toLowerCase().includes('divergencia de meta')){
       _forcaAberta[nomePainel]=true;
       renderUsuarios();
-      toast(msg,4500);
+      toast('Contagem divergente. Ajuste a meta, force a conclusão ou resete para recontagem.',4500);
       return;
     }
     toast('Erro ao concluir grupo: '+msg,4000);
@@ -1393,7 +1415,20 @@ async function enriquecerEANs(items){
   }
 }
 
-function promptRenomearGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function promptRenomearGrupo(idInventario,idGrupo,nomeAtual){
+  try{
+    const novo=await hsPrompt('Renomear grupo', `Nome atual: ${nomeAtual}`, nomeAtual||'');
+    if(novo===null) return;
+    const nome=String(novo||'').trim().toUpperCase();
+    if(!nome) return toast('Informe um nome válido.');
+    if(nome===String(nomeAtual||'').trim().toUpperCase()) return;
+    await apiFetch('/grupos/renomear',{method:'POST',body:JSON.stringify({id_inventario:String(idInventario||''),id_grupo:String(idGrupo||''),novo_nome:nome})},1);
+    toast('Grupo renomeado com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao renomear grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
 function resolverPendenciaEstoqueUI(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
@@ -1522,7 +1557,7 @@ function triggerAdminRefreshSoon(){
   clearTimeout(window.__hsAdminRefreshTimer);
   window.__hsAdminRefreshTimer=setTimeout(()=>{
     loadData(true).catch(()=>{});
-  },120);
+  },30);
 }
 
 window.addEventListener('message', (ev)=>{
