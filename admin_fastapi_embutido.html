@@ -1263,7 +1263,6 @@ function _resumoConfrontoHtml(r){
     <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalEstoque||0}</div><div class="stat-lbl">Total estoque</div></div>
     <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalConsolidado||0}</div><div class="stat-lbl">Total consolidado</div></div>
     <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${_fmtPct(r.percentualConsolidado||0)}</div><div class="stat-lbl">Consolidado</div></div>
-    <div class="stat" style="min-width:140px;flex:1;"><div class="stat-val" style="font-size:20px;">${r.totalBipados||0}</div><div class="stat-lbl">EANs bipados</div></div>
   </div>`;
 }
 
@@ -1353,17 +1352,9 @@ function renderConfronto(){
       <div class="conf-stat-val" style="color:var(--warn)">${r.proximo.length}</div>
       <div class="conf-stat-lbl">≥50% bipado</div>
     </div>
-    <div class="conf-stat${f==='abaixo50'?' ativo':''}" style="background:rgba(100,181,246,.1);" onclick="clicarCategoria('abaixo50')">
-      <div class="conf-stat-val" style="color:#64b5f6">${r.abaixo50.length}</div>
-      <div class="conf-stat-lbl">Abaixo de 50%</div>
-    </div>
     <div class="conf-stat${f==='exato'?' ativo':''}" style="background:rgba(67,217,138,.08);" onclick="clicarCategoria('exato')">
       <div class="conf-stat-val" style="color:var(--ok)">${r.exato.length}</div>
       <div class="conf-stat-lbl">Exato</div>
-    </div>
-    <div class="conf-stat${f==='naoEncontrados'?' ativo':''}" style="background:rgba(124,77,255,.1);" onclick="clicarCategoria('naoEncontrados')">
-      <div class="conf-stat-val" style="color:#c7b6ff">${r.naoEncontrados.length}</div>
-      <div class="conf-stat-lbl">Não encontrados</div>
     </div>
   </div>`;
 
@@ -1371,19 +1362,15 @@ function renderConfronto(){
     html += r.acima.length ? r.acima.map(i=>_itemHtml(i,'acima')).join('') : '<div class="conf-empty">Nenhum item acima do estoque.</div>';
   } else if(f==='proximo'){
     html += r.proximo.length ? r.proximo.map(i=>_itemHtml(i,'proximo')).join('') : '<div class="conf-empty">Nenhum item próximo de fechar.</div>';
-  } else if(f==='abaixo50'){
-    html += r.abaixo50.length ? r.abaixo50.map(i=>_itemHtml(i,'abaixo50')).join('') : '<div class="conf-empty">Nenhum item abaixo de 50%.</div>';
   } else if(f==='exato'){
     html += r.exato.length ? r.exato.map(i=>_itemHtml(i,'exato')).join('') : '<div class="conf-empty">Nenhum item exato ainda.</div>';
-  } else if(f==='naoEncontrados'){
-    html += r.naoEncontrados.length ? r.naoEncontrados.map(i=>_itemHtml(i,'naoEncontrados')).join('') : '<div class="conf-empty">Nenhuma referência fora do estoque neste confronto.</div>';
   } else {
-    if(r.acima.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;
-    if(r.proximo.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;
-    if(r.abaixo50.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:#64b5f6">🔵 Abaixo de 50%</div>${r.abaixo50.map(i=>_itemHtml(i,'abaixo50')).join('')}</div>`;
-    if(r.exato.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;
-    if(r.naoEncontrados.length) html += `<div class="conf-section"><div class="conf-section-title" style="color:#c7b6ff">🟣 Não encontrados no estoque</div>${r.naoEncontrados.map(i=>_itemHtml(i,'naoEncontrados')).join('')}</div>`;
-    if(!r.acima.length&&!r.proximo.length&&!r.abaixo50.length&&!r.exato.length&&!r.naoEncontrados.length) html += '<div class="conf-empty">Nenhum item encontrado para o inventário selecionado.</div>';
+    if(r.acima.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--err)">🔴 Acima do estoque</div>${r.acima.map(i=>_itemHtml(i,'acima')).join('')}</div>`;}
+    if(r.proximo.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--warn)">🟡 Próximo de fechar</div>${r.proximo.map(i=>_itemHtml(i,'proximo')).join('')}</div>`;}
+    if(r.exato.length){html += `<div class="conf-section"><div class="conf-section-title" style="color:var(--ok)">✅ Fechados exatos</div>${r.exato.map(i=>_itemHtml(i,'exato')).join('')}</div>`;}
+    if(!r.acima.length && !r.proximo.length && !r.exato.length){
+      html += '<div class="conf-empty">Nenhum item atingiu 50% ainda. Continue bipando!</div>';
+    }
   }
   res.innerHTML=html;
 }
