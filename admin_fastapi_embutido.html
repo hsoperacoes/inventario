@@ -446,6 +446,19 @@ async function apiFetch(path, options={}, retries=1){
 function logPainel(){}
 function makeId(prefix='id'){ return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
+function normKey(v){return String(v||'').trim().replace(/\s+/g,' ').toUpperCase();}
+function getGrupoInfoByNome(idInventario,nomeGrupo){
+  const alvoInv=String(idInventario||'');
+  const alvoNome=normKey(String(nomeGrupo||'').replace(/_/g,' '));
+  return (_data.grupos||[]).find(g=>{
+    return String(g.idInventario||g.id_inventario||'')===alvoInv &&
+           normKey(String(g.nome||'').replace(/_/g,' '))===alvoNome;
+  }) || null;
+}
+async function refreshPainelData(){
+  await loadData(true);
+}
+
 function transformPainelData(p){
   const inventarios=(p.inventarios||[]).map(i=>({id:i.id,nome:i.nome,status:i.status}));
   const grupos=(p.grupos||[]).map(g=>({
@@ -1022,23 +1035,138 @@ function hsPrompt(title,body='',placeholder='',type='text'){
   });
 }
 
+
 function promptTornarColab(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
-function resetarGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function resetarGrupo(idInventario,idGrupo,nomeGrupo){
+  try{
+    const ok=await hsConfirm('Resetar grupo', `Deseja resetar o grupo ${nomeGrupo}?\nTodos os bipes desse grupo serão apagados e ele voltará para disponível.`);
+    if(!ok) return;
+    await apiFetch('/grupos/resetar',{
+      method:'POST',
+      body:JSON.stringify({
+        usuario:'ADMIN',
+        id_inventario:String(idInventario||''),
+        id_grupo:String(idGrupo||'')
+      })
+    },1);
+    toast('Grupo resetado com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao resetar grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
 function excluirGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
-function definirMeta(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function definirMeta(nome,idInventario,grupo,uid){
+  try{
+    const input=document.getElementById('mi-'+uid);
+    const novaMeta=parseInt((input&&input.value)||'0',10);
+    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
+    const gInfo=getGrupoInfoByNome(idInventario,grupo);
+    if(!gInfo) return toast('Grupo não encontrado para definir meta.');
+    await apiFetch('/grupos/editar-meta',{
+      method:'POST',
+      body:JSON.stringify({
+        id_inventario:String(idInventario||''),
+        id_grupo:String(gInfo.id||''),
+        nova_meta:novaMeta
+      })
+    },1);
+    toast('Meta definida com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao definir meta: '+((e&&e.message)||e),4000);
+  }
+}
 
 function removerDoGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
 function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
-function zerarUsuario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function zerarUsuario(nomeReal,idInventario){
+  try{
+    const u=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(nomeReal||'') && String(x.idInventario||'')===String(idInventario||''));
+    const grupoNome=u&&u.grupo?u.grupo:'';
+    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
+    if(!gInfo) return toast('Grupo não encontrado para reset.');
+    const ok=await hsConfirm('Resetar grupo / recontagem', `Grupo: ${grupoNome}\nTodos os bipes desse grupo serão apagados e o grupo voltará para disponível.`);
+    if(!ok) return;
+    const r=await apiFetch('/grupos/resetar',{
+      method:'POST',
+      body:JSON.stringify({
+        usuario:String(nomeReal||''),
+        id_inventario:String(idInventario||''),
+        id_grupo:String(gInfo.id||'')
+      })
+    },1);
+    toast(`Grupo resetado. Bipes apagados: ${r.bipes_apagados||0}`);
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao resetar grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
-function finalizarUsuario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function finalizarUsuario(nomePainel,nomeReal,idInventario){
+  try{
+    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
+    const grupoNome=u&&u.grupo?u.grupo:'';
+    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
+    if(!gInfo) return toast('Grupo não encontrado para conclusão.');
+    const ok=await hsConfirm('Concluir grupo', `Deseja concluir o grupo ${grupoNome}?`);
+    if(!ok) return;
+    await apiFetch('/grupos/concluir',{
+      method:'POST',
+      body:JSON.stringify({
+        usuario:String(nomeReal||''),
+        id_inventario:String(idInventario||''),
+        id_grupo:String(gInfo.id||'')
+      })
+    },1);
+    toast('Grupo concluído com sucesso.');
+    _forcaAberta[nomePainel]=false;
+    delete _forcaSenha[encodeKey(nomePainel)];
+    await refreshPainelData();
+  }catch(e){
+    const msg=((e&&e.message)||String(e||''));
+    if(msg.toLowerCase().includes('divergência de meta') || msg.toLowerCase().includes('divergencia de meta')){
+      _forcaAberta[nomePainel]=true;
+      renderUsuarios();
+      toast(msg,4500);
+      return;
+    }
+    toast('Erro ao concluir grupo: '+msg,4000);
+  }
+}
 
-function finalizarUsuarioForca(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function finalizarUsuarioForca(nomePainel,nomeReal,idInventario){
+  try{
+    const key=encodeKey(nomePainel);
+    const senha=(document.getElementById('forca-senha-'+key)?.value||'').trim();
+    if(senha!=='hs1001') return toast('Senha incorreta para conclusão forçada.');
+    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
+    const grupoNome=u&&u.grupo?u.grupo:'';
+    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
+    if(!gInfo) return toast('Grupo não encontrado para conclusão forçada.');
+    const ok=await hsConfirm('Concluir grupo com divergência', `Forçar conclusão do grupo ${grupoNome} mesmo com diferença de meta?`);
+    if(!ok) return;
+    await apiFetch('/grupos/concluir-forcado',{
+      method:'POST',
+      body:JSON.stringify({
+        usuario:String(nomeReal||''),
+        id_inventario:String(idInventario||''),
+        id_grupo:String(gInfo.id||'')
+      })
+    },1);
+    _forcaAberta[nomePainel]=false;
+    delete _forcaSenha[key];
+    toast('Grupo concluído com força.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao forçar conclusão: '+((e&&e.message)||e),4000);
+  }
+}
 
 let _confrontoData=null,_confrontoFiltro=null;
 
@@ -1209,7 +1337,32 @@ function toggleAlterarMeta(nome){
   if(!aberto)setTimeout(()=>{const inp=document.getElementById('nova-meta-'+key);if(inp)inp.focus();},50);
 }
 
-function alterarMeta(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function alterarMeta(nomePainel,nomeReal,idInventario){
+  try{
+    const key=encodeKey(nomePainel);
+    const inp=document.getElementById('nova-meta-'+key);
+    const novaMeta=parseInt((inp&&inp.value)||'0',10);
+    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
+    const u=(_data.usuarios||[]).find(x=>String(x.nome||'')===String(nomePainel||'') && String(x.idInventario||'')===String(idInventario||''));
+    const grupoNome=u&&u.grupo?u.grupo:'';
+    const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
+    if(!gInfo) return toast('Grupo não encontrado para alterar meta.');
+    await apiFetch('/grupos/editar-meta',{
+      method:'POST',
+      body:JSON.stringify({
+        id_inventario:String(idInventario||''),
+        id_grupo:String(gInfo.id||''),
+        nova_meta:novaMeta
+      })
+    },1);
+    const box=document.getElementById('alterar-meta-'+key);
+    if(box) box.style.display='none';
+    toast('Meta alterada com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao alterar meta: '+((e&&e.message)||e),4000);
+  }
+}
 
 async function addManual(usuario,idInventario,grupo){
   const ean=await hsPrompt(`EAN manual para "${usuario}"`,`Grupo: ${grupo}`,'Código EAN-13');
@@ -1244,7 +1397,26 @@ function promptRenomearGrupo(){ toast('Essa ação ainda não foi ligada ao back
 
 function resolverPendenciaEstoqueUI(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
-function promptAlterarMetaGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function promptAlterarMetaGrupo(idInventario,idGrupo,nomeGrupo,metaAtual){
+  try{
+    const valor=await hsPrompt(`Nova meta para ${nomeGrupo}`, `Meta atual: ${metaAtual||0}`, String(metaAtual||''));
+    if(valor===null || valor==='') return;
+    const novaMeta=parseInt(valor,10);
+    if(!novaMeta || novaMeta<=0) return toast('Informe uma meta válida.');
+    await apiFetch('/grupos/editar-meta',{
+      method:'POST',
+      body:JSON.stringify({
+        id_inventario:String(idInventario||''),
+        id_grupo:String(idGrupo||''),
+        nova_meta:novaMeta
+      })
+    },1);
+    toast('Meta do grupo alterada.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao alterar meta do grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
 function gerarRelatorio(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
