@@ -408,6 +408,8 @@ let _pendingReload=false;
 let _open={};
 let _forcaAberta={};  // preserva qual card tem o campo de senha aberto
 let _forcaSenha={};   // preserva o que foi digitado antes do refresh
+let _metaAberta={};
+let _metaValor={};
 let _alertasData=[];
 let _agrupadorAtivo=false;
 let _criandoGrupos=false;
@@ -468,10 +470,20 @@ function transformPainelData(p){
   const usuarios=(p.usuarios_ativos||[]).map(u=>{
     const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
     const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
-      ean:b.ean||'',labelCompact:'',secao:(g&&g.nome)||u.grupo_nome||'',dataHora:b.hora||'',rowIndex:idx+1
+      ean:b.ean||'',
+      labelCompact:b.label_compact||b.labelCompact||'',
+      ref:b.ref||'',
+      cor:b.cor||'',
+      tamanho:b.tamanho||'',
+      grade:b.grade||'',
+      refCor:b.ref_cor||b.refCor||'',
+      secao:(g&&g.nome)||u.grupo_nome||'',
+      dataHora:b.hora||'',
+      rowIndex:idx+1,
+      naoEncontrado:!!b.nao_encontrado
     }));
     return {
-      nome:u.usuario,nomeReal:u.usuario,idInventario:u.id_inventario,grupo:(g&&g.nome)||u.grupo_nome||'',
+      nome:u.usuario,nomeReal:u.usuario,idInventario:u.id_inventario,idGrupo:u.id_grupo,grupo:(g&&g.nome)||u.grupo_nome||'',
       bipes:items.length,meta:(g&&g.meta)||0,status:'LIBERADO',items:items,isGrp:!!(g&&g.colaborativo),
       membros:((g&&g.membros)||[]).join(',')
     };
@@ -512,21 +524,26 @@ async function callGAS(p){
         return {success:true,nomeGrupo:String(p.nomeGrupo||'').trim().toUpperCase(),colaborativo:String(p.colaborativo||'false')==='true',vagas:parseInt(p.vagas||1,10)||1};
       }
       case 'masterAddManualCode': {
-        const painel=await apiFetch('/admin/painel',{method:'GET'},1);
-        const ua=(painel.usuarios_ativos||[]).find(x=>String(x.usuario)===String(p.usuario) && String(x.id_inventario)===String(p.idInventario));
-        if(!ua) return {success:false,message:'Usuário não está ativo em grupo no backend novo.'};
+        let idGrupo=String(p.idGrupo||'');
+        if(!idGrupo){
+          const atual=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(p.usuario||'') && String(x.idInventario||'')===String(p.idInventario||''));
+          idGrupo=String((atual&&atual.idGrupo)||'');
+        }
+        if(!idGrupo){
+          const painel=await apiFetch('/admin/painel',{method:'GET'},1);
+          const ua=(painel.usuarios_ativos||[]).find(x=>String(x.usuario)===String(p.usuario) && String(x.id_inventario)===String(p.idInventario));
+          idGrupo=String((ua&&ua.id_grupo)||'');
+        }
+        if(!idGrupo) return {success:false,message:'Usuário não está ativo em grupo no backend novo.'};
         const r=await apiFetch('/bipes',{method:'POST',body:JSON.stringify({
-          usuario:String(p.usuario||''),id_inventario:String(p.idInventario||''),id_grupo:String(ua.id_grupo||''),ean:String(p.ean||'')
+          usuario:String(p.usuario||''),id_inventario:String(p.idInventario||''),id_grupo:idGrupo,ean:String(p.ean||'')
         })},1);
         return {success:true,newCount:r.total_grupo||0};
       }
       case 'buscarInfoEANEstoque': {
         const ean=String(p.ean||'').trim();
         const r=await apiFetch('/estoque/validar?ean='+encodeURIComponent(ean),{method:'GET'},1);
-        if(r&&r.success&&r.encontrado&&r.info){
-          return {success:true,info:r.info};
-        }
-        return {success:false,message:'EAN não encontrado no estoque'};
+        return (r&&r.success&&r.encontrado&&r.info) ? {success:true,info:r.info} : {success:false,message:'EAN não encontrado no estoque'};
       }
       case 'getAlertas':
         return {success:true,alertas:[]};
@@ -586,6 +603,7 @@ async function loadData(force=false){
   if(!force){
     if(_pausarRefresh) return;
     if(Object.keys(_forcaAberta).length>0) return;
+    if(Object.values(_metaAberta).some(Boolean)) return;
     if(_loadingData) return;
   }
   _loadingData=true;
@@ -600,6 +618,10 @@ async function loadData(force=false){
       renderInventarios();
       renderGrupos();
       renderGrupoInvSelect();
+      const itensTodos=_data.usuarios.flatMap(u=>u.items||[]);
+      if(itensTodos.length){
+        enriquecerEANs(itensTodos).then(()=>{ if(!document.hidden) renderUsuarios(); }).catch(()=>{});
+      }
       if((Date.now()-_lastAlertasAt)>=ALERTAS_POLL_MS){
         carregarAlertas(false);
       }
@@ -663,10 +685,14 @@ function renderAguardando(){
 }
 
 function renderUsuarios(){
-  // Salva o que foi digitado nos campos de senha ANTES de destruir o DOM
+  // Salva o que foi digitado nos campos de senha/meta ANTES de destruir o DOM
   document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
     const key=inp.id.replace('forca-senha-','');
     if(inp.value) _forcaSenha[key]=inp.value;
+  });
+  document.querySelectorAll('[id^="nova-meta-"]').forEach(inp=>{
+    const key=inp.id.replace('nova-meta-','');
+    _metaValor[key]=inp.value||'';
   });
 
   const q=(document.getElementById('search-user').value||'').toLowerCase();
@@ -721,7 +747,7 @@ function renderUsuarios(){
         }
         ${btnColab}
       </div>
-      <div id="alterar-meta-${encodeKey(u.nome)}" style="display:none;" class="forca-box">
+      <div id="alterar-meta-${encodeKey(u.nome)}" style="display:${_metaAberta[u.nome]?'block':'none'};" class="forca-box">
         <p>✏️ Nova meta para <strong>${u.nome}</strong> (atual: ${u.meta||'sem meta'}):</p>
         <div class="ag-form">
           <input class="ag-input" type="number" min="1" id="nova-meta-${encodeKey(u.nome)}" placeholder="Nova meta..."/>
@@ -744,6 +770,10 @@ function renderUsuarios(){
     const inp=document.getElementById('forca-senha-'+key);
     if(inp&&_forcaSenha[key]) inp.value=_forcaSenha[key];
   });
+  Object.keys(_metaValor).forEach(key=>{
+    const inp=document.getElementById('nova-meta-'+key);
+    if(inp) inp.value=_metaValor[key]||'';
+  });
 }
 
 function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
@@ -755,13 +785,13 @@ function renderItems(u){
   return u.items.map(item=>{
     const dt=item.dataHora?new Date(item.dataHora):null;
     const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-    const cached=_cacheEAN[String(item.ean||'')]||null;
-    const texto=item.labelCompact||(cached&&cached.label)||'';
-    const tam=(cached&&cached.tamanho)?cached.tamanho:'';
+    const cache=_cacheEAN[String(item.ean||'')]||null;
+    const texto=item.labelCompact||(cache&&cache.labelCompact)||(cache&&cache.label)||'';
+    const tamanho=item.tamanho||(cache&&cache.tamanho)||'';
     const infoHtml=texto
       ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
            <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
-           ${tam?`<span style="font-size:10px;color:#c7cedb;">TAM: ${tam}</span>`:''}
+           ${tamanho?`<span style="font-size:10px;color:#c7cedb;font-weight:700;">TAM: ${tamanho}</span>`:''}
          </div>`
       : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
     return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
@@ -1367,9 +1397,15 @@ function toggleAlterarMeta(nome){
   const key=encodeKey(nome);
   const el=document.getElementById('alterar-meta-'+key);
   if(!el)return;
-  const aberto=el.style.display!=='none';
-  el.style.display=aberto?'none':'block';
-  if(!aberto)setTimeout(()=>{const inp=document.getElementById('nova-meta-'+key);if(inp)inp.focus();},50);
+  const aberto=!!_metaAberta[nome];
+  if(aberto){
+    delete _metaAberta[nome];
+    el.style.display='none';
+  }else{
+    _metaAberta[nome]=true;
+    el.style.display='block';
+    setTimeout(()=>{const inp=document.getElementById('nova-meta-'+key);if(inp){inp.value=_metaValor[key]||inp.value||'';inp.focus();}},50);
+  }
 }
 
 async function alterarMeta(nomePainel,nomeReal,idInventario){
@@ -1391,6 +1427,8 @@ async function alterarMeta(nomePainel,nomeReal,idInventario){
       })
     },1);
     const box=document.getElementById('alterar-meta-'+key);
+    delete _metaAberta[nomePainel];
+    delete _metaValor[key];
     if(box) box.style.display='none';
     toast('Meta alterada com sucesso.');
     await refreshPainelData();
@@ -1402,14 +1440,22 @@ async function alterarMeta(nomePainel,nomeReal,idInventario){
 async function addManual(usuario,idInventario,grupo){
   const ean=await hsPrompt(`EAN manual para "${usuario}"`,`Grupo: ${grupo}`,'Código EAN-13');
   if(!ean)return;
-  try{const r=await callGAS({api:'masterAddManualCode',usuario,idInventario,ean,secao:grupo||'MANUAL'});if(r&&r.success){toast('Incluido! Total: '+(r.newCount||'?'));await loadData();}else toast('Erro: '+((r&&r.message)||'?'));}catch(e){toast('Erro: '+e);}
+  try{
+    const atual=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(usuario||'') && String(x.idInventario||'')===String(idInventario||''));
+    const r=await callGAS({api:'masterAddManualCode',usuario,idInventario,idGrupo:(atual&&atual.idGrupo)||'',ean,secao:grupo||'MANUAL'});
+    if(r&&r.success){
+      toast('Incluído! Total: '+(r.newCount||'?'));
+      triggerAdminRefreshSoon();
+      await loadData(true);
+    }else toast('Erro: '+((r&&r.message)||'?'));
+  }catch(e){toast('Erro: '+e);}
 }
 function fecharInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 function excluirInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
 
 // alertas de EAN suspeito desativados
 
-// Cache de ref+cor+tamanho por EAN (busca no estoque do backend)
+// Cache de ref+cor+tamanho por EAN
 const _cacheEAN={};
 async function enriquecerEANs(items){
   const eans=items.map(i=>String(i.ean||'')).filter(e=>e&&!_cacheEAN[e]);
@@ -1420,15 +1466,8 @@ async function enriquecerEANs(items){
     await Promise.all(chunk.map(async ean=>{
       try{
         const r=await callGAS({api:'buscarInfoEANEstoque',ean});
-        if(r&&r.success&&r.info){
-          _cacheEAN[ean]={
-            label:String(r.info.labelCompact||r.info.label||'').trim(),
-            tamanho:String(r.info.tamanho||'').trim(),
-            grade:String(r.info.grade||'').trim(),
-            ref:String(r.info.ref||'').trim(),
-            cor:String(r.info.cor||'').trim()
-          };
-        }else _cacheEAN[ean]=null;
+        if(r&&r.success&&r.info) _cacheEAN[ean]=r.info;
+        else _cacheEAN[ean]=null;
       }catch(_){_cacheEAN[ean]=null;}
     }));
   }
