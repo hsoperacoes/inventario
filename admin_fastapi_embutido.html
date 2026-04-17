@@ -389,7 +389,7 @@
 <div id="toast"></div>
 
 <script>
-const API_BASE='http://192.168.0.108:8000';
+const API_BASE='http://inventario-backend-production-ae13.up.railway.app';
 async function apiUpload(path, formData){
   const res=await fetch(API_BASE+path,{method:'POST',body:formData});
   const txt=await res.text();
