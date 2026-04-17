@@ -416,11 +416,28 @@ let _criandoGrupos=false;
 let _loadingAlertas=false;
 let _lastAlertasAt=0;
 let _pollTimer=null;
+let _panelScroll={};
 const ADMIN_POLL_MS=1000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
 
 function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
+
+function saveItemsScrollState(){
+  document.querySelectorAll('.items-panel').forEach(el=>{
+    if(el && el.id) _panelScroll[el.id]=el.scrollTop||0;
+  });
+}
+
+function restoreItemsScrollState(){
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.items-panel').forEach(el=>{
+      if(el && el.id && Object.prototype.hasOwnProperty.call(_panelScroll, el.id)){
+        el.scrollTop=_panelScroll[el.id]||0;
+      }
+    });
+  });
+}
 
 
 async function apiFetch(path, options={}, retries=1){
@@ -470,6 +487,7 @@ function transformPainelData(p){
   const usuarios=(p.usuarios_ativos||[]).map(u=>{
     const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
     const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
+      itemId:b.id,
       ean:b.ean||'',
       labelCompact:b.label_compact||b.labelCompact||'',
       ref:b.ref||'',
@@ -685,6 +703,7 @@ function renderAguardando(){
 }
 
 function renderUsuarios(){
+  saveItemsScrollState();
   // Salva o que foi digitado nos campos de senha/meta ANTES de destruir o DOM
   document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
     const key=inp.id.replace('forca-senha-','');
@@ -703,7 +722,7 @@ function renderUsuarios(){
       return arr.findIndex(x=>x.nome===u.nome&&x.grupo===u.grupo&&x.idInventario===u.idInventario)===i;
     });
   const el=document.getElementById('list-usuarios');
-  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';return;}
+  if(!list.length){el.innerHTML='<div class="empty">Nenhum usuário bipando no momento.</div>';restoreItemsScrollState();return;}
   const su=s=>String(s||'').replace(/'/g,"\\'");
   el.innerHTML=list.map(u=>{
     const inv=_data.inventarios.find(i=>String(i.id)===String(u.idInventario));
@@ -774,6 +793,7 @@ function renderUsuarios(){
     const inp=document.getElementById('nova-meta-'+key);
     if(inp) inp.value=_metaValor[key]||'';
   });
+  restoreItemsScrollState();
 }
 
 function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
@@ -787,14 +807,12 @@ function renderItems(u){
     const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
     const cache=_cacheEAN[String(item.ean||'')]||null;
     const texto=item.labelCompact||(cache&&cache.labelCompact)||(cache&&cache.label)||'';
-    const tamanho=item.tamanho||(cache&&cache.tamanho)||'';
     const infoHtml=texto
       ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
            <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
-           ${tamanho?`<span style="font-size:10px;color:#c7cedb;font-weight:700;">TAM: ${tamanho}</span>`:''}
          </div>`
       : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
-    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
+    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}','${su(item.itemId||'')}')">✕</button></div>`;
   }).join('');
 }
 
@@ -1148,7 +1166,25 @@ async function removerDoGrupo(nomePainel,nomeReal,idInventario){
   }
 }
 
-function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function excluirItem(nomeReal,idInventario,itemId){
+  try{
+    if(!itemId) return toast('Item inválido para exclusão.');
+    const ok=await hsConfirm('Excluir referência bipada', 'Deseja excluir esta leitura já bipada?');
+    if(!ok) return;
+    const r=await apiFetch('/bipes/excluir',{
+      method:'POST',
+      body:JSON.stringify({
+        usuario:String(nomeReal||''),
+        id_inventario:String(idInventario||''),
+        id_bipe:String(itemId||'')
+      })
+    },1);
+    toast(`Leitura excluída. Total no grupo: ${r.total_grupo||0}`);
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao excluir item: '+((e&&e.message)||e),4000);
+  }
+}
 
 async function zerarUsuario(nomeReal,idInventario){
   try{
