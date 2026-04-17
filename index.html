@@ -512,7 +512,7 @@
 
 <script>
 const API_BASE=(localStorage.getItem('HS_API_BASE')||'https://inventario-backend-production-ae13.up.railway.app').replace(/\/$/,'');
-const APP_VERSION="2.7.0";
+const APP_VERSION="2.7.1";
 const CHAVE_APP_VERSION="HS_INV_APP_VERSION";
 let currentUser="",currentSection="",currentInvName="",currentInvId="",currentMeta=null;
 let timerDash=null,timerEspera=null,timerEnvio=null,timerRT=null;
@@ -556,6 +556,7 @@ async function flushQueue(){
       totalLocal=totalServidor+queue.length;
       loteEmAndamento=null;requestIdEmAndamento='';
       _tentativas=0;setRT('ok');
+      try{localStorage.setItem('HS_ADMIN_PULSE', String(Date.now()));}catch(_){}
       if(queue.length>0)scheduleFlush();
     }else{
       setRT('err');
@@ -614,7 +615,6 @@ function updateQueueUI(){
 
 // atualização em tempo real
 let _redirecionando=false;
-let _fechandoPorConferencia=false;
 let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
   stopRT();
@@ -633,8 +633,7 @@ function startRT(){
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        if(_fechandoPorConferencia)return;
-        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'Este grupo foi concluído.';
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
         setTimeout(()=>{
           alert(msg+'\nEscolha um novo grupo para continuar.');
           telaGrupos();
@@ -967,23 +966,15 @@ async function callGAS(params,retries=1){
       case 'masterConcluirSecao': {
         const grupoId=String(params.idGrupo||window._grupoIdAtual||'');
         if(!grupoId) return {success:false,message:'Grupo não identificado.'};
-        try{
-          const r=await apiFetch('/grupos/concluir',{
-            method:'POST',
-            body:JSON.stringify({
-              usuario:String(params.usuario||currentUser||''),
-              id_inventario:String(params.idInventario||currentInvId||''),
-              id_grupo:grupoId
-            })
-          },retries);
-          return {success:true,count:r.count||0,finalizadoPor:r.finalizado_por||String(params.usuario||currentUser||'')};
-        }catch(err){
-          const msg=String((err&&err.message)||'');
-          if(msg==='CONTAGEM_NAO_BATE' || msg.toLowerCase().includes('contagem_nao_bate')){
-            return {success:false,code:'CONTAGEM_NAO_BATE'};
-          }
-          return {success:false,message:msg||'Erro ao concluir.'};
-        }
+        const r=await apiFetch('/grupos/concluir',{
+          method:'POST',
+          body:JSON.stringify({
+            usuario:String(params.usuario||currentUser||''),
+            id_inventario:String(params.idInventario||currentInvId||''),
+            id_grupo:grupoId
+          })
+        },retries);
+        return {success:true,count:r.count||0};
       }
       case 'definirMeta':
       case 'finalizarInventario':
@@ -1220,8 +1211,7 @@ async function verificarLiberacao(){
     if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
     if(res.status==='SECAO_BLOQUEADA'){
       pararEspera();
-      if(_fechandoPorConferencia)return;
-      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Este grupo foi concluído.';
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
       showScreen('main-menu');atualizarMenu();
       setTimeout(()=>alert(msg),100);
       return;
@@ -1695,7 +1685,6 @@ function grupoEncerrado(msg){
 // finalizar contagem
 
 async function doConcluirSecao(){
-  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua confirmação.');
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir o grupo?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
@@ -1712,30 +1701,21 @@ async function doConcluirSecao(){
   btn.disabled=true;
   btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
   try{
-    _fechandoPorConferencia=true;
     const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
     if(r&&r.success){
-      document.getElementById('contagem-nao-bate').style.display='none';
-      try{stopRT();}catch(_){}
-      try{stopScanner();}catch(_){}
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
       currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
       renderUltimasRefs();
       atualizarMenu();
-      showScreen('main-menu');
-      setTimeout(()=>alert('Grupo concluído com sucesso.'),100);
-      return;
-    }
-    if(r&&r.code==='CONTAGEM_NAO_BATE'){
-      document.getElementById('contagem-nao-bate').style.display='block';
-      document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
+      stopScanner();
+      alert('Grupo concluído com sucesso.');
+      await telaGrupos();
       return;
     }
     alert(r&&r.message?r.message:'Erro ao concluir grupo.');
   }catch(e){
     alert('Erro ao concluir: '+e);
   }finally{
-    setTimeout(()=>{_fechandoPorConferencia=false;},1200);
     btn.disabled=false;
     btn.innerHTML=old;
   }
