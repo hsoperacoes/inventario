@@ -614,6 +614,7 @@ function updateQueueUI(){
 
 // atualização em tempo real
 let _redirecionando=false;
+let _fechandoPorConferencia=false;
 let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
   stopRT();
@@ -632,7 +633,8 @@ function startRT(){
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        if(_fechandoPorConferencia)return;
+        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'Este grupo foi concluído.';
         setTimeout(()=>{
           alert(msg+'\nEscolha um novo grupo para continuar.');
           telaGrupos();
@@ -965,15 +967,23 @@ async function callGAS(params,retries=1){
       case 'masterConcluirSecao': {
         const grupoId=String(params.idGrupo||window._grupoIdAtual||'');
         if(!grupoId) return {success:false,message:'Grupo não identificado.'};
-        const r=await apiFetch('/grupos/concluir',{
-          method:'POST',
-          body:JSON.stringify({
-            usuario:String(params.usuario||currentUser||''),
-            id_inventario:String(params.idInventario||currentInvId||''),
-            id_grupo:grupoId
-          })
-        },retries);
-        return {success:true,count:r.count||0};
+        try{
+          const r=await apiFetch('/grupos/concluir',{
+            method:'POST',
+            body:JSON.stringify({
+              usuario:String(params.usuario||currentUser||''),
+              id_inventario:String(params.idInventario||currentInvId||''),
+              id_grupo:grupoId
+            })
+          },retries);
+          return {success:true,count:r.count||0,finalizadoPor:r.finalizado_por||String(params.usuario||currentUser||'')};
+        }catch(err){
+          const msg=String((err&&err.message)||'');
+          if(msg==='CONTAGEM_NAO_BATE' || msg.toLowerCase().includes('contagem_nao_bate')){
+            return {success:false,code:'CONTAGEM_NAO_BATE'};
+          }
+          return {success:false,message:msg||'Erro ao concluir.'};
+        }
       }
       case 'definirMeta':
       case 'finalizarInventario':
@@ -1210,7 +1220,8 @@ async function verificarLiberacao(){
     if(res.status==='INVENTARIO_ENCERRADO'){pararEspera();alert(res.message||'Inventario encerrado.');try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}limparCacheEstoqueInventario(currentInvId);showScreen('main-menu');atualizarMenu();return;}
     if(res.status==='SECAO_BLOQUEADA'){
       pararEspera();
-      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Sua seção foi bloqueada.';
+      if(_fechandoPorConferencia)return;
+      const msg=res.quemFechou?`"${res.quemFechou}" concluiu este grupo.`:'Este grupo foi concluído.';
       showScreen('main-menu');atualizarMenu();
       setTimeout(()=>alert(msg),100);
       return;
@@ -1684,7 +1695,7 @@ function grupoEncerrado(msg){
 // finalizar contagem
 
 async function doConcluirSecao(){
-  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua decisão.');
+  if(_pendenciaEstoqueAtiva)return alert('Há uma peça fora do estoque aguardando sua confirmação.');
   if(queue.length>0){
     if(!confirm(`Ainda há ${queue.length} bipe(s) sendo enviados. Deseja aguardar e concluir o grupo?`))return;
     if(timerEnvio){clearTimeout(timerEnvio);timerEnvio=null;}
@@ -1701,27 +1712,30 @@ async function doConcluirSecao(){
   btn.disabled=true;
   btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
   try{
-    const sessaoAtual=lerSessao();
-    const grupoId=String(window._grupoIdAtual||(sessaoAtual&&sessaoAtual.groupId)||'');
-    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:grupoId});
+    _fechandoPorConferencia=true;
+    const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
     if(r&&r.success){
       document.getElementById('contagem-nao-bate').style.display='none';
+      try{stopRT();}catch(_){}
+      try{stopScanner();}catch(_){}
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
       currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
       renderUltimasRefs();
-      updateCounterUI();
-      updateQueueUI();
       atualizarMenu();
-      stopScanner();
-      alert(`Grupo concluído com sucesso. ${r.count||0} item(ns) registrados.`);
       showScreen('main-menu');
-      await listarGrupos();
+      setTimeout(()=>alert('Grupo concluído com sucesso.'),100);
+      return;
+    }
+    if(r&&r.code==='CONTAGEM_NAO_BATE'){
+      document.getElementById('contagem-nao-bate').style.display='block';
+      document.getElementById('contagem-nao-bate').scrollIntoView({behavior:'smooth'});
       return;
     }
     alert(r&&r.message?r.message:'Erro ao concluir grupo.');
   }catch(e){
     alert('Erro ao concluir: '+e);
   }finally{
+    setTimeout(()=>{_fechandoPorConferencia=false;},1200);
     btn.disabled=false;
     btn.innerHTML=old;
   }
