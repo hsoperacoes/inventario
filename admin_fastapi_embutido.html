@@ -535,8 +535,8 @@ async function callGAS(p){
           idGrupo=String((ua&&ua.id_grupo)||'');
         }
         if(!idGrupo) return {success:false,message:'Usuário não está ativo em grupo no backend novo.'};
-        const r=await apiFetch('/bipes',{method:'POST',body:JSON.stringify({
-          usuario:String(p.usuario||''),id_inventario:String(p.idInventario||''),id_grupo:idGrupo,ean:String(p.ean||'')
+        const r=await apiFetch('/bipes/manual',{method:'POST',body:JSON.stringify({
+          usuario:String(p.usuario||''),id_inventario:String(p.idInventario||''),id_grupo:idGrupo,ean:String(p.ean||''),secao:String(p.secao||'MANUAL')
         })},1);
         return {success:true,newCount:r.total_grupo||0};
       }
@@ -547,10 +547,16 @@ async function callGAS(p){
       }
       case 'getAlertas':
         return {success:true,alertas:[]};
-      case 'getEtiquetas':
-        return {success:true,etiquetas:[]};
-      case 'limparEtiquetas':
-        return {success:true};
+      case 'getEtiquetas': {
+        const q=String(p.idInventario||'').trim();
+        const r=await apiFetch('/etiquetas'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'GET'},1);
+        return {success:true,etiquetas:r.etiquetas||[]};
+      }
+      case 'limparEtiquetas': {
+        const q=String(p.idInventario||'').trim();
+        const r=await apiFetch('/etiquetas'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'DELETE'},1);
+        return {success:true,removidas:r.removidas||0};
+      }
       default:
         return {success:false,message:'Ação ainda não ligada ao backend Python nesta etapa: '+api};
     }
@@ -1605,7 +1611,25 @@ async function gerarRelatorio(){
   }
 }
 
-function abrirEtiquetas(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+function getEtiquetasFiltroInventario(){
+  const sel=document.getElementById('confronto-inv');
+  const valor=String((sel&&sel.value)||'').trim();
+  if(valor) return valor;
+  if((_data.inventarios||[]).length===1) return String(_data.inventarios[0].id||'').trim();
+  return '';
+}
+
+async function abrirEtiquetas(){
+  try{
+    const idInventario=getEtiquetasFiltroInventario();
+    const r=await callGAS({api:'getEtiquetas',idInventario});
+    _etiquetas=(r&&r.success&&Array.isArray(r.etiquetas))?r.etiquetas:[];
+    renderEtiquetas();
+    document.getElementById('modal-etiquetas').classList.add('open');
+  }catch(e){
+    toast('Erro ao carregar etiquetas: '+((e&&e.message)||e),4500);
+  }
+}
 
 function fecharEtiquetas(){document.getElementById('modal-etiquetas').classList.remove('open');}
 
@@ -1616,15 +1640,39 @@ function renderEtiquetas(){
   grid.innerHTML=`<div class="etiq-grid">${_etiquetas.map(e=>etiqHTML(e,'etiq')).join('')}</div>`;
 }
 
-function imprimirEtiquetas(){
+async function imprimirEtiquetas(){
   if(!_etiquetas.length)return toast('Nenhuma etiqueta para imprimir.');
-  let pa=document.getElementById('print-area');
-  if(!pa){pa=document.createElement('div');pa.id='print-area';pa.style.display='none';document.body.appendChild(pa);}
-  pa.innerHTML=_etiquetas.map(e=>etiqHTML(e,'etiq-print')).join('');
-  window.print();
+  try{
+    const idInventario=getEtiquetasFiltroInventario();
+    const url=(API_BASE||'').replace(/\/$/,'') + '/etiquetas/pdf' + (idInventario?'?id_inventario='+encodeURIComponent(idInventario):'');
+    const resp=await fetch(url,{method:'GET'});
+    if(!resp.ok) throw new Error('Falha ao gerar PDF de etiquetas.');
+    const blob=await resp.blob();
+    const dl=window.URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const disp=resp.headers.get('content-disposition')||'';
+    const m=disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+    const nome=decodeURIComponent((m&&(m[1]||m[2])) || `etiquetas_${idInventario||'geral'}.pdf`);
+    a.href=dl;a.download=nome;document.body.appendChild(a);a.click();a.remove();
+    window.URL.revokeObjectURL(dl);
+    toast('PDF de etiquetas gerado com sucesso.');
+  }catch(e){
+    toast('Erro ao gerar PDF de etiquetas: '+((e&&e.message)||e),4500);
+  }
 }
 
-function limparEtiquetasPendentes(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function limparEtiquetasPendentes(){
+  try{
+    const idInventario=getEtiquetasFiltroInventario();
+    const r=await callGAS({api:'limparEtiquetas',idInventario});
+    if(!(r&&r.success)) throw new Error((r&&r.message)||'Falha ao limpar etiquetas');
+    _etiquetas=[];
+    renderEtiquetas();
+    toast('Etiquetas pendentes removidas: '+(r.removidas||0));
+  }catch(e){
+    toast('Erro ao limpar etiquetas: '+((e&&e.message)||e),4500);
+  }
+}
 
 
 async function carregarAlertas(force=false){
