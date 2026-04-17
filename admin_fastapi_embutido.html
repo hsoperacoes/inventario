@@ -520,6 +520,14 @@ async function callGAS(p){
         })},1);
         return {success:true,newCount:r.total_grupo||0};
       }
+      case 'buscarInfoEANEstoque': {
+        const ean=String(p.ean||'').trim();
+        const r=await apiFetch('/estoque/validar?ean='+encodeURIComponent(ean),{method:'GET'},1);
+        if(r&&r.success&&r.encontrado&&r.info){
+          return {success:true,info:r.info};
+        }
+        return {success:false,message:'EAN não encontrado no estoque'};
+      }
       case 'getAlertas':
         return {success:true,alertas:[]};
       case 'getEtiquetas':
@@ -747,10 +755,15 @@ function renderItems(u){
   return u.items.map(item=>{
     const dt=item.dataHora?new Date(item.dataHora):null;
     const t=dt&&!isNaN(dt)?dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
-    const texto=item.labelCompact||_cacheEAN[String(item.ean||'')]||'';
+    const cached=_cacheEAN[String(item.ean||'')]||null;
+    const texto=item.labelCompact||(cached&&cached.label)||'';
+    const tam=(cached&&cached.tamanho)?cached.tamanho:'';
     const infoHtml=texto
-      ? `<span style="font-size:11px;color:#7eb3ff;margin-left:8px;font-weight:700;">${texto}</span>`
-      : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'');
+      ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
+           <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
+           ${tam?`<span style="font-size:10px;color:#c7cedb;">TAM: ${tam}</span>`:''}
+         </div>`
+      : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
     return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
   }).join('');
 }
@@ -1396,21 +1409,27 @@ function excluirInventario(){ toast('Essa ação ainda não foi ligada ao backen
 
 // alertas de EAN suspeito desativados
 
-// Cache de ref+cor+grade por EAN (busca na aba ESTOQUE)
+// Cache de ref+cor+tamanho por EAN (busca no estoque do backend)
 const _cacheEAN={};
 async function enriquecerEANs(items){
   const eans=items.map(i=>String(i.ean||'')).filter(e=>e&&!_cacheEAN[e]);
   if(!eans.length)return;
-  // Busca um por vez (evita timeout), em paralelo até 5
   const chunks=[];
   for(let i=0;i<eans.length;i+=5)chunks.push(eans.slice(i,i+5));
   for(const chunk of chunks){
     await Promise.all(chunk.map(async ean=>{
       try{
         const r=await callGAS({api:'buscarInfoEANEstoque',ean});
-        if(r&&r.success&&r.info) _cacheEAN[ean]=r.info.label;
-        else _cacheEAN[ean]='';
-      }catch(_){_cacheEAN[ean]='';}
+        if(r&&r.success&&r.info){
+          _cacheEAN[ean]={
+            label:String(r.info.labelCompact||r.info.label||'').trim(),
+            tamanho:String(r.info.tamanho||'').trim(),
+            grade:String(r.info.grade||'').trim(),
+            ref:String(r.info.ref||'').trim(),
+            cor:String(r.info.cor||'').trim()
+          };
+        }else _cacheEAN[ean]=null;
+      }catch(_){_cacheEAN[ean]=null;}
     }));
   }
 }
