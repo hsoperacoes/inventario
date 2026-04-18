@@ -390,7 +390,6 @@
 
 <script>
 const API_BASE='https://inventario-backend-production-ae13.up.railway.app';
-const ADMIN_PASS=(localStorage.getItem('HS_ADMIN_PASS')||'hs1001');
 async function apiUpload(path, formData){
   const res=await fetch(API_BASE+path,{method:'POST',body:formData,headers:{'x-admin-pass':ADMIN_PASS}});
   const txt=await res.text();
@@ -403,6 +402,7 @@ async function apiUpload(path, formData){
   return data;
 }
 let _data={inventarios:[],metas:[],usuarios:[],totalConsolidado:0,totalEstoque:0,percentualConsolidado:0,grupos:[]};
+let _itemsScroll={};
 let _pausarRefresh=false;
 let _loadingData=false;
 let _pendingReload=false;
@@ -481,7 +481,7 @@ function transformPainelData(p){
       refCor:b.ref_cor||b.refCor||'',
       secao:(g&&g.nome)||u.grupo_nome||'',
       dataHora:b.hora||'',
-      rowIndex:idx+1,
+      rowIndex:(b.id||idx+1),
       naoEncontrado:!!b.nao_encontrado
     }));
     return {
@@ -693,6 +693,11 @@ function renderAguardando(){
 }
 
 function renderUsuarios(){
+  // Preserva scroll dos painéis de itens abertos antes de recriar o DOM
+  document.querySelectorAll('.items-panel.open').forEach(p=>{
+    _itemsScroll[p.id]=p.scrollTop||0;
+  });
+
   // Salva o que foi digitado nos campos de senha/meta ANTES de destruir o DOM
   document.querySelectorAll('[id^="forca-senha-"]').forEach(inp=>{
     const key=inp.id.replace('forca-senha-','');
@@ -782,6 +787,13 @@ function renderUsuarios(){
     const inp=document.getElementById('nova-meta-'+key);
     if(inp) inp.value=_metaValor[key]||'';
   });
+
+  Object.keys(_itemsScroll).forEach(id=>{
+    const panel=document.getElementById(id);
+    if(panel){
+      panel.scrollTop=_itemsScroll[id]||0;
+    }
+  });
 }
 
 function encodeKey(n){return n.replace(/[^a-z0-9]/gi,'_');}
@@ -801,11 +813,17 @@ function renderItems(u){
            <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
          </div>`
       : (item.naoEncontrado?`<span style="font-size:11px;color:var(--warn);margin-left:8px;font-weight:700;">NÃO ENCONTRADO NO ESTOQUE</span>`:'<div style="flex:1"></div>');
-    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.rowIndex})">✕</button></div>`;
+    return `<div class="item-row"><span class="i-ean">${item.ean||'—'}</span>${infoHtml}<span class="i-sec">${item.secao||''}</span><span class="i-time">${t}</span><button class="btn btn-d btn-sm" onclick="excluirItem('${su(apiNome)}','${su(u.idInventario)}',${item.id||0})">✕</button></div>`;
   }).join('');
 }
 
-function toggleItems(nome){_open[nome]=!_open[nome];renderUsuarios();}
+function toggleItems(nome){
+  const id='items-'+encodeKey(nome);
+  const panel=document.getElementById(id);
+  if(panel) _itemsScroll[id]=panel.scrollTop||0;
+  _open[nome]=!_open[nome];
+  renderUsuarios();
+}
 
 function renderInventarios(){
   const el=document.getElementById('list-inventarios');
@@ -1173,7 +1191,7 @@ async function excluirItem(nomeReal,idInventario,bipeId){
     const ok=await hsConfirm('Excluir bipe', `Deseja excluir este bipe de ${nomeReal}?`);
     if(!ok) return;
     const r=await apiFetch('/bipes/'+encodeURIComponent(String(bipeId)),{method:'DELETE'},1);
-    toast('Bipe excluído. Novo total: '+(r.newCount||0));
+    toast('Bipe excluído. Novo total do grupo: '+(r.newCount||0));
     await refreshPainelData();
   }catch(e){
     toast('Erro ao excluir item: '+((e&&e.message)||e),4000);
