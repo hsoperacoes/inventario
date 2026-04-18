@@ -292,9 +292,9 @@
       <button class="modal-close" onclick="fecharConsolidado()">✕</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;align-items:center;">
-      <select id="consolidado-inv" class="search-bar" style="flex:1;padding:7px 10px;margin:0;"></select>
+      <select id="consolidado-inv" class="search-bar" style="flex:1;padding:7px 10px;margin:0;" onchange="carregarConsolidado()"></select>
       <input id="consolidado-busca" class="search-bar" style="flex:1;padding:7px 10px;margin:0;" placeholder="Buscar EAN, grupo, conferente ou referência..." oninput="renderConsolidado()"/>
-      <button class="btn btn-p btn-sm" style="padding:7px 16px;white-space:nowrap;" onclick="carregarConsolidado()">Atualizar</button>
+      <button class="btn btn-p btn-sm" style="padding:7px 16px;white-space:nowrap;" onclick="exportarEansConsolidado()">📥 Gerar Excel</button>
     </div>
     <div id="consolidado-count" style="font-size:12px;color:#8b90a0;margin-bottom:8px;flex-shrink:0;"></div>
     <div class="conf-scroll" id="consolidado-list"></div>
@@ -640,12 +640,7 @@ window.onunhandledrejection=function(){};
 
 async function loadData(force=false){
   if(document.hidden && !force) return;
-  if(!force){
-    if(_pausarRefresh) return;
-    if(Object.keys(_forcaAberta).length>0) return;
-    if(Object.values(_metaAberta).some(Boolean)) return;
-    if(_loadingData) return;
-  }
+  if(_loadingData) return;
   _loadingData=true;
   const btn=document.getElementById('refresh-btn');if(btn) btn.classList.add('spinning');
   try{
@@ -676,10 +671,6 @@ async function loadData(force=false){
   finally{
     _loadingData=false;
     if(btn) btn.classList.remove('spinning');
-    if(_pendingReload){
-      _pendingReload=false;
-      setTimeout(()=>loadData(true),300);
-    }
   }
 }
 
@@ -1306,7 +1297,7 @@ async function finalizarUsuarioForca(nomePainel,nomeReal,idInventario){
     },1);
     _forcaAberta[nomePainel]=false;
     delete _forcaSenha[key];
-    toast('Grupo concluído com força.');
+    toast('Grupo finalizado pelo administrador.');
     await refreshPainelData();
   }catch(e){
     toast('Erro ao forçar conclusão: '+((e&&e.message)||e),4000);
@@ -1800,7 +1791,31 @@ async function carregarAlertas(force=false){
 }
 
 
-async function abrirConsolidado(){
+async 
+async function exportarEansConsolidado(){
+  try{
+    const sel=document.getElementById('consolidado-inv');
+    const idInventario=String((sel&&sel.value)||'').trim();
+    const res=await fetch(API_BASE + '/consolidado/exportar-eans?id_inventario=' + encodeURIComponent(idInventario),{
+      method:'GET',
+      headers:{'x-admin-pass':ADMIN_PASS}
+    });
+    if(!res.ok) throw new Error('Falha ao gerar Excel de EANs');
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='eans_consolidado.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  }catch(e){
+    toast('Erro ao gerar Excel: '+((e&&e.message)||e),4500);
+  }
+}
+
+function abrirConsolidado(){
   const sel=document.getElementById('consolidado-inv');
   if(sel){
     sel.innerHTML='<option value="">Todos os inventários</option>'+(_data.inventarios||[]).map(i=>`<option value="${i.id}">${i.nome}${i.status&&i.status!=='ABERTO'?' ('+i.status+')':''}</option>`).join('');
@@ -1815,18 +1830,18 @@ function fecharConsolidado(){
   document.getElementById('modal-consolidado').classList.remove('open');
 }
 
-async function carregarConsolidado(){
+async function carregarConsolidado(silent=false){
   const sel=document.getElementById('consolidado-inv');
   const idInventario=String((sel&&sel.value)||'').trim();
   const list=document.getElementById('consolidado-list');
-  if(list) list.innerHTML='<div class="conf-empty">Carregando consolidado...</div>';
+  if(list && !silent) list.innerHTML='<div class="conf-empty">Carregando consolidado...</div>';
   try{
     const r=await callGAS({api:'getConsolidado',idInventario});
     _consolidado=(r&&r.success&&Array.isArray(r.itens))?r.itens:[];
     renderConsolidado();
   }catch(e){
-    if(list) list.innerHTML='<div class="conf-empty">Erro ao carregar consolidado.</div>';
-    toast('Erro ao carregar consolidado: '+((e&&e.message)||e),4500);
+    if(list && !silent) list.innerHTML='<div class="conf-empty">Erro ao carregar consolidado.</div>';
+    if(!silent) toast('Erro ao carregar consolidado: '+((e&&e.message)||e),4500);
   }
 }
 
@@ -1895,8 +1910,11 @@ function scheduleAdminPoll(){
   clearTimeout(_pollTimer);
   _pollTimer=setTimeout(async ()=>{
     try{
-      if(!document.hidden && !_pausarRefresh && !Object.keys(_forcaAberta).length){
+      if(!document.hidden){
         await loadData();
+        if(document.getElementById('modal-consolidado')?.classList.contains('open')){
+          await carregarConsolidado(true);
+        }
       }
     } finally {
       scheduleAdminPoll();
