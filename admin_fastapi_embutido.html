@@ -245,6 +245,10 @@
   🖨️ Imprimir etiquetas pendentes
 </button>
 
+<button class="btn-confronto" style="background:rgba(67,217,138,.10);border-color:rgba(67,217,138,.35);color:#86efac;margin-top:-8px;" onclick="abrirConsolidado()">
+  📚 Ver itens consolidados
+</button>
+
 <!-- BOTÃO ALERTAS -->
 <button class="btn-confronto" id="btn-alertas" style="display:none;background:rgba(255,171,64,.12);border-color:rgba(255,171,64,.45);color:#ffab40;margin-top:-8px;" onclick="abrirAlertas()">
   ⚠️ Ver alertas de conferência
@@ -277,6 +281,23 @@
       <button class="btn btn-sm btn-d" onclick="limparEtiquetasPendentes()">🗑️ Limpar lista</button>
     </div>
     <div class="conf-scroll" id="etiquetas-grid"></div>
+  </div>
+</div>
+
+<!-- MODAL CONSOLIDADO -->
+<div class="modal-overlay" id="modal-consolidado">
+  <div class="modal-box" style="max-width:1100px;max-height:95vh;">
+    <div class="modal-header">
+      <span class="modal-title">📚 Itens consolidados</span>
+      <button class="modal-close" onclick="fecharConsolidado()">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;align-items:center;">
+      <select id="consolidado-inv" class="search-bar" style="flex:1;padding:7px 10px;margin:0;"></select>
+      <input id="consolidado-busca" class="search-bar" style="flex:1;padding:7px 10px;margin:0;" placeholder="Buscar EAN, grupo, conferente ou referência..." oninput="renderConsolidado()"/>
+      <button class="btn btn-p btn-sm" style="padding:7px 16px;white-space:nowrap;" onclick="carregarConsolidado()">Atualizar</button>
+    </div>
+    <div id="consolidado-count" style="font-size:12px;color:#8b90a0;margin-bottom:8px;flex-shrink:0;"></div>
+    <div class="conf-scroll" id="consolidado-list"></div>
   </div>
 </div>
 
@@ -559,6 +580,16 @@ async function callGAS(p){
         const q=String(p.idInventario||'').trim();
         const r=await apiFetch('/etiquetas'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'DELETE'},1);
         return {success:true,removidas:r.removidas||0};
+      }
+      case 'getConsolidado': {
+        const q=String(p.idInventario||'').trim();
+        const r=await apiFetch('/consolidado'+(q?'?id_inventario='+encodeURIComponent(q):''),{method:'GET'},1);
+        return {success:true,itens:r.itens||[],total:r.total||0};
+      }
+      case 'excluirConsolidado': {
+        const id=Number(p.id||0);
+        const r=await apiFetch('/consolidado/'+encodeURIComponent(String(id)),{method:'DELETE'},1);
+        return {success:true,total:r.total||0,id:id};
       }
       default:
         return {success:false,message:'Ação ainda não ligada ao backend Python nesta etapa: '+api};
@@ -1440,6 +1471,7 @@ async function rodarConfronto(){
 
 // ── ETIQUETAS ──────────────────────────────────────────────────────────────
 let _etiquetas=[];
+let _consolidado=[];
 
 // Gera barras EAN-13 em SVG puro
 function ean13svg(code,w,h){
@@ -1764,6 +1796,92 @@ async function carregarAlertas(force=false){
   }catch(e){}
   finally{
     _loadingAlertas=false;
+  }
+}
+
+
+async function abrirConsolidado(){
+  const sel=document.getElementById('consolidado-inv');
+  if(sel){
+    sel.innerHTML='<option value="">Todos os inventários</option>'+(_data.inventarios||[]).map(i=>`<option value="${i.id}">${i.nome}${i.status&&i.status!=='ABERTO'?' ('+i.status+')':''}</option>`).join('');
+    const confSel=document.getElementById('confronto-inv');
+    if(confSel && confSel.value) sel.value=confSel.value;
+  }
+  document.getElementById('modal-consolidado').classList.add('open');
+  await carregarConsolidado();
+}
+
+function fecharConsolidado(){
+  document.getElementById('modal-consolidado').classList.remove('open');
+}
+
+async function carregarConsolidado(){
+  const sel=document.getElementById('consolidado-inv');
+  const idInventario=String((sel&&sel.value)||'').trim();
+  const list=document.getElementById('consolidado-list');
+  if(list) list.innerHTML='<div class="conf-empty">Carregando consolidado...</div>';
+  try{
+    const r=await callGAS({api:'getConsolidado',idInventario});
+    _consolidado=(r&&r.success&&Array.isArray(r.itens))?r.itens:[];
+    renderConsolidado();
+  }catch(e){
+    if(list) list.innerHTML='<div class="conf-empty">Erro ao carregar consolidado.</div>';
+    toast('Erro ao carregar consolidado: '+((e&&e.message)||e),4500);
+  }
+}
+
+function renderConsolidado(){
+  const list=document.getElementById('consolidado-list');
+  const count=document.getElementById('consolidado-count');
+  if(!list||!count) return;
+  const q=String((document.getElementById('consolidado-busca')||{}).value||'').trim().toLowerCase();
+  const itens=(_consolidado||[]).filter(i=>{
+    if(!q) return true;
+    return String(i.ean||'').toLowerCase().includes(q) ||
+           String(i.grupo||'').toLowerCase().includes(q) ||
+           String(i.usuario||'').toLowerCase().includes(q) ||
+           String(i.refCor||i.ref||'').toLowerCase().includes(q);
+  });
+  count.textContent=`${itens.length} item(ns) consolidado(s)`;
+  if(!itens.length){
+    list.innerHTML='<div class="conf-empty">Nenhum item consolidado encontrado.</div>';
+    return;
+  }
+  list.innerHTML=itens.map(i=>{
+    const texto=(i.refCor||'').trim() || [i.ref,i.cor,i.tamanho].filter(Boolean).join(' ');
+    const info=texto
+      ? `<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;margin-left:8px;">
+           <span style="font-size:11px;color:#7eb3ff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${texto}</span>
+         </div>`
+      : `<div style="flex:1"></div>`;
+    const dt=String(i.hora||'');
+    return `<div class="item-row">
+      <span class="i-ean">${i.ean||'—'}</span>
+      ${info}
+      <span class="i-sec">${i.grupo||''} · ${i.usuario||''}</span>
+      <span class="i-time">${dt ? new Date(dt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : ''}</span>
+      <button class="btn btn-d btn-sm" onclick="excluirConsolidadoItem(${i.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function excluirConsolidadoItem(id){
+  try{
+    const ok=await hsConfirm('Excluir item consolidado','Deseja excluir esta linha do consolidado?');
+    if(!ok) return;
+    const r=await callGAS({api:'excluirConsolidado',id});
+    if(!(r&&r.success)) throw new Error((r&&r.message)||'Falha ao excluir item consolidado');
+    _consolidado=_consolidado.filter(x=>Number(x.id)!==Number(id));
+    renderConsolidado();
+    await refreshPainelData();
+    if(_confrontoData){
+      const sel=document.getElementById('confronto-inv');
+      const idInventario=String((sel&&sel.value)||'').trim();
+      if(idInventario) await rodarConfronto();
+    }
+    toast('Linha consolidada excluída com sucesso.');
+  }catch(e){
+    toast('Erro ao excluir linha consolidada: '+((e&&e.message)||e),4500);
   }
 }
 
