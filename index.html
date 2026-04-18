@@ -872,23 +872,8 @@ async function callGAS(params,retries=1){
         return {success:true,idGrupo};
       }
       case 'getStatusSecao': {
-        const lista=await apiFetch('/inventarios',{method:'GET'},retries);
-        const inv=(lista.inventarios||[]).find(i=>String(i.id)===String(params.idInventario));
-        if(!inv || String(inv.status||'')!=='ABERTO'){
-          return {success:true,status:'INVENTARIO_ENCERRADO',message:'Inventário encerrado.'};
-        }
-        const r=await apiFetch('/usuario/ativo?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
-        if(!r.ativo) return {success:true,status:'SEM_GRUPO'};
-        return {
-          success:true,
-          status:'LIBERADO',
-          idGrupo:r.id_grupo||'',
-          grupo:r.grupo_nome||'',
-          meta:r.meta||0,
-          count:r.bipes||0,
-          colaborativo:!!r.colaborativo,
-          membros:r.membros||[]
-        };
+        const r=await apiFetch('/status/secao?usuario='+encodeURIComponent(String(params.usuario||''))+'&id_inventario='+encodeURIComponent(String(params.idInventario||'')),{method:'GET'},retries);
+        return r||{success:false,message:'Falha ao consultar status'};
       }
       case 'registrarBipeLote': {
         const eans=JSON.parse(String(params.eans||'[]'));
@@ -1712,19 +1697,14 @@ async function doConcluirSecao(){
       await telaGrupos();
       return;
     }
-    const msg = String((r&&r.message)||'');
-    if(msg.includes('CONTAGEM_NAO_BATE')){
+    const msg=(r&&r.message)?String(r.message):'Erro ao concluir grupo.';
+    if(msg==='CONTAGEM_NAO_BATE' || msg.toLowerCase().includes('contagem_nao_bate') || msg.toLowerCase().includes('divergência') || msg.toLowerCase().includes('divergencia')){
       document.getElementById('contagem-nao-bate').style.display='block';
       return;
     }
-    alert(msg||'Erro ao concluir grupo.');
+    alert(msg);
   }catch(e){
-    const msg = String(e&&e.message?e.message:e||'');
-    if(msg.includes('CONTAGEM_NAO_BATE')){
-      document.getElementById('contagem-nao-bate').style.display='block';
-      return;
-    }
-    alert('Erro ao concluir: '+msg);
+    alert('Erro ao concluir: '+e);
   }finally{
     btn.disabled=false;
     btn.innerHTML=old;
