@@ -1141,13 +1141,16 @@ function hsPrompt(title,body='',placeholder='',type='text'){
 
 async function promptTornarColab(idInventario,idGrupo,nomeGrupo){
   try{
-    const vagasTxt=await hsPrompt('Tornar grupo colaborativo', `Grupo: ${nomeGrupo}\nInforme a quantidade de vagas:`, '2');
+    const vagasTxt=await hsPrompt('Tornar grupo colaborativo', `Grupo: ${nomeGrupo}
+Informe a quantidade de vagas:`, '2');
     if(vagasTxt===null) return;
     const vagas=parseInt(vagasTxt,10);
     if(!vagas || vagas<2) return toast('Informe pelo menos 2 vagas.');
     await apiFetch('/grupos/tornar-colaborativo',{method:'POST',body:JSON.stringify({id_inventario:String(idInventario||''),id_grupo:String(idGrupo||''),vagas})},1);
     toast('Grupo colaborativo atualizado com sucesso.');
     await refreshPainelData();
+    setTimeout(()=>refreshPainelData().catch(()=>{}),250);
+    setTimeout(()=>refreshPainelData().catch(()=>{}),900);
   }catch(e){
     toast('Erro ao tornar colaborativo: '+((e&&e.message)||e),4000);
   }
@@ -1226,10 +1229,11 @@ async function zerarUsuario(nomeReal,idInventario){
     const u=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(nomeReal||'') && String(x.idInventario||'')===String(idInventario||''));
     const grupoNome=u&&u.grupo?u.grupo:'';
     const gInfo=getGrupoInfoByNome(idInventario,grupoNome);
-    if(!gInfo) return toast('Grupo não encontrado para reset.');
-    const ok=await hsConfirm('Resetar grupo / recontagem', `Grupo: ${grupoNome}\nTodos os bipes desse grupo serão apagados e o grupo voltará para disponível.`);
+    if(!gInfo) return toast('Grupo não encontrado para zerar.');
+    const ok=await hsConfirm('Zerar contagem', `Grupo: ${grupoNome}
+Todos os bipes desse grupo serão apagados, mas o conferente permanecerá no grupo.`);
     if(!ok) return;
-    const r=await apiFetch('/grupos/resetar',{
+    const r=await apiFetch('/grupos/zerar-contagem',{
       method:'POST',
       body:JSON.stringify({
         usuario:String(nomeReal||''),
@@ -1237,10 +1241,11 @@ async function zerarUsuario(nomeReal,idInventario){
         id_grupo:String(gInfo.id||'')
       })
     },1);
-    toast(`Grupo resetado. Bipes apagados: ${r.bipes_apagados||0}`);
+    toast('Contagem zerada. Conferente mantido no grupo.');
     await refreshPainelData();
+    setTimeout(()=>refreshPainelData().catch(()=>{}),250);
   }catch(e){
-    toast('Erro ao resetar grupo: '+((e&&e.message)||e),4000);
+    toast('Erro ao zerar contagem: '+((e&&e.message)||e),4000);
   }
 }
 
