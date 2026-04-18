@@ -628,14 +628,26 @@ function startRT(){
       if(!r||!r.success)return;
 
       if(r.status==='SECAO_BLOQUEADA'){
+        if(_conclusaoEmAndamento && String(r.quemFechou||'')===String(currentUser||'')){
+          return;
+        }
         if(_redirecionando)return;
         _redirecionando=true;
         stopRT();
         try{stopScanner();}catch(_){}
         try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        const msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+        updateCounterUI();updateQueueUI();renderUltimasRefs();atualizarMenu();
+        let msg='';
+        if(String(r.acao||'')==='REMOVIDO'){
+          msg='Você foi removido deste grupo pelo administrador.';
+        }else if(String(r.acao||'')==='RESETADO'){
+          msg='Seu grupo foi resetado pelo administrador.';
+        }else{
+          msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
+        }
         setTimeout(()=>{
-          alert(msg+'\nEscolha um novo grupo para continuar.');
+          alert(msg+'\nVocê retornará para a seleção de grupos.');
           telaGrupos();
         },100);
         return;
@@ -686,6 +698,13 @@ function startRT(){
       }
 
       _semGrupoTransitCount=0;
+      currentMeta=(r.meta!==undefined&&r.meta!==null)?r.meta:currentMeta;
+      const colabBadge=document.getElementById('colab-badge');
+      if(colabBadge) colabBadge.style.display=r.colaborativo?'flex':'none';
+      const scannerGrp=document.getElementById('scanner-grp-lbl');
+      if(scannerGrp && currentSection){
+        scannerGrp.textContent='Grupo: '+currentSection+(r.colaborativo?' · COLABORATIVO':'');
+      }
       if(_pendenciaEstoqueAtiva) {
         if(_pendenciaEstoqueRegistrada){
           esconderPendenciaEstoque();
@@ -706,7 +725,7 @@ function startRT(){
       }
       setRT('ok');
     }catch(_){setRT('err');}
-  },3000);
+  },1000);
 }
 function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
 
@@ -1216,7 +1235,7 @@ function iniciarTela(count,colaborativo){
   document.getElementById('display-name').textContent=currentUser;
   document.getElementById('display-section').textContent=currentSection;
   document.getElementById('active-inv-title').textContent=currentInvName;
-  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection+(grupoColab?' · COLABORATIVO':'');
   document.getElementById('contagem-nao-bate').style.display='none';
   document.getElementById('last-ean-val').textContent='—';
   document.getElementById('last-ean-badge').style.display='none';
@@ -1548,7 +1567,7 @@ function _podeAceitar(raw){
 function startScanner(){
   if(_pendenciaEstoqueAtiva){alert('Há uma peça fora do estoque aguardando sua confirmação.');return;}
   document.getElementById('scanner-overlay').style.display='flex';
-  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection;
+  document.getElementById('scanner-grp-lbl').textContent='Grupo: '+currentSection+(grupoColab?' · COLABORATIVO':'');
   const sc=document.getElementById('scanner-colab-lbl');
   if(sc)sc.style.display=grupoColab?'block':'none';
 
@@ -1686,8 +1705,11 @@ async function doConcluirSecao(){
   btn.disabled=true;
   btn.innerHTML='<div class="loading-spinner"></div> CONCLUINDO...';
   try{
+    _conclusaoEmAndamento=true;
     const r=await callGAS({api:'concluirSecao',usuario:currentUser,idInventario:currentInvId,idGrupo:(window._grupoIdAtual||'')});
     if(r&&r.success){
+      _redirecionando=true;
+      stopRT();
       try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
       currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];window._grupoIdAtual='';
       renderUltimasRefs();
@@ -1706,6 +1728,7 @@ async function doConcluirSecao(){
   }catch(e){
     alert('Erro ao concluir: '+e);
   }finally{
+    _conclusaoEmAndamento=false;
     btn.disabled=false;
     btn.innerHTML=old;
   }
