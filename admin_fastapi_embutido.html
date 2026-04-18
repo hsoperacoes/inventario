@@ -390,6 +390,7 @@
 
 <script>
 const API_BASE='https://inventario-backend-production-ae13.up.railway.app';
+const ADMIN_PASS=(localStorage.getItem('HS_ADMIN_PASS')||'hs1001');
 async function apiUpload(path, formData){
   const res=await fetch(API_BASE+path,{method:'POST',body:formData,headers:{'x-admin-pass':ADMIN_PASS}});
   const txt=await res.text();
