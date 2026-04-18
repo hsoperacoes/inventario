@@ -391,7 +391,7 @@
 <script>
 const API_BASE='https://inventario-backend-production-ae13.up.railway.app';
 async function apiUpload(path, formData){
-  const res=await fetch(API_BASE+path,{method:'POST',body:formData});
+  const res=await fetch(API_BASE+path,{method:'POST',body:formData,headers:{'x-admin-pass':ADMIN_PASS}});
   const txt=await res.text();
   let data={};
   try{ data = txt ? JSON.parse(txt) : {}; }catch(_){ data = { raw: txt }; }
@@ -427,9 +427,9 @@ async function apiFetch(path, options={}, retries=1){
   let lastErr=null;
   for(let attempt=0; attempt<=retries; attempt++){
     try{
-      const res=await fetch(API_BASE+path, Object.assign({
-        headers:{'Content-Type':'application/json'}
-      }, options));
+      const mergedHeaders=Object.assign({'Content-Type':'application/json','x-admin-pass':ADMIN_PASS}, (options&&options.headers)||{});
+      const finalOptions=Object.assign({}, options||{}, {headers:mergedHeaders});
+      const res=await fetch(API_BASE+path, finalOptions);
       const txt=await res.text();
       let data={};
       try{ data = txt ? JSON.parse(txt) : {}; }catch(_ ){ data = { raw: txt }; }
@@ -470,6 +470,7 @@ function transformPainelData(p){
   const usuarios=(p.usuarios_ativos||[]).map(u=>{
     const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
     const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
+      id:b.id||0,
       ean:b.ean||'',
       labelCompact:b.label_compact||b.labelCompact||'',
       ref:b.ref||'',
@@ -494,9 +495,9 @@ function transformPainelData(p){
     grupos:grupos,
     usuarios:usuarios,
     metas:[],
-    totalConsolidado: typeof p.totalConsolidado === 'number' ? p.totalConsolidado : ((p.bipes||[]).length),
-    totalEstoque: typeof p.totalEstoque === 'number' ? p.totalEstoque : 0,
-    percentualConsolidado: typeof p.percentualConsolidado === 'number' ? p.percentualConsolidado : 0
+    totalConsolidado:(typeof p.totalConsolidado==='number'?p.totalConsolidado:(p.bipes||[]).length),
+    totalEstoque:(typeof p.totalEstoque==='number'?p.totalEstoque:0),
+    percentualConsolidado:(typeof p.percentualConsolidado==='number'?p.percentualConsolidado:0)
   };
 }
 
@@ -1165,7 +1166,18 @@ async function removerDoGrupo(nomePainel,nomeReal,idInventario){
   }
 }
 
-function excluirItem(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function excluirItem(nomeReal,idInventario,bipeId){
+  try{
+    if(!bipeId) return toast('Item sem identificador no backend.');
+    const ok=await hsConfirm('Excluir bipe', `Deseja excluir este bipe de ${nomeReal}?`);
+    if(!ok) return;
+    const r=await apiFetch('/bipes/'+encodeURIComponent(String(bipeId)),{method:'DELETE'},1);
+    toast('Bipe excluído. Novo total: '+(r.newCount||0));
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao excluir item: '+((e&&e.message)||e),4000);
+  }
+}
 
 async function zerarUsuario(nomeReal,idInventario){
   try{
@@ -1520,8 +1532,28 @@ async function addManual(usuario,idInventario,grupo){
     }else toast('Erro: '+((r&&r.message)||'?'));
   }catch(e){toast('Erro: '+e);}
 }
-function fecharInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
-function excluirInventario(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function fecharInventario(id,nome){
+  try{
+    const ok=await hsConfirm('Fechar inventário', `Deseja fechar o inventário ${nome||id}?`);
+    if(!ok) return;
+    const r=await apiFetch('/inventarios/'+encodeURIComponent(String(id))+'/fechar',{method:'PATCH'},1);
+    toast((r&&r.message)||'Inventário fechado.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao fechar inventário: '+((e&&e.message)||e),4000);
+  }
+}
+async function excluirInventario(id){
+  try{
+    const ok=await hsConfirm('Excluir inventário', 'EXCLUIR permanentemente este inventário e todos os seus dados?');
+    if(!ok) return;
+    const r=await apiFetch('/inventarios/'+encodeURIComponent(String(id)),{method:'DELETE'},1);
+    toast((r&&r.message)||'Inventário excluído.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao excluir inventário: '+((e&&e.message)||e),4000);
+  }
+}
 
 // alertas de EAN suspeito desativados
 
@@ -1640,23 +1672,20 @@ function renderEtiquetas(){
 }
 
 async function imprimirEtiquetas(){
-  if(!_etiquetas.length)return toast('Nenhuma etiqueta para imprimir.');
   try{
-    const idInventario=getEtiquetasFiltroInventario();
-    const url=(API_BASE||'').replace(/\/$/,'') + '/etiquetas/pdf' + (idInventario?'?id_inventario='+encodeURIComponent(idInventario):'');
-    const resp=await fetch(url,{method:'GET'});
-    if(!resp.ok) throw new Error('Falha ao gerar PDF de etiquetas.');
-    const blob=await resp.blob();
-    const dl=window.URL.createObjectURL(blob);
+    const q=String(document.getElementById('confronto-inv')?.value||'').trim();
+    const url=API_BASE+'/etiquetas/pdf'+(q?'?id_inventario='+encodeURIComponent(q):'');
+    const res=await fetch(url,{headers:{'x-admin-pass':ADMIN_PASS}});
+    if(!res.ok) throw new Error('Falha ao gerar PDF');
+    const blob=await res.blob();
     const a=document.createElement('a');
-    const disp=resp.headers.get('content-disposition')||'';
-    const m=disp.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
-    const nome=decodeURIComponent((m&&(m[1]||m[2])) || `etiquetas_${idInventario||'geral'}.pdf`);
-    a.href=dl;a.download=nome;document.body.appendChild(a);a.click();a.remove();
-    window.URL.revokeObjectURL(dl);
-    toast('PDF de etiquetas gerado com sucesso.');
+    a.href=URL.createObjectURL(blob);
+    a.download='etiquetas.pdf';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
   }catch(e){
-    toast('Erro ao gerar PDF de etiquetas: '+((e&&e.message)||e),4500);
+    toast('Erro ao gerar etiquetas: '+((e&&e.message)||e),4000);
   }
 }
 
