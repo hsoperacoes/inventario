@@ -1815,7 +1815,7 @@ async function exportarEansConsolidado(){
   }
 }
 
-function abrirConsolidado(){
+async function abrirConsolidado(){
   const sel=document.getElementById('consolidado-inv');
   if(sel){
     sel.innerHTML='<option value="">Todos os inventários</option>'+(_data.inventarios||[]).map(i=>`<option value="${i.id}">${i.nome}${i.status&&i.status!=='ABERTO'?' ('+i.status+')':''}</option>`).join('');
