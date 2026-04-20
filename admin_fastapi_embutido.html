@@ -442,6 +442,7 @@ let _pollTimer=null;
 const ADMIN_POLL_MS=1000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
+let _lastPingState = { total_bipes: -1, total_usuarios: -1 };
 
 function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
 
@@ -1910,20 +1911,33 @@ function fecharAlertas(){
   document.getElementById('modal-alertas').classList.remove('open');
 }
 
-function scheduleAdminPoll(){
+function scheduleAdminPoll() {
   clearTimeout(_pollTimer);
-  _pollTimer=setTimeout(async ()=>{
-    try{
-      if(!document.hidden){
-        await loadData();
-        if(document.getElementById('modal-consolidado')?.classList.contains('open')){
-          await carregarConsolidado(true);
+  _pollTimer = setTimeout(async () => {
+    try {
+      if (!document.hidden) {
+        const ping = await apiFetch('/admin/ping', { method: 'GET' }, 0);
+
+        const changed =
+          ping.total_bipes !== _lastPingState.total_bipes ||
+          ping.total_usuarios !== _lastPingState.total_usuarios;
+
+        if (changed) {
+          _lastPingState = {
+            total_bipes: ping.total_bipes,
+            total_usuarios: ping.total_usuarios
+          };
+          await loadData();
+
+          if (document.getElementById('modal-consolidado')?.classList.contains('open')) {
+            await carregarConsolidado(true);
+          }
         }
       }
     } finally {
       scheduleAdminPoll();
     }
-  },ADMIN_POLL_MS);
+  }, ADMIN_POLL_MS);
 }
 
 document.addEventListener('visibilitychange',()=>{
@@ -1933,7 +1947,7 @@ document.addEventListener('visibilitychange',()=>{
   }
 });
 
-window.onload=function(){
+window.onload = function () {
   loadData(true);
   carregarAlertas(true);
   scheduleAdminPoll();
