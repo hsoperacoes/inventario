@@ -232,7 +232,7 @@
 
 <div class="header">
   <div><span class="live-dot"></span><span class="live-lbl">Ao vivo</span> <span class="header-title" style="margin-left:4px;">HS Inventário — Painel Admin Web</span></div>
-  <button class="refresh-btn" id="refresh-btn" onclick="loadData()" title="Atualizar">↻</button>
+  <button class="refresh-btn" id="refresh-btn" onclick="refreshPainelData()" title="Atualizar">↻</button>
 </div>
 
 <!-- BOTÃO CONFRONTO -->
@@ -443,6 +443,7 @@ const ADMIN_POLL_MS=1000;
 const ALERTAS_POLL_MS=90000;
 const _agrupadorLetras=['A','B','C','D','E'];
 let _lastPingState = { total_bipes: -1, total_usuarios: -1 };
+let _adminPainelInFlight = false;
 
 function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),ms);}
 
@@ -482,7 +483,13 @@ function getGrupoInfoByNome(idInventario,nomeGrupo){
   }) || null;
 }
 async function refreshPainelData(){
-  await loadData(true);
+  if(_adminPainelInFlight) return;
+  _adminPainelInFlight = true;
+  try{
+    await loadData(true);
+  }finally{
+    _adminPainelInFlight = false;
+  }
 }
 
 function transformPainelData(p){
@@ -1973,30 +1980,31 @@ function scheduleAdminPoll() {
           ping.total_bipes !== _lastPingState.total_bipes ||
           ping.total_usuarios !== _lastPingState.total_usuarios;
 
-        if (changed) {
+        if (changed && !_adminPainelInFlight) {
           _lastPingState = {
             total_bipes: ping.total_bipes,
             total_usuarios: ping.total_usuarios
           };
-          await loadData();
 
-          if (document.getElementById('modal-consolidado')?.classList.contains('open')) {
-            await carregarConsolidado(true);
+          _adminPainelInFlight = true;
+          try {
+            await loadData();
+
+            if (document.getElementById('modal-consolidado')?.classList.contains('open')) {
+              await carregarConsolidado(true);
+            }
+          } finally {
+            _adminPainelInFlight = false;
           }
         }
       }
+    } catch (e) {
+      // Mantém o polling vivo mesmo se uma chamada falhar.
     } finally {
       scheduleAdminPoll();
     }
   }, ADMIN_POLL_MS);
 }
-
-document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden){
-    loadData(true);
-    scheduleAdminPoll();
-  }
-});
 
 window.onload = function () {
   loadData(true);
