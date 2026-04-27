@@ -699,10 +699,8 @@ async function loadData(force=false){
       renderInventarios();
       renderGrupos();
       renderGrupoInvSelect();
-      const itensTodos=_data.usuarios.flatMap(u=>u.items||[]);
-      if(itensTodos.length){
-        enriquecerEANs(itensTodos).then(()=>{ if(!document.hidden) renderUsuarios(); }).catch(()=>{});
-      }
+      // O backend já envia label_compact/ref/cor/tamanho em /admin/painel.
+      // Não chamamos mais /estoque/validar EAN por EAN aqui para evitar gargalo.
       if((Date.now()-_lastAlertasAt)>=ALERTAS_POLL_MS){
         carregarAlertas(false);
       }
@@ -1672,19 +1670,9 @@ async function excluirInventario(id){
 // Cache de ref+cor+tamanho por EAN
 const _cacheEAN={};
 async function enriquecerEANs(items){
-  const eans=items.map(i=>String(i.ean||'')).filter(e=>e&&!_cacheEAN[e]);
-  if(!eans.length)return;
-  const chunks=[];
-  for(let i=0;i<eans.length;i+=5)chunks.push(eans.slice(i,i+5));
-  for(const chunk of chunks){
-    await Promise.all(chunk.map(async ean=>{
-      try{
-        const r=await callGAS({api:'buscarInfoEANEstoque',ean});
-        if(r&&r.success&&r.info) _cacheEAN[ean]=r.info;
-        else _cacheEAN[ean]=null;
-      }catch(_){_cacheEAN[ean]=null;}
-    }));
-  }
+  // Mantida por compatibilidade, mas desativada para não gerar avalanche de /estoque/validar.
+  // As informações de ref/cor/tamanho já chegam prontas no payload do /admin/painel.
+  return;
 }
 
 async function promptRenomearGrupo(idInventario,idGrupo,nomeAtual){
