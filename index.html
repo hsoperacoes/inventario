@@ -614,6 +614,20 @@ function updateQueueUI(){
 }
 
 // atualização em tempo real
+function redirecionarConferenteParaGrupos(msg){
+  if(_redirecionando)return;
+  _redirecionando=true;
+  stopRT();
+  try{stopScanner();}catch(_){}
+  try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
+  currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
+  updateCounterUI();updateQueueUI();renderUltimasRefs();atualizarMenu();
+  setTimeout(()=>{
+    alert((msg||'Você foi removido deste grupo pelo administrador.')+'\nVocê retornará para a seleção de grupos.');
+    telaGrupos();
+  },100);
+}
+
 let _redirecionando=false;
 let _tokenSessao=0; // incrementado a cada nova contagem — invalida respostas antigas
 function startRT(){
@@ -631,13 +645,6 @@ function startRT(){
         if(_conclusaoEmAndamento && String(r.quemFechou||'')===String(currentUser||'')){
           return;
         }
-        if(_redirecionando)return;
-        _redirecionando=true;
-        stopRT();
-        try{stopScanner();}catch(_){}
-        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
-        updateCounterUI();updateQueueUI();renderUltimasRefs();atualizarMenu();
         let msg='';
         if(String(r.acao||'')==='REMOVIDO'){
           msg='Você foi removido deste grupo pelo administrador.';
@@ -646,10 +653,7 @@ function startRT(){
         }else{
           msg=r.quemFechou?`"${r.quemFechou}" concluiu este grupo.`:'O administrador finalizou sua contagem.';
         }
-        setTimeout(()=>{
-          alert(msg+'\nVocê retornará para a seleção de grupos.');
-          telaGrupos();
-        },100);
+        redirecionarConferenteParaGrupos(msg);
         return;
       }
 
@@ -676,24 +680,7 @@ function startRT(){
       }
 
       if(r.status==='SEM_GRUPO'){
-        if(_pendenciaEstoqueAtiva || currentSection){
-          _semGrupoTransitCount++;
-          _scannerTravado=true;
-          setRT('warn');
-          if(_semGrupoTransitCount < 4) return;
-        }
-
-        if(_redirecionando)return;
-        _redirecionando=true;
-        stopRT();
-        try{stopScanner();}catch(_){}
-        try{localStorage.removeItem(CHAVE_LOCAL);}catch(_){}
-        currentSection='';currentMeta=null;queue=[];loteEmAndamento=null;requestIdEmAndamento='';totalServidor=0;totalLocal=0;_ultimasRefs=[];
-        updateCounterUI();updateQueueUI();
-        setTimeout(()=>{
-          alert('Seu grupo foi resetado ou excluído pelo administrador. Escolha outro grupo para continuar.');
-          telaGrupos();
-        },100);
+        redirecionarConferenteParaGrupos('Você foi removido deste grupo pelo administrador.');
         return;
       }
 
@@ -724,7 +711,16 @@ function startRT(){
         }
       }
       setRT('ok');
-    }catch(_){setRT('err');}
+    }catch(_){
+      setRT('err');
+      try{
+        const ativo=await callGAS({api:'usuarioAtivo',usuario:currentUser,idInventario:currentInvId});
+        if(ativo && ativo.ativo===false && currentSection){
+          redirecionarConferenteParaGrupos('Você foi removido deste grupo pelo administrador.');
+          return;
+        }
+      }catch(__){}
+    }
   },1000);
 }
 function stopRT(){if(timerRT){clearInterval(timerRT);timerRT=null;}}
