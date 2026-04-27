@@ -491,8 +491,39 @@ function transformPainelData(p){
     id:g.id,idInventario:g.id_inventario,nome:g.nome,meta:g.meta||0,status:g.status||'DISPONIVEL',
     colaborativo:!!g.colaborativo,vagas:(g.vagas||1),membros:(g.membros||[]).join(','),usuario:(g.membros&&g.membros[0])||''
   }));
-  const usuarios=(p.usuarios_ativos||[]).map(u=>{
-    const g=(p.grupos||[]).find(x=>String(x.id)===String(u.id_grupo));
+
+  const gruposBackend=p.grupos||[];
+  const usuariosAtivos=p.usuarios_ativos||[];
+  const usuariosNormais=[];
+  const gruposColabMap=new Map();
+
+  for(const u of usuariosAtivos){
+    const g=gruposBackend.find(x=>String(x.id)===String(u.id_grupo)&&String(x.id_inventario)===String(u.id_inventario));
+    const isColab=!!(g&&g.colaborativo);
+    const key=String(u.id_inventario||'')+'|'+String(u.id_grupo||'');
+
+    if(isColab){
+      if(!gruposColabMap.has(key)){
+        gruposColabMap.set(key,{base:u,grupo:g,membros:[]});
+      }
+      const entry=gruposColabMap.get(key);
+      if(!entry.membros.includes(u.usuario)) entry.membros.push(u.usuario);
+    }else{
+      usuariosNormais.push({base:u,grupo:g,membros:[u.usuario],isGrp:false});
+    }
+  }
+
+  const gruposColab=Array.from(gruposColabMap.values()).map(entry=>({
+    base:entry.base,
+    grupo:entry.grupo,
+    membros:entry.membros,
+    isGrp:true
+  }));
+
+  const usuarios=[...usuariosNormais,...gruposColab].map(entry=>{
+    const u=entry.base;
+    const g=entry.grupo;
+    const membros=entry.membros||[];
     const items=(p.bipes||[]).filter(b=>String(b.id_inventario)===String(u.id_inventario)&&String(b.id_grupo)===String(u.id_grupo)).map((b,idx)=>({
       id:b.id||0,
       ean:b.ean||'',
@@ -507,12 +538,26 @@ function transformPainelData(p){
       rowIndex:(b.id||idx+1),
       naoEncontrado:!!b.nao_encontrado
     }));
+
+    const nomeGrupo=(g&&g.nome)||u.grupo_nome||'';
+    const nomeCard=entry.isGrp ? nomeGrupo : u.usuario;
+    const nomeReal=entry.isGrp ? (membros[0]||u.usuario) : u.usuario;
+
     return {
-      nome:u.usuario,nomeReal:u.usuario,idInventario:u.id_inventario,idGrupo:u.id_grupo,grupo:(g&&g.nome)||u.grupo_nome||'',
-      bipes:items.length,meta:(g&&g.meta)||0,status:'LIBERADO',items:items,isGrp:!!(g&&g.colaborativo),
-      membros:((g&&g.membros)||[]).join(',')
+      nome:nomeCard,
+      nomeReal:nomeReal,
+      idInventario:u.id_inventario,
+      idGrupo:u.id_grupo,
+      grupo:nomeGrupo,
+      bipes:items.length,
+      meta:(g&&g.meta)||0,
+      status:'LIBERADO',
+      items:items,
+      isGrp:entry.isGrp,
+      membros:membros.join(',')
     };
   });
+
   return {
     success:true,
     inventarios:inventarios,
@@ -1176,7 +1221,25 @@ async function resetarGrupo(idInventario,idGrupo,nomeGrupo){
   }
 }
 
-function excluirGrupo(){ toast('Essa ação ainda não foi ligada ao backend novo.'); }
+async function excluirGrupo(idInventario,idGrupo){
+  try{
+    const ok=await hsConfirm(
+      'Excluir grupo',
+      'Deseja excluir este grupo?\nSó é possível excluir grupo livre, sem conferente ativo e sem bipes.',
+      true
+    );
+    if(!ok) return;
+
+    await apiFetch('/grupos/'+encodeURIComponent(String(idGrupo||''))+'?id_inventario='+encodeURIComponent(String(idInventario||'')),{
+      method:'DELETE'
+    },1);
+
+    toast('Grupo excluído com sucesso.');
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao excluir grupo: '+((e&&e.message)||e),4000);
+  }
+}
 
 async function definirMeta(nome,idInventario,grupo,uid){
   try{
