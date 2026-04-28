@@ -1637,18 +1637,66 @@ async function alterarMeta(nomePainel,nomeReal,idInventario){
 }
 
 async function addManual(usuario,idInventario,grupo){
-  const ean=await hsPrompt(`EAN manual para "${usuario}"`,`Grupo: ${grupo}`,'Código EAN-13');
-  if(!ean)return;
   try{
-    const atual=(_data.usuarios||[]).find(x=>String(x.nomeReal||x.nome||'')===String(usuario||'') && String(x.idInventario||'')===String(idInventario||''));
-    const r=await callGAS({api:'masterAddManualCode',usuario,idInventario,idGrupo:(atual&&atual.idGrupo)||'',ean,secao:grupo||'MANUAL'});
-    if(r&&r.success){
-      toast('Incluído! Total: '+(r.newCount||'?'));
-      triggerAdminRefreshSoon();
-      await loadData(true);
-    }else toast('Erro: '+((r&&r.message)||'?'));
-  }catch(e){toast('Erro: '+e);}
+    const entrada=await hsPrompt(
+      'Incluir manual',
+      'Cole ou digite um ou vários códigos EAN. Pode ser um por linha, separado por espaço, vírgula, ponto e vírgula ou tabulação.',
+      ''
+    );
+    if(entrada===null) return;
+
+    const codigos=String(entrada||'')
+      .split(/[\s,;]+/g)
+      .map(v=>String(v||'').replace(/\D/g,'').trim())
+      .filter(Boolean);
+
+    if(!codigos.length) return toast('Informe pelo menos um código.');
+
+    const total=codigos.length;
+    let ok=0;
+    let erro=0;
+    const erros=[];
+
+    toast(`Incluindo ${total} código(s)...`,3000);
+
+    for(let i=0;i<codigos.length;i++){
+      const ean=codigos[i];
+      try{
+        const r=await callGAS({
+          api:'masterAddManualCode',
+          usuario:usuario,
+          idInventario:idInventario,
+          grupo:grupo,
+          ean:ean,
+          secao:grupo||'MANUAL'
+        });
+
+        if(r&&r.success){
+          ok++;
+        }else{
+          erro++;
+          erros.push(`${ean}: ${(r&&r.message)||'erro'}`);
+        }
+      }catch(e){
+        erro++;
+        erros.push(`${ean}: ${((e&&e.message)||e)}`);
+      }
+    }
+
+    if(erro){
+      toast(`Manual concluído: ${ok} incluído(s), ${erro} com erro.`,5000);
+      console.warn('Erros ao incluir manual:', erros);
+    }else{
+      toast(`Manual concluído: ${ok} código(s) incluído(s).`,4000);
+    }
+
+    await refreshPainelData();
+  }catch(e){
+    toast('Erro ao incluir manual: '+((e&&e.message)||e),4000);
+  }
 }
+
+
 async function fecharInventario(id,nome){
   try{
     const ok=await hsConfirm('Fechar inventário', `Deseja fechar o inventário ${nome||id}?`);
